@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useAuthStore } from '../store/useAuthStore';
 import { useNavigate } from 'react-router-dom';
-import { Form, Input, Button, Card, Typography, Alert, Layout } from 'antd';
+import { Form, Input, Button, Card, Typography, Alert } from 'antd';
 import { UserOutlined, LockOutlined } from '@ant-design/icons';
 
 const { Title } = Typography;
@@ -30,7 +30,7 @@ export default function Login() {
   };
 
   return (
-    <Layout className="min-h-screen flex items-center justify-center bg-gray-50">
+    <div className="min-h-screen flex items-center justify-center bg-gray-50">
       <Card style={{ width: 400, boxShadow: '0 4px 12px rgba(0,0,0,0.1)', borderRadius: 8 }}>
         <div style={{ textAlign: 'center', marginBottom: 24 }}>
           <Title level={2} style={{ color: '#dc2626', margin: 0 }}>VUA XỔ SỐ</Title>
@@ -66,6 +66,6 @@ export default function Login() {
           </Form.Item>
         </Form>
       </Card>
-    </Layout>
+    </div>
   );
 }
