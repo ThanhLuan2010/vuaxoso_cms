@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Table, Button, Typography, message, Modal, Form, Input, Select, InputNumber, Space, Tag } from 'antd';
 import { PlusOutlined, DeleteOutlined, SyncOutlined } from '@ant-design/icons';
 import api from '../services/api';
@@ -30,7 +30,7 @@ export default function TicketManagement() {
   const [loading, setLoading] = useState(true);
   const [modalVisible, setModalVisible] = useState(false);
   const [form] = Form.useForm();
-  
+
   const [provincesList, setProvincesList] = useState<ProvinceData[]>([]);
   const [selectedRegion, setSelectedRegion] = useState<string>('MB');
   const [selectedProvince, setSelectedProvince] = useState<string>('MB');
@@ -38,8 +38,6 @@ export default function TicketManagement() {
   const [dateOptions, setDateOptions] = useState<string[]>([]);
 
   useEffect(() => {
-    // Generate dates
-    const today = new Date();
     const daysOfWeek = ['Chủ Nhật', 'Thứ Hai', 'Thứ Ba', 'Thứ Tư', 'Thứ Năm', 'Thứ Sáu', 'Thứ Bảy'];
     const formatDate = (date: Date) => {
       const dayName = daysOfWeek[date.getDay()];
@@ -47,7 +45,7 @@ export default function TicketManagement() {
       const month = String(date.getMonth() + 1).padStart(2, '0');
       return `${dayName}, ${day}/${month}`;
     };
-    
+
     const dates = [];
     for (let i = 0; i < 7; i++) {
       const d = new Date();
@@ -192,10 +190,10 @@ export default function TicketManagement() {
       title: 'Thao tác',
       key: 'action',
       render: (_: any, record: Ticket) => (
-        <Button 
-          type="text" 
-          danger 
-          icon={<DeleteOutlined />} 
+        <Button
+          type="text"
+          danger
+          icon={<DeleteOutlined />}
           onClick={() => handleDelete(record._id)}
         />
       ),
@@ -207,9 +205,9 @@ export default function TicketManagement() {
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
         <Title level={4}>Quản lý Vé Kiến Thiết</Title>
         <Space>
-          <Button 
-            type="dashed" 
-            icon={<SyncOutlined />} 
+          <Button
+            type="dashed"
+            icon={<SyncOutlined />}
             onClick={handleBulkGenerate}
             disabled={!selectedProvince || !selectedDate}
           >
@@ -224,7 +222,7 @@ export default function TicketManagement() {
       <div style={{ marginBottom: 20, display: 'flex', gap: 16 }}>
         <div>
           <div style={{ marginBottom: 4 }}>Khu vực:</div>
-          <Select 
+          <Select
             value={selectedRegion}
             onChange={(val) => setSelectedRegion(val)}
             style={{ width: 150 }}
@@ -236,7 +234,7 @@ export default function TicketManagement() {
         </div>
         <div>
           <div style={{ marginBottom: 4 }}>Tỉnh/Đài:</div>
-          <Select 
+          <Select
             value={selectedProvince}
             onChange={(val) => setSelectedProvince(val)}
             style={{ width: 180 }}
@@ -250,7 +248,7 @@ export default function TicketManagement() {
         </div>
         <div>
           <div style={{ marginBottom: 4 }}>Ngày sổ:</div>
-          <Select 
+          <Select
             value={selectedDate}
             onChange={(val) => setSelectedDate(val)}
             style={{ width: 250 }}
@@ -261,10 +259,10 @@ export default function TicketManagement() {
           </Select>
         </div>
       </div>
-      
-      <Table 
-        columns={columns} 
-        dataSource={tickets} 
+
+      <Table
+        columns={columns}
+        dataSource={tickets}
         rowKey="_id"
         loading={loading}
         pagination={{ pageSize: 20 }}
@@ -277,16 +275,16 @@ export default function TicketManagement() {
         onCancel={() => setModalVisible(false)}
       >
         <Form form={form} layout="vertical">
-          <Form.Item 
-            name="number" 
-            label="Dãy số" 
+          <Form.Item
+            name="number"
+            label="Dãy số"
             rules={[{ required: true, message: 'Vui lòng nhập dãy số' }]}
           >
             <Input placeholder="Ví dụ: x12345" />
           </Form.Item>
-          <Form.Item 
-            name="ticketType" 
-            label="Loại vé" 
+          <Form.Item
+            name="ticketType"
+            label="Loại vé"
             rules={[{ required: true }]}
             initialValue="normal"
           >

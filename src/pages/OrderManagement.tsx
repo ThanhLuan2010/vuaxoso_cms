@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { Table, Tag, Button, Typography, message, Modal, Upload } from 'antd';
 import { CameraOutlined, CheckCircleOutlined, UploadOutlined } from '@ant-design/icons';
 import api from '../services/api';

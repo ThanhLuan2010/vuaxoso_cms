@@ -1,12 +1,12 @@
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import api from '../services/api';
 import { useAuthStore } from '../store/useAuthStore';
 import { Layout, Menu, Table, Tag, Button, Space, Typography, theme, message, Modal, InputNumber, Form } from 'antd';
-import { 
-  LogoutOutlined, 
-  WalletOutlined, 
-  TrophyOutlined, 
-  CheckCircleOutlined, 
+import {
+  LogoutOutlined,
+  WalletOutlined,
+  TrophyOutlined,
+  CheckCircleOutlined,
   CloseCircleOutlined,
   AppstoreOutlined,
   UserOutlined,
@@ -148,17 +148,17 @@ export default function Dashboard() {
       render: (_: any, record: any) => (
         record.status === 'pending' ? (
           <Space>
-            <Button 
-              type="primary" 
-              size="small" 
+            <Button
+              type="primary"
+              size="small"
               icon={<CheckCircleOutlined />}
               onClick={() => handleApprove(record)}
             >
               Duyệt
             </Button>
-            <Button 
-              danger 
-              size="small" 
+            <Button
+              danger
+              size="small"
               icon={<CloseCircleOutlined />}
               onClick={() => handleReject(record._id)}
             >
@@ -261,9 +261,9 @@ export default function Dashboard() {
             {activeTab === 'wallet' && (
               <>
                 <Title level={3} style={{ marginTop: 0, marginBottom: 24 }}>Quản lý Nạp / Rút</Title>
-                <Table 
-                  columns={columns} 
-                  dataSource={transactions} 
+                <Table
+                  columns={columns}
+                  dataSource={transactions}
                   rowKey="_id"
                   loading={loading}
                 />
@@ -280,7 +280,7 @@ export default function Dashboard() {
                   </div>
                   <Form layout="vertical">
                     <Form.Item label="Số tiền nhận được (VNĐ)" required>
-                      <InputNumber 
+                      <InputNumber
                         style={{ width: '100%' }}
                         size="large"
                         placeholder="Nhập số tiền..."
@@ -295,11 +295,11 @@ export default function Dashboard() {
               </>
             )}
 
-            { activeTab === 'users' && <UserManagement /> }
-            { activeTab === 'orders' && <OrderManagement /> }
-            { activeTab === 'tickets' && <TicketManagement /> }
-            { activeTab === 'provinces' && <ProvinceManagement /> }
-            { activeTab === 'games' && <GameManagement /> }
+            {activeTab === 'users' && <UserManagement />}
+            {activeTab === 'orders' && <OrderManagement />}
+            {activeTab === 'tickets' && <TicketManagement />}
+            {activeTab === 'provinces' && <ProvinceManagement />}
+            {activeTab === 'games' && <GameManagement />}
             {activeTab === 'draws' && <DrawManagement />}
             {activeTab === 'banners' && <BannerManagement />}
             {activeTab === 'settings' && <SettingsManagement />}

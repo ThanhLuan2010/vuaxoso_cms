@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { Card, Form, Input, Button, message, Typography, Divider } from 'antd';
+import { useState, useEffect } from 'react';
+import { Card, Form, Input, Button, message, Typography } from 'antd';
 import { SaveOutlined } from '@ant-design/icons';
 import api from '../services/api';
 

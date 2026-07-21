@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import api from '../services/api';
 import { Table, Tag, Button, Space, Form, Input, Select, Modal, Switch, message, InputNumber, Radio, Checkbox, Card } from 'antd';
 import { EditOutlined } from '@ant-design/icons';
