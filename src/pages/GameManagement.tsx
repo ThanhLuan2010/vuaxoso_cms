@@ -46,10 +46,10 @@ export default function GameManagement() {
       };
 
       if (editingId) {
-        await api.put(`/games/admin/${editingId}`, payload);
+        await api.put(`/games/${editingId}`, payload);
         message.success('Cập nhật game thành công');
       } else {
-        await api.post('/games/admin', payload);
+        await api.post('/games', payload);
         message.success('Thêm game thành công');
       }
       setIsModalOpen(false);
@@ -233,6 +233,14 @@ export default function GameManagement() {
           >
               <InputNumber min={1} style={{ width: '100%' }} />
             </Form.Item>
+
+          <Form.Item 
+            name="subtext" 
+            label="Dòng chữ nổi bật (Kéo khách)"
+            extra="Hiển thị dưới cùng của thẻ Game (VD: 🏆 2.000.000.000đ hoặc Chọn nhanh - Trúng lớn)"
+          >
+            <Input placeholder="Ví dụ: 🏆 2.000.000.000đ" />
+          </Form.Item>
 
           <Form.Item 
             name="riggedResult" 

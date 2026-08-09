@@ -2,12 +2,14 @@ import { PlusOutlined, SaveOutlined, SyncOutlined } from '@ant-design/icons';
 import { Button, DatePicker, Form, Input, Modal, Select, Space, Table, Tag, Typography, message } from 'antd';
 import { useEffect, useState } from 'react';
 import api from '../services/api';
+import dayjs from 'dayjs';
 
 const { Title } = Typography;
 
 export default function DrawManagement() {
   const [draws, setDraws] = useState<any[]>([]);
   const [games, setGames] = useState<any[]>([]);
+  const [provinces, setProvinces] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [page, setPage] = useState(1);
@@ -15,26 +17,31 @@ export default function DrawManagement() {
   const [filterGameId, setFilterGameId] = useState<string | null>(null);
 
   const [form] = Form.useForm();
+  const [ktForm] = Form.useForm();
 
   const [editingDrawId, setEditingDrawId] = useState<string | null>(null);
   const [winningNumbersInput, setWinningNumbersInput] = useState('');
+  
+  const [isKienThietModalOpen, setIsKienThietModalOpen] = useState(false);
+  const [currentKienThietDraw, setCurrentKienThietDraw] = useState<any>(null);
 
   const fetchData = async () => {
     try {
       setLoading(true);
-      const [drawsRes, gamesRes] = await Promise.all([
+      const [drawsRes, gamesRes, provsRes] = await Promise.all([
         api.get('/draws/admin', { params: { page, limit: 10, gameId: filterGameId } }),
-        api.get('/games')
+        api.get('/games'),
+        api.get('/provinces')
       ]);
       if (drawsRes.data.data) {
         setDraws(drawsRes.data.data);
         setTotal(drawsRes.data.total);
       } else {
-        // Fallback in case backend is not updated yet
         setDraws(drawsRes.data);
         setTotal(drawsRes.data.length);
       }
       setGames(gamesRes.data);
+      setProvinces(provsRes.data);
     } catch (error) {
       message.error('Lỗi lấy dữ liệu kỳ quay');
     } finally {
@@ -53,6 +60,7 @@ export default function DrawManagement() {
         drawCode: values.drawCode,
         openTime: values.openTime.toISOString(),
         closeTime: values.closeTime.toISOString(),
+        provinceId: values.provinceId
       });
       message.success('Tạo kỳ quay thành công');
       setIsModalOpen(false);
@@ -106,6 +114,50 @@ export default function DrawManagement() {
     }
   };
 
+  const handleSaveKienThietResult = async (values: any) => {
+    try {
+      const gameCode = currentKienThietDraw?.game?.code;
+      let numbers: string[] = [];
+      if (gameCode === 'MB') {
+        numbers = [
+          values.gdb,
+          values.g1,
+          values.g2_1, values.g2_2,
+          values.g3_1, values.g3_2, values.g3_3, values.g3_4, values.g3_5, values.g3_6,
+          values.g4_1, values.g4_2, values.g4_3, values.g4_4,
+          values.g5_1, values.g5_2, values.g5_3, values.g5_4, values.g5_5, values.g5_6,
+          values.g6_1, values.g6_2, values.g6_3,
+          values.g7_1, values.g7_2, values.g7_3, values.g7_4,
+        ];
+      } else {
+        numbers = [
+          values.gdb,
+          values.g1,
+          values.g2,
+          values.g3_1, values.g3_2,
+          values.g4_1, values.g4_2, values.g4_3, values.g4_4, values.g4_5, values.g4_6, values.g4_7,
+          values.g5,
+          values.g6_1, values.g6_2, values.g6_3,
+          values.g7,
+          values.g8,
+        ];
+      }
+      
+      numbers = numbers.map(n => (n || '').trim()).filter(Boolean);
+
+      await api.put(`/draws/admin/${currentKienThietDraw._id}/results`, { 
+        winningNumbers: numbers,
+        provinceId: values.provinceId 
+      });
+      message.success('Lưu kết quả thành công');
+      setIsKienThietModalOpen(false);
+      ktForm.resetFields();
+      fetchData();
+    } catch (error) {
+      message.error('Lỗi lưu kết quả');
+    }
+  };
+
   const columns = [
     {
       title: 'Mã Kỳ',
@@ -116,7 +168,15 @@ export default function DrawManagement() {
     {
       title: 'Game',
       key: 'game',
-      render: (_: any, record: any) => record.game?.name
+      render: (_: any, record: any) => {
+        const prov = provinces.find(p => p.provinceId === record.provinceId);
+        return (
+          <div>
+            <div>{record.game?.name}</div>
+            {prov && <div style={{ fontSize: 12, color: '#888' }}>{prov.name}</div>}
+          </div>
+        );
+      }
     },
     {
       title: 'Thời gian',
@@ -173,8 +233,14 @@ export default function DrawManagement() {
           <Button
             type="link"
             onClick={() => {
-              setEditingDrawId(record._id);
-              setWinningNumbersInput('');
+              if (['MB', 'MT', 'MN'].includes(record.game?.code)) {
+                setCurrentKienThietDraw(record);
+                ktForm.resetFields();
+                setIsKienThietModalOpen(true);
+              } else {
+                setEditingDrawId(record._id);
+                setWinningNumbersInput('');
+              }
             }}
           >
             + Nhập kết quả
@@ -238,11 +304,60 @@ export default function DrawManagement() {
             label="Loại Game"
             rules={[{ required: true, message: 'Vui lòng chọn game' }]}
           >
-            <Select placeholder="Chọn game...">
+            <Select 
+              placeholder="Chọn game..."
+              onChange={(value) => {
+                const game = games.find(g => g._id === value);
+                if (game) {
+                  const now = dayjs();
+                  let closeTime = null;
+                  if (game.code === 'MB') {
+                    closeTime = now.hour(18).minute(15).second(0);
+                  } else if (game.code === 'MT') {
+                    closeTime = now.hour(17).minute(15).second(0);
+                  } else if (game.code === 'MN') {
+                    closeTime = now.hour(16).minute(15).second(0);
+                  }
+                  
+                  if (closeTime) {
+                    form.setFieldsValue({
+                      openTime: now,
+                      closeTime: closeTime
+                    });
+                  }
+                }
+              }}
+            >
               {games.map(g => (
                 <Select.Option key={g._id} value={g._id}>{g.name}</Select.Option>
               ))}
             </Select>
+          </Form.Item>
+
+          <Form.Item
+            noStyle
+            shouldUpdate={(prevValues, currentValues) => prevValues.gameId !== currentValues.gameId}
+          >
+            {({ getFieldValue }) => {
+              const gameId = getFieldValue('gameId');
+              const game = games.find(g => g._id === gameId);
+              if (game && ['MB', 'MT', 'MN'].includes(game.code)) {
+                return (
+                  <Form.Item
+                    name="provinceId"
+                    label="Tỉnh/Đài"
+                    rules={[{ required: true, message: 'Vui lòng chọn đài' }]}
+                  >
+                    <Select placeholder="Chọn đài...">
+                      {provinces.filter(p => p.region === game.code).map(p => (
+                        <Select.Option key={p._id} value={p.provinceId}>{p.name}</Select.Option>
+                      ))}
+                    </Select>
+                  </Form.Item>
+                );
+              }
+              return null;
+            }}
           </Form.Item>
 
           <Form.Item
@@ -273,6 +388,111 @@ export default function DrawManagement() {
             <Space>
               <Button onClick={() => setIsModalOpen(false)}>Hủy</Button>
               <Button type="primary" htmlType="submit">Tạo mới</Button>
+            </Space>
+          </Form.Item>
+        </Form>
+      </Modal>
+
+      <Modal
+        title={`Nhập kết quả ${currentKienThietDraw?.game?.name || ''} ${currentKienThietDraw?.provinceId ? `- Đài ${provinces.find(p => p.provinceId === currentKienThietDraw.provinceId)?.name}` : ''}`}
+        open={isKienThietModalOpen}
+        onCancel={() => setIsKienThietModalOpen(false)}
+        footer={null}
+        width={700}
+        centered
+        styles={{ body: { overflowY: 'auto', maxHeight: 'calc(100vh - 200px)' } }}
+      >
+        <Form
+          form={ktForm}
+          layout="vertical"
+          onFinish={handleSaveKienThietResult}
+        >
+          {!currentKienThietDraw?.provinceId && ['MT', 'MN'].includes(currentKienThietDraw?.game?.code) && (
+            <Form.Item
+              name="provinceId"
+              label="Tỉnh/Đài"
+              rules={[{ required: true, message: 'Vui lòng chọn đài' }]}
+            >
+              <Select placeholder="Chọn đài...">
+                {provinces.filter(p => p.region === currentKienThietDraw.game.code).map(p => (
+                  <Select.Option key={p._id} value={p.provinceId}>{p.name}</Select.Option>
+                ))}
+              </Select>
+            </Form.Item>
+          )}
+
+          {currentKienThietDraw?.game?.code === 'MB' ? (
+            <>
+              <Title level={5}>Đặc biệt</Title>
+              <Form.Item name="gdb"><Input placeholder="5 chữ số" maxLength={5} style={{ width: 150 }} /></Form.Item>
+              
+              <Title level={5}>Giải Nhất</Title>
+              <Form.Item name="g1"><Input placeholder="5 chữ số" maxLength={5} style={{ width: 150 }} /></Form.Item>
+              
+              <Title level={5}>Giải Nhì</Title>
+              <Space wrap><Form.Item name="g2_1"><Input placeholder="5 chữ số" maxLength={5} style={{ width: 120 }} /></Form.Item><Form.Item name="g2_2"><Input placeholder="5 chữ số" maxLength={5} style={{ width: 120 }} /></Form.Item></Space>
+              
+              <Title level={5}>Giải Ba</Title>
+              <Space wrap>
+                <Form.Item name="g3_1"><Input placeholder="5 chữ số" maxLength={5} style={{ width: 100 }} /></Form.Item><Form.Item name="g3_2"><Input placeholder="5 chữ số" maxLength={5} style={{ width: 100 }} /></Form.Item><Form.Item name="g3_3"><Input placeholder="5 chữ số" maxLength={5} style={{ width: 100 }} /></Form.Item>
+                <Form.Item name="g3_4"><Input placeholder="5 chữ số" maxLength={5} style={{ width: 100 }} /></Form.Item><Form.Item name="g3_5"><Input placeholder="5 chữ số" maxLength={5} style={{ width: 100 }} /></Form.Item><Form.Item name="g3_6"><Input placeholder="5 chữ số" maxLength={5} style={{ width: 100 }} /></Form.Item>
+              </Space>
+              
+              <Title level={5}>Giải Tư</Title>
+              <Space wrap>
+                <Form.Item name="g4_1"><Input placeholder="4 chữ số" maxLength={4} style={{ width: 100 }} /></Form.Item><Form.Item name="g4_2"><Input placeholder="4 chữ số" maxLength={4} style={{ width: 100 }} /></Form.Item><Form.Item name="g4_3"><Input placeholder="4 chữ số" maxLength={4} style={{ width: 100 }} /></Form.Item><Form.Item name="g4_4"><Input placeholder="4 chữ số" maxLength={4} style={{ width: 100 }} /></Form.Item>
+              </Space>
+              
+              <Title level={5}>Giải Năm</Title>
+              <Space wrap>
+                <Form.Item name="g5_1"><Input placeholder="4 chữ số" maxLength={4} style={{ width: 100 }} /></Form.Item><Form.Item name="g5_2"><Input placeholder="4 chữ số" maxLength={4} style={{ width: 100 }} /></Form.Item><Form.Item name="g5_3"><Input placeholder="4 chữ số" maxLength={4} style={{ width: 100 }} /></Form.Item>
+                <Form.Item name="g5_4"><Input placeholder="4 chữ số" maxLength={4} style={{ width: 100 }} /></Form.Item><Form.Item name="g5_5"><Input placeholder="4 chữ số" maxLength={4} style={{ width: 100 }} /></Form.Item><Form.Item name="g5_6"><Input placeholder="4 chữ số" maxLength={4} style={{ width: 100 }} /></Form.Item>
+              </Space>
+              
+              <Title level={5}>Giải Sáu</Title>
+              <Space wrap><Form.Item name="g6_1"><Input placeholder="3 chữ số" maxLength={3} style={{ width: 100 }} /></Form.Item><Form.Item name="g6_2"><Input placeholder="3 chữ số" maxLength={3} style={{ width: 100 }} /></Form.Item><Form.Item name="g6_3"><Input placeholder="3 chữ số" maxLength={3} style={{ width: 100 }} /></Form.Item></Space>
+              
+              <Title level={5}>Giải Bảy</Title>
+              <Space wrap><Form.Item name="g7_1"><Input placeholder="2 chữ số" maxLength={2} style={{ width: 100 }} /></Form.Item><Form.Item name="g7_2"><Input placeholder="2 chữ số" maxLength={2} style={{ width: 100 }} /></Form.Item><Form.Item name="g7_3"><Input placeholder="2 chữ số" maxLength={2} style={{ width: 100 }} /></Form.Item><Form.Item name="g7_4"><Input placeholder="2 chữ số" maxLength={2} style={{ width: 100 }} /></Form.Item></Space>
+            </>
+          ) : (
+            <>
+              <Title level={5}>Giải Tám</Title>
+              <Form.Item name="g8"><Input placeholder="2 chữ số" maxLength={2} style={{ width: 100 }} /></Form.Item>
+              
+              <Title level={5}>Giải Bảy</Title>
+              <Form.Item name="g7"><Input placeholder="3 chữ số" maxLength={3} style={{ width: 100 }} /></Form.Item>
+              
+              <Title level={5}>Giải Sáu</Title>
+              <Space wrap><Form.Item name="g6_1"><Input placeholder="4 chữ số" maxLength={4} style={{ width: 100 }} /></Form.Item><Form.Item name="g6_2"><Input placeholder="4 chữ số" maxLength={4} style={{ width: 100 }} /></Form.Item><Form.Item name="g6_3"><Input placeholder="4 chữ số" maxLength={4} style={{ width: 100 }} /></Form.Item></Space>
+              
+              <Title level={5}>Giải Năm</Title>
+              <Form.Item name="g5"><Input placeholder="4 chữ số" maxLength={4} style={{ width: 120 }} /></Form.Item>
+              
+              <Title level={5}>Giải Tư</Title>
+              <Space wrap>
+                <Form.Item name="g4_1"><Input placeholder="5 chữ số" maxLength={5} style={{ width: 100 }} /></Form.Item><Form.Item name="g4_2"><Input placeholder="5 chữ số" maxLength={5} style={{ width: 100 }} /></Form.Item><Form.Item name="g4_3"><Input placeholder="5 chữ số" maxLength={5} style={{ width: 100 }} /></Form.Item><Form.Item name="g4_4"><Input placeholder="5 chữ số" maxLength={5} style={{ width: 100 }} /></Form.Item>
+                <Form.Item name="g4_5"><Input placeholder="5 chữ số" maxLength={5} style={{ width: 100 }} /></Form.Item><Form.Item name="g4_6"><Input placeholder="5 chữ số" maxLength={5} style={{ width: 100 }} /></Form.Item><Form.Item name="g4_7"><Input placeholder="5 chữ số" maxLength={5} style={{ width: 100 }} /></Form.Item>
+              </Space>
+              
+              <Title level={5}>Giải Ba</Title>
+              <Space wrap><Form.Item name="g3_1"><Input placeholder="5 chữ số" maxLength={5} style={{ width: 120 }} /></Form.Item><Form.Item name="g3_2"><Input placeholder="5 chữ số" maxLength={5} style={{ width: 120 }} /></Form.Item></Space>
+              
+              <Title level={5}>Giải Nhì</Title>
+              <Form.Item name="g2"><Input placeholder="5 chữ số" maxLength={5} style={{ width: 150 }} /></Form.Item>
+              
+              <Title level={5}>Giải Nhất</Title>
+              <Form.Item name="g1"><Input placeholder="5 chữ số" maxLength={5} style={{ width: 150 }} /></Form.Item>
+              
+              <Title level={5}>Đặc biệt</Title>
+              <Form.Item name="gdb"><Input placeholder="6 chữ số" maxLength={6} style={{ width: 150 }} /></Form.Item>
+            </>
+          )}
+
+          <Form.Item style={{ marginTop: 24, textAlign: 'right' }}>
+            <Space>
+              <Button onClick={() => setIsKienThietModalOpen(false)}>Hủy</Button>
+              <Button type="primary" htmlType="submit">Lưu Kết Quả</Button>
             </Space>
           </Form.Item>
         </Form>

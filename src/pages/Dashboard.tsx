@@ -10,7 +10,8 @@ import {
   CloseCircleOutlined,
   AppstoreOutlined,
   UserOutlined,
-  SettingOutlined
+  SettingOutlined,
+  NotificationOutlined
 } from '@ant-design/icons';
 import DrawManagement from './DrawManagement';
 import GameManagement from './GameManagement';
@@ -20,6 +21,7 @@ import SettingsManagement from './SettingsManagement';
 import OrderManagement from './OrderManagement';
 import TicketManagement from './TicketManagement';
 import ProvinceManagement from './ProvinceManagement';
+import NotificationManagement from './NotificationManagement';
 
 const { Header, Sider, Content } = Layout;
 const { Title } = Typography;
@@ -130,6 +132,33 @@ export default function Dashboard() {
       )
     },
     {
+      title: 'Phương thức nhận (Rút tiền)',
+      key: 'destination',
+      render: (_: any, record: any) => {
+        if (record.type === 'withdraw' && record.destinationInfo) {
+          const dest = record.destinationInfo;
+          if (dest.type === 'bank') {
+            return (
+              <div style={{ fontSize: '12px' }}>
+                <div style={{ fontWeight: 'bold', color: '#1890ff' }}>{dest.details?.bankName}</div>
+                <div>{dest.details?.accountNumber}</div>
+                <div>{dest.details?.accountName}</div>
+              </div>
+            );
+          }
+          if (dest.type === 'wallet') {
+            return (
+              <div style={{ fontSize: '12px' }}>
+                <div style={{ fontWeight: 'bold', color: '#52c41a' }}>Ví {dest.details?.network}</div>
+                <div>{dest.details?.address}</div>
+              </div>
+            );
+          }
+        }
+        return <span style={{ color: '#ccc' }}>-</span>;
+      }
+    },
+    {
       title: 'Trạng thái',
       dataIndex: 'status',
       key: 'status',
@@ -215,6 +244,11 @@ export default function Dashboard() {
       key: 'settings',
       icon: <SettingOutlined />,
       label: 'Cấu hình chung',
+    },
+    {
+      key: 'notifications',
+      icon: <NotificationOutlined />,
+      label: 'Thông báo',
     },
     {
       type: 'divider',
@@ -303,6 +337,7 @@ export default function Dashboard() {
             {activeTab === 'draws' && <DrawManagement />}
             {activeTab === 'banners' && <BannerManagement />}
             {activeTab === 'settings' && <SettingsManagement />}
+            {activeTab === 'notifications' && <NotificationManagement />}
           </div>
         </Content>
       </Layout>

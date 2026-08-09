@@ -1,6 +1,7 @@
-import { useState, useEffect } from 'react';
-import { Table, Tag, Button, Typography, message, Modal, Upload } from 'antd';
 import { CameraOutlined, CheckCircleOutlined, UploadOutlined } from '@ant-design/icons';
+import { Button, Card, Col, DatePicker, Divider, Input, message, Modal, Row, Space, Statistic, Table, Tag, Typography, Upload } from 'antd';
+import dayjs from 'dayjs';
+import { useEffect, useState } from 'react';
 import api from '../services/api';
 
 const { Title } = Typography;
@@ -15,25 +16,52 @@ interface Order {
   createdAt: string;
   user: { name: string; phone: string };
   ticketImageUrl?: string;
+  isWinner?: boolean;
+  prizeAmount?: number;
+  winningNumbers?: string[];
 }
 
 export default function OrderManagement() {
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
-  
+
   const [uploadModalVisible, setUploadModalVisible] = useState(false);
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
+
+  const [resultModalVisible, setResultModalVisible] = useState(false);
+  const [selectedResultOrder] = useState<Order | null>(null);
   const [fileList, setFileList] = useState<any[]>([]);
   const [uploading, setUploading] = useState(false);
+  const [ticketLink, setTicketLink] = useState('');
+
+  const [selectedDate, setSelectedDate] = useState<dayjs.Dayjs | null>(dayjs());
+  const [summaryData, setSummaryData] = useState({
+    totalTickets: 0,
+    totalSales: 0,
+    totalPrize: 0,
+    totalLoss: 0
+  });
 
   useEffect(() => {
     fetchOrders();
-  }, []);
+    fetchSummary();
+  }, [selectedDate]);
+
+  const fetchSummary = async () => {
+    try {
+      const dateParam = selectedDate ? selectedDate.format('YYYY-MM-DD') : '';
+      const res = await api.get('/orders/admin/summary', { params: { date: dateParam } });
+      setSummaryData(res.data);
+    } catch (error) {
+      console.error('Error fetching summary:', error);
+    }
+  };
 
   const fetchOrders = async () => {
     try {
       setLoading(true);
-      const res = await api.get('/orders/admin');
+      const dateParam = selectedDate ? selectedDate.format('YYYY-MM-DD') : '';
+      const res = await api.get('/orders/admin', { params: { date: dateParam } });
       setOrders(res.data);
     } catch (error) {
       console.error('Error fetching orders:', error);
@@ -46,25 +74,30 @@ export default function OrderManagement() {
   const handleOpenUpload = (record: Order) => {
     setSelectedOrder(record);
     setFileList([]);
+    setTicketLink('');
     setUploadModalVisible(true);
   };
 
   const handleUpload = async () => {
-    if (!selectedOrder || fileList.length === 0) {
-      message.warning('Vui lòng chọn ảnh');
+    if (!selectedOrder || (fileList.length === 0 && !ticketLink)) {
+      message.warning('Vui lòng chọn ảnh hoặc nhập link ảnh');
       return;
     }
 
     try {
       setUploading(true);
-      const formData = new FormData();
-      formData.append('image', fileList[0].originFileObj);
-      
-      const uploadRes = await api.post('/upload', formData, {
-        headers: { 'Content-Type': 'multipart/form-data' }
-      });
-      
-      const imageUrl = uploadRes.data.url;
+      let imageUrl = ticketLink;
+
+      if (fileList.length > 0) {
+        const formData = new FormData();
+        formData.append('image', fileList[0].originFileObj);
+
+        const uploadRes = await api.post('/upload', formData, {
+          headers: { 'Content-Type': 'multipart/form-data' }
+        });
+
+        imageUrl = uploadRes.data.url;
+      }
 
       await api.put(`/orders/admin/${selectedOrder._id}`, {
         status: 'completed',
@@ -83,14 +116,6 @@ export default function OrderManagement() {
   };
 
   const columns = [
-    {
-      title: 'Mã Đơn',
-      dataIndex: 'orderId',
-      key: 'orderId',
-      fixed: 'left' as const,
-      width: 220,
-      render: (text: string) => <b>{text}</b>,
-    },
     {
       title: 'Khách hàng',
       key: 'user',
@@ -114,7 +139,7 @@ export default function OrderManagement() {
         if (record.items && record.items.length > 0) {
           const displayItems = record.items.slice(0, 5);
           const hiddenCount = record.items.length - displayItems.length;
-          
+
           return (
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px 8px', maxHeight: 80, overflowY: 'auto' }}>
               {displayItems.map((item: any, idx: number) => (
@@ -172,18 +197,18 @@ export default function OrderManagement() {
       render: (_: any, record: Order) => (
         <>
           {(!record.ticketImageUrl && record.status !== 'cancelled') && (
-            <Button 
-              type="primary" 
-              icon={<CameraOutlined />} 
+            <Button
+              type="primary"
+              icon={<CameraOutlined />}
               onClick={() => handleOpenUpload(record)}
             >
               In & Chụp vé
             </Button>
           )}
           {record.ticketImageUrl && (
-            <Button 
+            <Button
               type="dashed"
-              icon={<CheckCircleOutlined style={{ color: 'green' }} />} 
+              icon={<CheckCircleOutlined style={{ color: 'green' }} />}
               onClick={() => window.open(`http://localhost:5000${record.ticketImageUrl}`, '_blank')}
             >
               Xem vé
@@ -192,15 +217,83 @@ export default function OrderManagement() {
         </>
       ),
     },
+    {
+      title: 'Kết quả',
+      key: 'result',
+      fixed: 'right' as const,
+      width: 120,
+      render: (_: any, record: Order) => {
+        if (!record.winningNumbers || record.winningNumbers.length === 0) {
+          return <span style={{ color: '#aaa' }}>Chưa có KQ</span>;
+        }
+        if (record.isWinner) {
+          return <span style={{ color: 'green', fontWeight: 'bold' }}>Thắng</span>;
+        }
+        return <span style={{ color: 'red', fontWeight: 'bold' }}>Thua</span>;
+      }
+    }
   ];
 
   return (
     <div>
-      <Title level={4}>Quản lý Đặt vé (Orders)</Title>
-      
-      <Table 
-        columns={columns} 
-        dataSource={orders} 
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+        <Title level={4} style={{ margin: 0 }}>Quản lý Đặt vé (Orders)</Title>
+        <Space>
+          <span>Lọc theo ngày:</span>
+          <DatePicker
+            value={selectedDate}
+            onChange={(date) => setSelectedDate(date)}
+            format="DD/MM/YYYY"
+            allowClear
+          />
+        </Space>
+      </div>
+
+      <Row gutter={16} style={{ marginBottom: 24 }}>
+        <Col span={6}>
+          <Card bordered={false}>
+            <Statistic
+              title="Số vé bán ra"
+              value={summaryData.totalTickets}
+              valueStyle={{ color: '#1890ff' }}
+            />
+          </Card>
+        </Col>
+        <Col span={6}>
+          <Card bordered={false}>
+            <Statistic
+              title="Tổng tiền bán ra"
+              value={summaryData.totalSales}
+              suffix="đ"
+              valueStyle={{ color: '#3f8600' }}
+            />
+          </Card>
+        </Col>
+        <Col span={6}>
+          <Card bordered={false}>
+            <Statistic
+              title="Tổng tiền khách thắng"
+              value={summaryData.totalPrize}
+              suffix="đ"
+              valueStyle={{ color: '#cf1322' }}
+            />
+          </Card>
+        </Col>
+        <Col span={6}>
+          <Card bordered={false}>
+            <Statistic
+              title="Tổng tiền khách thua"
+              value={summaryData.totalLoss}
+              suffix="đ"
+              valueStyle={{ color: '#d48806' }}
+            />
+          </Card>
+        </Col>
+      </Row>
+
+      <Table
+        columns={columns}
+        dataSource={orders}
         rowKey="_id"
         loading={loading}
         scroll={{ x: 1300 }}
@@ -212,23 +305,57 @@ export default function OrderManagement() {
         onOk={handleUpload}
         onCancel={() => setUploadModalVisible(false)}
         confirmLoading={uploading}
-        okText="Hoàn thành Đơn"
-        cancelText="Huỷ"
+        footer={[
+          <Button key="cancel" onClick={() => setUploadModalVisible(false)}>Huỷ</Button>,
+          <Button key="submit" type="primary" onClick={handleUpload} loading={uploading}>Xác nhận & Tải lên</Button>
+        ]}
       >
         <Upload
-          listType="picture-card"
           fileList={fileList}
           onChange={({ fileList: newFileList }) => setFileList(newFileList)}
           beforeUpload={() => false}
+          listType="picture"
           maxCount={1}
         >
-          {fileList.length >= 1 ? null : (
-            <div>
-              <UploadOutlined />
-              <div style={{ marginTop: 8 }}>Chọn ảnh</div>
-            </div>
-          )}
+          <Button icon={<UploadOutlined />}>Chọn ảnh vé từ thiết bị</Button>
         </Upload>
+
+        <Divider plain>Hoặc</Divider>
+
+        <Input
+          placeholder="Nhập đường link (URL) ảnh vé..."
+          value={ticketLink}
+          onChange={e => setTicketLink(e.target.value)}
+        />
+      </Modal>
+
+      <Modal
+        title={`Chi tiết Kết quả - Đơn ${selectedResultOrder?.orderId}`}
+        open={resultModalVisible}
+        onCancel={() => setResultModalVisible(false)}
+        footer={[
+          <Button key="close" onClick={() => setResultModalVisible(false)}>Đóng</Button>
+        ]}
+      >
+        {selectedResultOrder && (
+          <div style={{ fontSize: '16px', lineHeight: '2.0' }}>
+            <div><strong>Khách hàng:</strong> {selectedResultOrder.user?.name} - {selectedResultOrder.user?.phone}</div>
+            <div><strong>Trạng thái:</strong> {selectedResultOrder.isWinner ? (
+              <span style={{ color: 'green', fontWeight: 'bold' }}>Thắng</span>
+            ) : (
+              <span style={{ color: 'red', fontWeight: 'bold' }}>Thua</span>
+            )}</div>
+            {selectedResultOrder.isWinner && (
+              <div><strong>Tổng tiền trúng:</strong> <span style={{ color: 'green', fontWeight: 'bold', fontSize: '18px' }}>{selectedResultOrder.prizeAmount?.toLocaleString('vi-VN')} đ</span></div>
+            )}
+            <div><strong>Kết quả kỳ quay:</strong></div>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginTop: 8 }}>
+              {selectedResultOrder.winningNumbers?.map((n: string, i: number) => (
+                <Tag key={i} color="gold" style={{ fontSize: '14px', padding: '4px 8px' }}>{n}</Tag>
+              ))}
+            </div>
+          </div>
+        )}
       </Modal>
     </div>
   );

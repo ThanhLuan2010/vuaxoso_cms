@@ -11,6 +11,7 @@ export default function SettingsManagement() {
 
   useEffect(() => {
     fetchBankConfig();
+    fetchBinanceConfig();
   }, []);
 
   const fetchBankConfig = async () => {
@@ -24,11 +25,40 @@ export default function SettingsManagement() {
     }
   };
 
+  const fetchBinanceConfig = async () => {
+    try {
+      const { data } = await api.get('/settings/binance_config');
+      if (data) {
+        form.setFieldsValue({
+          binanceApiKey: data.apiKey,
+          binanceApiSecret: data.apiSecret,
+          binanceWalletAddress: data.walletAddress,
+          binanceExchangeRate: data.exchangeRate,
+        });
+      }
+    } catch (error) {
+      // Ignore 404 for first load
+    }
+  };
+
   const handleSave = async (values: any) => {
     setLoading(true);
     try {
-      await api.put('/settings/bank_config', { value: values });
-      message.success('Cập nhật thông tin ngân hàng thành công');
+      const bankConfig = {
+        bankName: values.bankName,
+        accountName: values.accountName,
+        accountNumber: values.accountNumber
+      };
+      const binanceConfig = {
+        apiKey: values.binanceApiKey,
+        apiSecret: values.binanceApiSecret,
+        walletAddress: values.binanceWalletAddress,
+        exchangeRate: values.binanceExchangeRate
+      };
+
+      await api.put('/settings/bank_config', { value: bankConfig });
+      await api.put('/settings/binance_config', { value: binanceConfig });
+      message.success('Cập nhật thông tin cấu hình thành công');
     } catch (error) {
       message.error('Lỗi khi cập nhật cấu hình');
     } finally {
@@ -75,6 +105,48 @@ export default function SettingsManagement() {
           <Form.Item>
             <Button type="primary" htmlType="submit" icon={<SaveOutlined />} loading={loading} size="large">
               Lưu thay đổi
+            </Button>
+          </Form.Item>
+        </Form>
+      </Card>
+      
+      <Card title="Cấu hình Nạp tự động qua Binance" style={{ maxWidth: 800, marginTop: 24 }}>
+        <Form
+          form={form}
+          layout="vertical"
+          onFinish={handleSave}
+        >
+          <Form.Item
+            name="binanceApiKey"
+            label="API Key (Binance Read-only)"
+          >
+            <Input placeholder="Nhập API Key" />
+          </Form.Item>
+
+          <Form.Item
+            name="binanceApiSecret"
+            label="API Secret"
+          >
+            <Input.Password placeholder="Nhập API Secret" />
+          </Form.Item>
+
+          <Form.Item
+            name="binanceWalletAddress"
+            label="Địa chỉ ví nạp USDT (TRC20 / BEP20)"
+          >
+            <Input placeholder="Nhập địa chỉ ví cho user chuyển tiền vào" />
+          </Form.Item>
+
+          <Form.Item
+            name="binanceExchangeRate"
+            label="Tỷ giá USDT/VND"
+          >
+            <Input type="number" placeholder="VD: 25000" />
+          </Form.Item>
+
+          <Form.Item>
+            <Button type="primary" htmlType="submit" icon={<SaveOutlined />} loading={loading} size="large">
+              Lưu cấu hình Binance
             </Button>
           </Form.Item>
         </Form>

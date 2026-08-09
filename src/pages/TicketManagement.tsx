@@ -107,6 +107,7 @@ export default function TicketManagement() {
       const values = await form.validateFields();
       await api.post('/tickets/admin', {
         ...values,
+        symbols: values.symbols ? values.symbols.filter(Boolean) : [],
         provinceId: selectedProvince,
         drawDate: selectedDate
       });
@@ -167,10 +168,18 @@ export default function TicketManagement() {
       ),
     },
     {
-      title: 'Hệ số thưởng',
+      title: 'Số Lượng Vé',
       dataIndex: 'multiplier',
       key: 'multiplier',
-      render: (val: number) => val ? `x${val}` : '-',
+      render: (val: number) => val || 1,
+    },
+    {
+      title: 'Ký hiệu',
+      dataIndex: 'symbols',
+      key: 'symbols',
+      render: (symbols: string[]) => symbols && symbols.filter(Boolean).length > 0 
+        ? symbols.filter(Boolean).map((s, i) => <Tag key={i}>{s}</Tag>) 
+        : '-',
     },
     {
       title: 'Giá vé',
@@ -293,8 +302,17 @@ export default function TicketManagement() {
               <Option value="special">Đặc biệt</Option>
             </Select>
           </Form.Item>
-          <Form.Item name="multiplier" label="Hệ số thưởng (tùy chọn)">
-            <InputNumber style={{ width: '100%' }} />
+          <Form.Item name="multiplier" label="Số Lượng Vé">
+            <InputNumber style={{ width: '100%' }} min={1} />
+          </Form.Item>
+          <Form.Item label="Ký hiệu (tối đa 10 ô)">
+            <Space size={[8, 8]} wrap>
+              {[...Array(10)].map((_, idx) => (
+                <Form.Item name={['symbols', idx]} noStyle key={idx}>
+                  <Input maxLength={4} style={{ width: 60, textAlign: 'center' }} placeholder={`#${idx + 1}`} />
+                </Form.Item>
+              ))}
+            </Space>
           </Form.Item>
           <Form.Item name="price" label="Giá vé" initialValue={10000}>
             <InputNumber style={{ width: '100%' }} />
