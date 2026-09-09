@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import api from '../services/api';
 import { useAuthStore } from '../store/useAuthStore';
-import { Layout, Menu, Table, Tag, Button, Space, Typography, theme, message, Modal, InputNumber, Form } from 'antd';
+import { Layout, Menu, Table, Tag, Button, Space, Typography, theme, message, Modal, InputNumber, Form, Image, Input } from 'antd';
 import {
   LogoutOutlined,
   WalletOutlined,
@@ -11,7 +11,8 @@ import {
   AppstoreOutlined,
   UserOutlined,
   SettingOutlined,
-  NotificationOutlined
+  NotificationOutlined,
+  EyeOutlined
 } from '@ant-design/icons';
 import DrawManagement from './DrawManagement';
 import GameManagement from './GameManagement';
@@ -22,6 +23,10 @@ import OrderManagement from './OrderManagement';
 import TicketManagement from './TicketManagement';
 import ProvinceManagement from './ProvinceManagement';
 import NotificationManagement from './NotificationManagement';
+import AdminLogs from './AdminLogs';
+import GuideManagement from './GuideManagement';
+import TermsManagement from './TermsManagement';
+import { SecurityScanOutlined, HistoryOutlined, FileTextOutlined, SafetyCertificateOutlined } from '@ant-design/icons';
 
 const { Header, Sider, Content } = Layout;
 const { Title } = Typography;
@@ -32,9 +37,7 @@ export default function Dashboard() {
   const [activeTab, setActiveTab] = useState('wallet');
   const [loading, setLoading] = useState(false);
 
-  const [approveModalVisible, setApproveModalVisible] = useState(false);
-  const [approveTarget, setApproveTarget] = useState<any>(null);
-  const [approveAmount, setApproveAmount] = useState<number | null>(null);
+
 
   const {
     token: { colorBgContainer, borderRadiusLG },
@@ -58,45 +61,27 @@ export default function Dashboard() {
     }
   }, [activeTab]);
 
-  const handleApprove = async (record: any) => {
-    if (record.type === 'deposit') {
-      setApproveTarget(record);
-      setApproveAmount(null);
-      setApproveModalVisible(true);
-    } else {
-      try {
-        await api.put(`/wallet/admin/transactions/${record._id}/approve`);
-        fetchTransactions();
+  const [actionModalVisible, setActionModalVisible] = useState(false);
+  const [currentRecord, setCurrentRecord] = useState<any>(null);
+  const [actionType, setActionType] = useState<'approve'|'reject'|'review'|null>(null);
+  const [actionNote, setActionNote] = useState('');
+
+  const handleActionSubmit = async () => {
+    if (!currentRecord) return;
+    try {
+      if (actionType === 'approve') {
+        await api.put(`/wallet/admin/transactions/${currentRecord._id}/approve`, { note: actionNote });
         message.success('Duyệt giao dịch thành công');
-      } catch (error) {
-        message.error('Lỗi duyệt giao dịch');
+      } else if (actionType === 'reject') {
+        await api.put(`/wallet/admin/transactions/${currentRecord._id}/reject`, { note: actionNote });
+        message.success('Từ chối giao dịch thành công');
       }
-    }
-  };
-
-  const confirmApproveDeposit = async () => {
-    if (!approveAmount || approveAmount <= 0) {
-      message.error('Vui lòng nhập số tiền hợp lệ');
-      return;
-    }
-    try {
-      await api.put(`/wallet/admin/transactions/${approveTarget._id}/approve`, { amount: approveAmount });
-      setApproveModalVisible(false);
-      setApproveTarget(null);
+      setActionModalVisible(false);
+      setActionNote('');
+      setCurrentRecord(null);
       fetchTransactions();
-      message.success('Duyệt nạp tiền thành công');
     } catch (error) {
-      message.error('Lỗi duyệt nạp tiền');
-    }
-  };
-
-  const handleReject = async (id: string) => {
-    try {
-      await api.put(`/wallet/admin/transactions/${id}/reject`);
-      fetchTransactions();
-      message.success('Từ chối giao dịch thành công');
-    } catch (error) {
-      message.error('Lỗi từ chối giao dịch');
+      message.error(`Lỗi ${actionType === 'approve' ? 'duyệt' : 'từ chối'} giao dịch`);
     }
   };
 
@@ -132,31 +117,86 @@ export default function Dashboard() {
       )
     },
     {
-      title: 'Phương thức nhận (Rút tiền)',
-      key: 'destination',
+      title: 'Chi tiết Nạp',
+      key: 'depositDetails',
       render: (_: any, record: any) => {
-        if (record.type === 'withdraw' && record.destinationInfo) {
-          const dest = record.destinationInfo;
-          if (dest.type === 'bank') {
-            return (
-              <div style={{ fontSize: '12px' }}>
-                <div style={{ fontWeight: 'bold', color: '#1890ff' }}>{dest.details?.bankName}</div>
-                <div>{dest.details?.accountNumber}</div>
-                <div>{dest.details?.accountName}</div>
+        if (record.type === 'deposit') {
+          return (
+            <div style={{ fontSize: '12px' }}>
+              <div style={{ color: '#888', marginBottom: 4 }}>
+                {new Date(record.createdAt).toLocaleString('vi-VN')}
               </div>
-            );
-          }
-          if (dest.type === 'wallet') {
-            return (
-              <div style={{ fontSize: '12px' }}>
-                <div style={{ fontWeight: 'bold', color: '#52c41a' }}>Ví {dest.details?.network}</div>
-                <div>{dest.details?.address}</div>
-              </div>
-            );
-          }
+              {record.receiptImage && (
+                <Image
+                  src={record.receiptImage.startsWith('http') ? record.receiptImage : `${api.defaults.baseURL?.replace('/api', '')}${record.receiptImage}`}
+                  alt="Biên lai"
+                  width={50}
+                  style={{ borderRadius: 4, objectFit: 'cover' }}
+                  preview={{ src: record.receiptImage.startsWith('http') ? record.receiptImage : `${api.defaults.baseURL?.replace('/api', '')}${record.receiptImage}` }}
+                />
+              )}
+            </div>
+          );
         }
         return <span style={{ color: '#ccc' }}>-</span>;
       }
+    },
+    {
+      title: 'Chi tiết Rút',
+      key: 'withdrawDetails',
+      render: (_: any, record: any) => {
+        if (record.type === 'withdraw' && record.destinationInfo) {
+          let dest = record.destinationInfo;
+          // Support both flat structure and nested structure
+          if (dest.type && dest.details) {
+            dest = { ...dest.details, isBank: dest.type === 'bank' };
+          } else {
+            dest = { ...dest, isBank: !!dest.bankName };
+          }
+          
+          let qrUrl = '';
+          if (dest.isBank) {
+            qrUrl = dest.qrCode ? 
+              (dest.qrCode.startsWith('http') ? dest.qrCode : `${api.defaults.baseURL?.replace('/api', '')}${dest.qrCode}`) :
+              `https://img.vietqr.io/image/${dest.bankName}-${dest.accountNumber}-compact.png?accountName=${encodeURIComponent(dest.accountName)}`;
+          } else {
+            qrUrl = dest.qrCode ? 
+              (dest.qrCode.startsWith('http') ? dest.qrCode : `${api.defaults.baseURL?.replace('/api', '')}${dest.qrCode}`) :
+              (dest.address ? `https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(dest.address)}` : '');
+          }
+          
+          return (
+            <div style={{ fontSize: '12px' }}>
+              <div style={{ color: '#888', marginBottom: 4 }}>
+                {new Date(record.createdAt).toLocaleString('vi-VN')}
+              </div>
+              {dest.isBank ? (
+                <div>
+                  <div style={{ fontWeight: 'bold', color: '#1890ff' }}>{dest.bankName}</div>
+                  <div>{dest.accountNumber} - {dest.accountName}</div>
+                </div>
+              ) : (
+                <div>
+                  <div style={{ fontWeight: 'bold', color: '#52c41a' }}>{dest.network === 'Binance Pay' ? 'Binance Pay' : `Ví ${dest.network || 'Không rõ'}`}</div>
+                  <div>{dest.address || 'Không rõ'}</div>
+                </div>
+              )}
+              {qrUrl && (
+                <div style={{ marginTop: 4 }}>
+                  <Image src={qrUrl} width={50} style={{ borderRadius: 4 }} />
+                </div>
+              )}
+            </div>
+          );
+        }
+        return <span style={{ color: '#ccc' }}>-</span>;
+      }
+    },
+    {
+      title: 'Ghi chú',
+      dataIndex: 'note',
+      key: 'note',
+      render: (note: string) => <div style={{ fontSize: '12px', maxWidth: 150 }}>{note || '-'}</div>
     },
     {
       title: 'Trạng thái',
@@ -175,26 +215,47 @@ export default function Dashboard() {
       title: 'Hành động',
       key: 'action',
       render: (_: any, record: any) => (
-        record.status === 'pending' ? (
-          <Space>
-            <Button
-              type="primary"
-              size="small"
-              icon={<CheckCircleOutlined />}
-              onClick={() => handleApprove(record)}
-            >
-              Duyệt
-            </Button>
-            <Button
-              danger
-              size="small"
-              icon={<CloseCircleOutlined />}
-              onClick={() => handleReject(record._id)}
-            >
-              Từ chối
-            </Button>
-          </Space>
-        ) : null
+        <Space direction="vertical" size="small">
+          <Button
+            size="small"
+            icon={<EyeOutlined />}
+            onClick={() => {
+              setCurrentRecord(record);
+              setActionType('review');
+              setActionModalVisible(true);
+            }}
+          >
+            Review
+          </Button>
+          {record.status === 'pending' && (
+            <Space>
+              <Button
+                type="primary"
+                size="small"
+                icon={<CheckCircleOutlined />}
+                onClick={() => {
+                  setCurrentRecord(record);
+                  setActionType('approve');
+                  setActionModalVisible(true);
+                }}
+              >
+                Duyệt
+              </Button>
+              <Button
+                danger
+                size="small"
+                icon={<CloseCircleOutlined />}
+                onClick={() => {
+                  setCurrentRecord(record);
+                  setActionType('reject');
+                  setActionModalVisible(true);
+                }}
+              >
+                Từ chối
+              </Button>
+            </Space>
+          )}
+        </Space>
       )
     }
   ];
@@ -246,9 +307,24 @@ export default function Dashboard() {
       label: 'Cấu hình chung',
     },
     {
+      key: 'adminLogs',
+      icon: <HistoryOutlined />,
+      label: 'Nhật ký Hoạt động',
+    },
+    {
       key: 'notifications',
       icon: <NotificationOutlined />,
       label: 'Thông báo',
+    },
+    {
+      key: 'guides',
+      icon: <FileTextOutlined />,
+      label: 'Hướng dẫn',
+    },
+    {
+      key: 'terms',
+      icon: <SafetyCertificateOutlined />,
+      label: 'Điều khoản hoạt động',
     },
     {
       type: 'divider',
@@ -300,32 +376,53 @@ export default function Dashboard() {
                   dataSource={transactions}
                   rowKey="_id"
                   loading={loading}
+                  pagination={{ pageSize: 20 }}
                 />
+
                 <Modal
-                  title="Xác nhận số tiền nạp"
-                  open={approveModalVisible}
-                  onOk={confirmApproveDeposit}
-                  onCancel={() => setApproveModalVisible(false)}
-                  okText="Xác nhận & Duyệt"
+                  title={
+                    actionType === 'review' ? 'Chi tiết giao dịch' :
+                    actionType === 'approve' ? 'Xác nhận Duyệt giao dịch' :
+                    'Xác nhận Từ chối giao dịch'
+                  }
+                  open={actionModalVisible}
+                  onCancel={() => {
+                    setActionModalVisible(false);
+                    setActionNote('');
+                  }}
+                  onOk={actionType === 'review' ? () => setActionModalVisible(false) : handleActionSubmit}
+                  okText={actionType === 'review' ? 'Đóng' : 'Xác nhận'}
                   cancelText="Hủy"
+                  okButtonProps={{ 
+                    danger: actionType === 'reject', 
+                    type: actionType === 'approve' ? 'primary' : 'default' 
+                  }}
                 >
-                  <div style={{ marginBottom: 16 }}>
-                    Vui lòng đối chiếu sao kê và nhập số tiền thực tế mà người dùng <b>{approveTarget?.user?.phone}</b> đã nạp.
-                  </div>
-                  <Form layout="vertical">
-                    <Form.Item label="Số tiền nhận được (VNĐ)" required>
-                      <InputNumber
-                        style={{ width: '100%' }}
-                        size="large"
-                        placeholder="Nhập số tiền..."
-                        value={approveAmount}
-                        onChange={(val) => setApproveAmount(val)}
-                        formatter={(value) => `${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
-                        parser={(value: any) => value.replace(/\$\s?|(,*)/g, '')}
-                      />
-                    </Form.Item>
-                  </Form>
+                  {currentRecord && (
+                    <div>
+                      <p><strong>Người dùng:</strong> {currentRecord.user?.name} - {currentRecord.user?.phone}</p>
+                      <p><strong>Loại:</strong> {currentRecord.type === 'deposit' ? 'NẠP TIỀN' : 'RÚT TIỀN'}</p>
+                      <p><strong>Số tiền:</strong> {currentRecord.amount?.toLocaleString()} đ</p>
+                      
+                      {actionType !== 'review' && (
+                        <div style={{ marginTop: 16 }}>
+                          <p style={{ marginBottom: 8 }}><strong>Ghi chú (tuỳ chọn):</strong></p>
+                          <Input.TextArea
+                            rows={3}
+                            placeholder="Nhập lý do hoặc ghi chú cho admin/khách hàng"
+                            value={actionNote}
+                            onChange={(e) => setActionNote(e.target.value)}
+                          />
+                        </div>
+                      )}
+                      
+                      {actionType === 'review' && currentRecord.note && (
+                        <p style={{ marginTop: 16 }}><strong>Ghi chú:</strong> {currentRecord.note}</p>
+                      )}
+                    </div>
+                  )}
                 </Modal>
+
               </>
             )}
 
@@ -337,7 +434,10 @@ export default function Dashboard() {
             {activeTab === 'draws' && <DrawManagement />}
             {activeTab === 'banners' && <BannerManagement />}
             {activeTab === 'settings' && <SettingsManagement />}
+            {activeTab === 'adminLogs' && <AdminLogs />}
             {activeTab === 'notifications' && <NotificationManagement />}
+            {activeTab === 'guides' && <GuideManagement />}
+            {activeTab === 'terms' && <TermsManagement />}
           </div>
         </Content>
       </Layout>

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
-import { Table, Tag, Button, Space, Typography, Drawer, Tabs, Form, Input, Select, message, Popconfirm, Spin, Descriptions, Row, Col, Switch, Divider, Image } from 'antd';
-import { EditOutlined, DeleteOutlined } from '@ant-design/icons';
+import { Table, Tag, Button, Space, Typography, Drawer, Tabs, Form, Input, Select, message, Spin, Descriptions, Row, Col, Switch, Divider, Image } from 'antd';
+import { EditOutlined, LockOutlined, UnlockOutlined, EyeOutlined, EyeInvisibleOutlined } from '@ant-design/icons';
 import api from '../services/api';
 
 const { Title } = Typography;
@@ -14,7 +14,9 @@ export default function UserManagement() {
 
   const [historyLoading, setHistoryLoading] = useState(false);
   const [historyData, setHistoryData] = useState({ orders: [], transactions: [] });
+  const [userLogs, setUserLogs] = useState<any[]>([]);
   const cccdImageVal = Form.useWatch('cccdImage', form);
+  const walletsVal = Form.useWatch('wallets', form);
 
   const [newLoginPassword, setNewLoginPassword] = useState('');
   const [newWithdrawPassword, setNewWithdrawPassword] = useState('');
@@ -61,6 +63,8 @@ export default function UserManagement() {
     try {
       const res = await api.get(`/users/${user._id}/history`);
       setHistoryData(res.data);
+      const logRes = await api.get(`/logs/user/${user._id}`);
+      setUserLogs(logRes.data);
     } catch (err) {
       message.error('Không thể tải lịch sử người dùng');
     } finally {
@@ -93,6 +97,7 @@ export default function UserManagement() {
       message.success('Cập nhật user thành công');
       setIsDrawerVisible(false);
       setEditingUser(null);
+      setUserLogs([]);
       fetchUsers();
     } catch (error) {
       if (error && (error as any).errorFields) {
@@ -103,13 +108,28 @@ export default function UserManagement() {
     }
   };
 
-  const handleDelete = async (id: string) => {
+  const handleToggleStatus = async (user: any, newStatus: string) => {
     try {
-      await api.delete(`/users/${id}`);
-      message.success('Đã xoá user');
+      const payload = {
+        name: user.name,
+        phone: user.phone,
+        balance: user.balance,
+        role: user.role,
+        email: user.email,
+        emailVerified: user.emailVerified,
+        cccdImage: user.cccdImage,
+        cccdNumber: user.cccdNumber,
+        isInfoUpdated: user.isInfoUpdated,
+        bankInfo: user.bankInfo,
+        banks: user.banks,
+        wallets: user.wallets,
+        status: newStatus
+      };
+      await api.put(`/users/${user._id}`, payload);
+      message.success(`Đã đổi trạng thái`);
       fetchUsers();
     } catch (error) {
-      message.error('Lỗi khi xoá user');
+      message.error('Lỗi khi cập nhật trạng thái');
     }
   };
 
@@ -162,33 +182,73 @@ export default function UserManagement() {
       ),
     },
     {
+      title: 'Tổng nạp',
+      dataIndex: 'totalDeposit',
+      key: 'totalDeposit',
+      render: (val: number) => <span style={{ color: '#1890ff' }}>{val ? val.toLocaleString('vi-VN') : 0} đ</span>,
+    },
+    {
+      title: 'Tổng rút',
+      dataIndex: 'totalWithdraw',
+      key: 'totalWithdraw',
+      render: (val: number) => <span style={{ color: '#faad14' }}>{val ? val.toLocaleString('vi-VN') : 0} đ</span>,
+    },
+    {
+      title: 'IP Đăng ký',
+      dataIndex: 'registerIp',
+      key: 'registerIp',
+      render: (val: string) => val || '-',
+    },
+    {
+      title: 'IP Đăng nhập',
+      dataIndex: 'loginIp',
+      key: 'loginIp',
+      render: (val: string) => val || '-',
+    },
+    {
+      title: 'Ngày ĐN cuối',
+      dataIndex: 'lastLoginAt',
+      key: 'lastLoginAt',
+      render: (date: string) => date ? new Date(date).toLocaleString('vi-VN') : '-',
+    },
+    {
       title: 'Ngày tạo',
       dataIndex: 'createdAt',
       key: 'createdAt',
-      render: (date: string) => new Date(date).toLocaleDateString('vi-VN'),
+      render: (date: string) => new Date(date).toLocaleString('vi-VN'),
     },
     {
       title: 'Hành động',
       key: 'action',
       render: (_: any, record: any) => (
-        <Space size="middle">
+        <Space size="middle" direction="vertical">
           <Button
             type="primary"
+            size="small"
             icon={<EditOutlined />}
             onClick={() => showEditDrawer(record)}
+            block
           >
             Sửa
           </Button>
-          <Popconfirm
-            title="Bạn có chắc chắn muốn xoá user này?"
-            onConfirm={() => handleDelete(record._id)}
-            okText="Xoá"
-            cancelText="Huỷ"
-          >
-            <Button danger icon={<DeleteOutlined />}>
-              Xoá
+          {record.status === 'locked' ? (
+            <Button size="small" icon={<UnlockOutlined />} onClick={() => handleToggleStatus(record, 'active')} block>
+              Mở Khoá
             </Button>
-          </Popconfirm>
+          ) : (
+            <Button size="small" danger icon={<LockOutlined />} onClick={() => handleToggleStatus(record, 'locked')} block>
+              Khoá
+            </Button>
+          )}
+          {record.status === 'review' ? (
+            <Button size="small" icon={<EyeInvisibleOutlined />} onClick={() => handleToggleStatus(record, 'active')} block>
+              Bỏ Review
+            </Button>
+          ) : (
+            <Button size="small" style={{ color: '#fa8c16', borderColor: '#fa8c16' }} icon={<EyeOutlined />} onClick={() => handleToggleStatus(record, 'review')} block disabled={record.status === 'locked'}>
+              Review
+            </Button>
+          )}
         </Space>
       ),
     },
@@ -202,6 +262,7 @@ export default function UserManagement() {
         dataSource={users}
         rowKey="_id"
         loading={loading}
+        scroll={{ x: 'max-content' }}
       />
 
       <Drawer
@@ -276,9 +337,10 @@ export default function UserManagement() {
                   </Form.Item>
                 </Col>
               </Row>
-              <Form.Item name="cccdImage" label="Link hình ảnh CCCD (URL)">
-                <Input placeholder="Nhập đường link ảnh CCCD..." />
+              <Form.Item name="cccdImage" hidden>
+                <Input />
               </Form.Item>
+              <div style={{ marginBottom: 8, fontWeight: 500 }}>Hình ảnh CCCD:</div>
               {cccdImageVal && (
                 <div style={{ marginTop: 8, marginBottom: 24, textAlign: 'center' }}>
                   <Image
@@ -319,17 +381,39 @@ export default function UserManagement() {
                 {(fields, { add, remove }) => (
                   <>
                     {fields.map(({ key, name, ...restField }) => (
-                      <div key={key} style={{ display: 'flex', gap: 8, marginBottom: 8, alignItems: 'center' }}>
-                        <Form.Item {...restField} name={[name, 'network']} style={{ width: 120, marginBottom: 0 }} rules={[{ required: true, message: 'Chọn mạng' }]}>
-                          <Select placeholder="Mạng lưới">
-                            <Select.Option value="BEP20">BEP20</Select.Option>
-                            <Select.Option value="TRC20">TRC20</Select.Option>
-                          </Select>
+                      <div key={key} style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 16, border: '1px solid #f0f0f0', padding: 12, borderRadius: 8 }}>
+                        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                          <Form.Item {...restField} name={[name, 'network']} style={{ width: 120, marginBottom: 0 }} rules={[{ required: true, message: 'Chọn mạng' }]}>
+                            <Select placeholder="Mạng lưới">
+                              <Select.Option value="BEP20">BEP20</Select.Option>
+                              <Select.Option value="TRC20">TRC20</Select.Option>
+                            </Select>
+                          </Form.Item>
+                          <Form.Item {...restField} name={[name, 'address']} style={{ flex: 1, marginBottom: 0 }} rules={[{ required: true, message: 'Thiếu địa chỉ ví' }]}>
+                            <Input placeholder="Địa chỉ ví USDT" />
+                          </Form.Item>
+                          <Button danger onClick={() => remove(name)}>Xoá</Button>
+                        </div>
+                        <Form.Item {...restField} name={[name, 'qrCode']} hidden>
+                          <Input />
                         </Form.Item>
-                        <Form.Item {...restField} name={[name, 'address']} style={{ flex: 1, marginBottom: 0 }} rules={[{ required: true, message: 'Thiếu địa chỉ ví' }]}>
-                          <Input placeholder="Địa chỉ ví USDT" />
-                        </Form.Item>
-                        <Button danger onClick={() => remove(name)}>Xoá</Button>
+                        {walletsVal?.[name]?.qrCode ? (
+                          <div style={{ alignSelf: 'flex-start' }}>
+                            <div style={{ fontSize: 12, color: '#888', marginBottom: 4 }}>Mã QR Code:</div>
+                            <Image
+                              src={walletsVal[name].qrCode.startsWith('/') ? `https://api-vuaxoso.vipmarts.com${walletsVal[name].qrCode}` : walletsVal[name].qrCode}
+                              alt="QR Code"
+                              style={{ width: 100, height: 100, objectFit: 'cover', borderRadius: 8, border: '1px solid #d9d9d9' }}
+                            />
+                          </div>
+                        ) : (
+                          <div style={{ alignSelf: 'flex-start' }}>
+                            <div style={{ fontSize: 12, color: '#888', marginBottom: 4 }}>Mã QR Code:</div>
+                            <Form.Item {...restField} name={[name, 'qrCode']} style={{ marginBottom: 0 }}>
+                              <Input placeholder="Chưa có ảnh QR (Nhập Link ảnh)" style={{ width: 250 }} />
+                            </Form.Item>
+                          </div>
+                        )}
                       </div>
                     ))}
                     <Form.Item>
@@ -339,9 +423,27 @@ export default function UserManagement() {
                 )}
               </Form.List>
 
-              <Divider plain>Ghi chú nội bộ</Divider>
-              <Form.Item name="note">
-                <Input.TextArea rows={4} placeholder="Ghi chú thêm về khách hàng này..." />
+              <Divider plain>Lịch sử Ghi chú & Cập nhật</Divider>
+              {userLogs.length > 0 ? (
+                <div style={{ maxHeight: 300, overflowY: 'auto', marginBottom: 20, padding: 10, background: '#f5f5f5', borderRadius: 8 }}>
+                  {userLogs.map(log => (
+                    <div key={log._id} style={{ marginBottom: 12, paddingBottom: 12, borderBottom: '1px solid #e8e8e8' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+                        <Typography.Text strong>{log.adminName}</Typography.Text>
+                        <Typography.Text type="secondary" style={{ fontSize: 12 }}>{new Date(log.createdAt).toLocaleString('vi-VN')}</Typography.Text>
+                      </div>
+                      <Typography.Text>{log.details}</Typography.Text>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <Typography.Text type="secondary" style={{ display: 'block', textAlign: 'center', marginBottom: 20 }}>
+                  Chưa có lịch sử thao tác
+                </Typography.Text>
+              )}
+
+              <Form.Item name="note" label="Thêm ghi chú mới">
+                <Input.TextArea rows={3} placeholder="Nhập nội dung ghi chú (sẽ được lưu lại lịch sử)..." />
               </Form.Item>
             </Form>
           </Tabs.TabPane>
