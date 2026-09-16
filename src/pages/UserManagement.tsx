@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
-import { Table, Tag, Button, Space, Typography, Drawer, Tabs, Form, Input, Select, message, Spin, Descriptions, Row, Col, Switch, Divider, Image } from 'antd';
-import { EditOutlined, LockOutlined, UnlockOutlined, EyeOutlined, EyeInvisibleOutlined } from '@ant-design/icons';
+import { Table, Tag, Button, Space, Typography, Drawer, Tabs, Form, Input, Select, message, Spin, Descriptions, Row, Col, Switch, Divider, Image, Modal, List } from 'antd';
+import { EditOutlined, LockOutlined, UnlockOutlined, EyeOutlined, EyeInvisibleOutlined, MessageOutlined } from '@ant-design/icons';
 import api from '../services/api';
 
 const { Title } = Typography;
@@ -15,16 +15,24 @@ export default function UserManagement() {
   const [historyLoading, setHistoryLoading] = useState(false);
   const [historyData, setHistoryData] = useState({ orders: [], transactions: [] });
   const [userLogs, setUserLogs] = useState<any[]>([]);
+  const [userActionLogs, setUserActionLogs] = useState<any[]>([]);
+  
+  const [msgModalVisible, setMsgModalVisible] = useState(false);
+  const [msgForm] = Form.useForm();
+  const [selectedUserForMsg, setSelectedUserForMsg] = useState<any>(null);
+  const [sendingMsg, setSendingMsg] = useState(false);
+
   const cccdImageVal = Form.useWatch('cccdImage', form);
   const walletsVal = Form.useWatch('wallets', form);
+  const banksVal = Form.useWatch('banks', form);
 
   const [newLoginPassword, setNewLoginPassword] = useState('');
   const [newWithdrawPassword, setNewWithdrawPassword] = useState('');
 
-  const fetchUsers = async () => {
+  const fetchUsers = async (search: string = '') => {
     setLoading(true);
     try {
-      const res = await api.get('/users');
+      const res = await api.get('/users', { params: { search } });
       setUsers(res.data);
     } catch (err) {
       message.error('Lỗi khi tải danh sách user');
@@ -65,6 +73,9 @@ export default function UserManagement() {
       setHistoryData(res.data);
       const logRes = await api.get(`/logs/user/${user._id}`);
       setUserLogs(logRes.data);
+
+      const actionLogRes = await api.get(`/logs/user-actions/${user._id}`);
+      setUserActionLogs(actionLogRes.data);
     } catch (err) {
       message.error('Không thể tải lịch sử người dùng');
     } finally {
@@ -155,8 +166,29 @@ export default function UserManagement() {
     }
   };
 
+  const showMessageModal = (user: any) => {
+    setSelectedUserForMsg(user);
+    msgForm.resetFields();
+    setMsgModalVisible(true);
+  };
+
+  const handleSendMessage = async (values: any) => {
+    try {
+      setSendingMsg(true);
+      await api.post('/notifications/admin', { ...values, user: selectedUserForMsg._id });
+      message.success('Gửi tin nhắn thành công');
+      setMsgModalVisible(false);
+    } catch (error) {
+      console.error(error);
+      message.error('Lỗi khi gửi tin nhắn');
+    } finally {
+      setSendingMsg(false);
+    }
+  };
+
   const columns = [
     {
+      fixed: 'left' as const,
       title: 'Họ Tên',
       dataIndex: 'name',
       key: 'name',
@@ -197,13 +229,13 @@ export default function UserManagement() {
       title: 'IP Đăng ký',
       dataIndex: 'registerIp',
       key: 'registerIp',
-      render: (val: string) => val || '-',
+      render: (val: string) => val ? val.split(',')[0].trim() : '-',
     },
     {
       title: 'IP Đăng nhập',
       dataIndex: 'loginIp',
       key: 'loginIp',
-      render: (val: string) => val || '-',
+      render: (val: string) => val ? val.split(',')[0].trim() : '-',
     },
     {
       title: 'Ngày ĐN cuối',
@@ -219,6 +251,7 @@ export default function UserManagement() {
     },
     {
       title: 'Hành động',
+      fixed: 'right' as const,
       key: 'action',
       render: (_: any, record: any) => (
         <Space size="middle" direction="vertical">
@@ -230,6 +263,15 @@ export default function UserManagement() {
             block
           >
             Sửa
+          </Button>
+          <Button 
+            size="small" 
+            type="dashed" 
+            icon={<MessageOutlined />} 
+            onClick={() => showMessageModal(record)} 
+            block
+          >
+            Nhắn tin
           </Button>
           {record.status === 'locked' ? (
             <Button size="small" icon={<UnlockOutlined />} onClick={() => handleToggleStatus(record, 'active')} block>
@@ -256,13 +298,21 @@ export default function UserManagement() {
 
   return (
     <>
-      <Title level={3} style={{ marginTop: 0, marginBottom: 24 }}>Quản lý User</Title>
-      <Table
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+        <Title style={{ margin: 0 }} level={3} >Quản lý User</Title>
+        <Input.Search 
+          placeholder="Tìm theo IP, thiết bị, họ tên, TKNH, CCCD..." 
+          allowClear
+          onSearch={(value) => fetchUsers(value)}
+          style={{ width: 400 }}
+        />
+      </div>
+      <Table scroll={{ y: 'calc(100vh - 200px)', x: 'max-content' }}
         columns={columns}
         dataSource={users}
         rowKey="_id"
         loading={loading}
-        scroll={{ x: 'max-content' }}
+        
       />
 
       <Drawer
@@ -344,7 +394,7 @@ export default function UserManagement() {
               {cccdImageVal && (
                 <div style={{ marginTop: 8, marginBottom: 24, textAlign: 'center' }}>
                   <Image
-                    src={cccdImageVal.startsWith('/') ? `https://api-vuaxoso.vipmarts.com${cccdImageVal}` : cccdImageVal}
+                    src={cccdImageVal.startsWith('http') ? cccdImageVal : `${api.defaults.baseURL?.replace('/api', '')}${cccdImageVal}`}
                     alt="CCCD"
                     style={{ maxHeight: 200, objectFit: 'contain', borderRadius: 8, border: '1px solid #d9d9d9' }}
                   />
@@ -356,17 +406,39 @@ export default function UserManagement() {
                 {(fields, { add, remove }) => (
                   <>
                     {fields.map(({ key, name, ...restField }) => (
-                      <div key={key} style={{ display: 'flex', gap: 8, marginBottom: 8, alignItems: 'center' }}>
-                        <Form.Item {...restField} name={[name, 'bankName']} style={{ flex: 1, marginBottom: 0 }} rules={[{ required: true, message: 'Thiếu tên NH' }]}>
-                          <Input placeholder="Tên Ngân hàng" />
+                      <div key={key} style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 16, border: '1px solid #f0f0f0', padding: 12, borderRadius: 8 }}>
+                        <div style={{ display: 'flex', gap: 8, marginBottom: 8, alignItems: 'center' }}>
+                          <Form.Item {...restField} name={[name, 'bankName']} style={{ flex: 1, marginBottom: 0 }} rules={[{ required: true, message: 'Thiếu tên NH' }]}>
+                            <Input placeholder="Tên Ngân hàng" />
+                          </Form.Item>
+                          <Form.Item {...restField} name={[name, 'accountNumber']} style={{ flex: 1, marginBottom: 0 }} rules={[{ required: true, message: 'Thiếu STK' }]}>
+                            <Input placeholder="Số tài khoản" />
+                          </Form.Item>
+                          <Form.Item {...restField} name={[name, 'accountName']} style={{ flex: 1, marginBottom: 0 }} rules={[{ required: true, message: 'Thiếu Tên chủ thẻ' }]}>
+                            <Input placeholder="Tên chủ thẻ" />
+                          </Form.Item>
+                          <Button danger onClick={() => remove(name)}>Xoá</Button>
+                        </div>
+                        <Form.Item {...restField} name={[name, 'qrCode']} hidden>
+                          <Input />
                         </Form.Item>
-                        <Form.Item {...restField} name={[name, 'accountNumber']} style={{ flex: 1, marginBottom: 0 }} rules={[{ required: true, message: 'Thiếu STK' }]}>
-                          <Input placeholder="Số tài khoản" />
-                        </Form.Item>
-                        <Form.Item {...restField} name={[name, 'accountName']} style={{ flex: 1, marginBottom: 0 }} rules={[{ required: true, message: 'Thiếu Tên chủ thẻ' }]}>
-                          <Input placeholder="Tên chủ thẻ" />
-                        </Form.Item>
-                        <Button danger onClick={() => remove(name)}>Xoá</Button>
+                        {banksVal?.[name]?.qrCode ? (
+                          <div style={{ alignSelf: 'flex-start', marginBottom: 16 }}>
+                            <div style={{ fontSize: 12, color: '#888', marginBottom: 4 }}>Mã QR Code Ngân hàng:</div>
+                            <Image
+                              src={banksVal[name].qrCode.startsWith('http') ? banksVal[name].qrCode : `${api.defaults.baseURL?.replace('/api', '')}${banksVal[name].qrCode}`}
+                              alt="QR Code"
+                              style={{ width: 100, height: 100, objectFit: 'cover', borderRadius: 8, border: '1px solid #d9d9d9' }}
+                            />
+                          </div>
+                        ) : (
+                          <div style={{ alignSelf: 'flex-start', marginBottom: 16 }}>
+                            <div style={{ fontSize: 12, color: '#888', marginBottom: 4 }}>Mã QR Code Ngân hàng:</div>
+                            <Form.Item {...restField} name={[name, 'qrCode']} style={{ marginBottom: 0 }}>
+                              <Input placeholder="Chưa có ảnh QR (Nhập Link ảnh)" style={{ width: 250 }} />
+                            </Form.Item>
+                          </div>
+                        )}
                       </div>
                     ))}
                     <Form.Item>
@@ -401,7 +473,7 @@ export default function UserManagement() {
                           <div style={{ alignSelf: 'flex-start' }}>
                             <div style={{ fontSize: 12, color: '#888', marginBottom: 4 }}>Mã QR Code:</div>
                             <Image
-                              src={walletsVal[name].qrCode.startsWith('/') ? `https://api-vuaxoso.vipmarts.com${walletsVal[name].qrCode}` : walletsVal[name].qrCode}
+                              src={walletsVal[name].qrCode.startsWith('http') ? walletsVal[name].qrCode : `${api.defaults.baseURL?.replace('/api', '')}${walletsVal[name].qrCode}`}
                               alt="QR Code"
                               style={{ width: 100, height: 100, objectFit: 'cover', borderRadius: 8, border: '1px solid #d9d9d9' }}
                             />
@@ -425,17 +497,26 @@ export default function UserManagement() {
 
               <Divider plain>Lịch sử Ghi chú & Cập nhật</Divider>
               {userLogs.length > 0 ? (
-                <div style={{ maxHeight: 300, overflowY: 'auto', marginBottom: 20, padding: 10, background: '#f5f5f5', borderRadius: 8 }}>
-                  {userLogs.map(log => (
-                    <div key={log._id} style={{ marginBottom: 12, paddingBottom: 12, borderBottom: '1px solid #e8e8e8' }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
-                        <Typography.Text strong>{log.adminName}</Typography.Text>
-                        <Typography.Text type="secondary" style={{ fontSize: 12 }}>{new Date(log.createdAt).toLocaleString('vi-VN')}</Typography.Text>
+                <List
+                  dataSource={userLogs}
+                  pagination={{
+                    pageSize: 5,
+                    size: 'small',
+                    align: 'end',
+                  }}
+                  renderItem={log => (
+                    <List.Item>
+                      <div style={{ width: '100%' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+                          <Typography.Text strong>{log.adminName}</Typography.Text>
+                          <Typography.Text type="secondary" style={{ fontSize: 12 }}>{new Date(log.createdAt).toLocaleString('vi-VN')}</Typography.Text>
+                        </div>
+                        <Typography.Text>{log.details}</Typography.Text>
                       </div>
-                      <Typography.Text>{log.details}</Typography.Text>
-                    </div>
-                  ))}
-                </div>
+                    </List.Item>
+                  )}
+                  style={{ marginBottom: 20, padding: '0 10px', background: '#f5f5f5', borderRadius: 8 }}
+                />
               ) : (
                 <Typography.Text type="secondary" style={{ display: 'block', textAlign: 'center', marginBottom: 20 }}>
                   Chưa có lịch sử thao tác
@@ -450,7 +531,7 @@ export default function UserManagement() {
 
           <Tabs.TabPane tab="Lịch sử Mua vé" key="2">
             <Spin spinning={historyLoading}>
-              <Table
+              <Table scroll={{ y: 'calc(100vh - 200px)', x: 'max-content' }}
                 dataSource={historyData.orders}
                 rowKey="_id"
                 pagination={{ pageSize: 5 }}
@@ -466,7 +547,7 @@ export default function UserManagement() {
 
           <Tabs.TabPane tab="Lịch sử Nạp / Rút" key="3">
             <Spin spinning={historyLoading}>
-              <Table
+              <Table scroll={{ y: 'calc(100vh - 200px)', x: 'max-content' }}
                 dataSource={historyData.transactions}
                 rowKey="_id"
                 pagination={{ pageSize: 5 }}
@@ -539,8 +620,75 @@ export default function UserManagement() {
               </Col>
             </Row>
           </Tabs.TabPane>
+          <Tabs.TabPane tab="Lịch sử hoạt động" key="6">
+            <Table
+              dataSource={userActionLogs}
+              rowKey="_id"
+              pagination={{ pageSize: 10 }}
+              columns={[
+                {
+                  title: 'Thời gian',
+                  dataIndex: 'createdAt',
+                  key: 'createdAt',
+                  width: 150,
+                  render: (val) => new Date(val).toLocaleString('vi-VN')
+                },
+                {
+                  title: 'Hành động',
+                  dataIndex: 'action',
+                  key: 'action',
+                  width: 120,
+                  render: (val) => <Tag color="blue">{val}</Tag>
+                },
+                {
+                  title: 'Chi tiết',
+                  dataIndex: 'details',
+                  key: 'details',
+                },
+                {
+                  title: 'IP',
+                  dataIndex: 'ip',
+                  key: 'ip',
+                  width: 120,
+                  render: (val) => val || '-'
+                }
+              ]}
+            />
+          </Tabs.TabPane>
         </Tabs>
       </Drawer>
+
+      <Modal
+        title={`Gửi tin nhắn tới: ${selectedUserForMsg?.name || ''}`}
+        open={msgModalVisible}
+        onCancel={() => setMsgModalVisible(false)}
+        onOk={() => msgForm.submit()}
+        confirmLoading={sendingMsg}
+        okText="Gửi"
+        cancelText="Hủy"
+      >
+        <Form
+          form={msgForm}
+          layout="vertical"
+          onFinish={handleSendMessage}
+        >
+          <Form.Item
+            name="title"
+            label="Tiêu đề"
+            rules={[{ required: true, message: 'Vui lòng nhập tiêu đề' }]}
+          >
+            <Input placeholder="Tiêu đề tin nhắn..." />
+          </Form.Item>
+          
+          <Form.Item
+            name="body"
+            label="Nội dung"
+            rules={[{ required: true, message: 'Vui lòng nhập nội dung' }]}
+          >
+            <Input.TextArea rows={4} placeholder="Nhập nội dung tin nhắn gửi tới khách hàng..." />
+          </Form.Item>
+        </Form>
+      </Modal>
     </>
   );
 }

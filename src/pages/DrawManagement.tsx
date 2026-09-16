@@ -160,6 +160,7 @@ export default function DrawManagement() {
 
   const columns = [
     {
+      fixed: 'left',
       title: 'Mã Kỳ',
       dataIndex: 'drawCode',
       key: 'drawCode',
@@ -253,7 +254,7 @@ export default function DrawManagement() {
   return (
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
-        <Title level={3} style={{ margin: 0 }}>Quản lý Kỳ quay (Draws)</Title>
+        <Title style={{ marginTop: 0, marginBottom: 16 }} level={3} >Quản lý Kỳ quay (Draws)</Title>
         <div style={{ display: 'flex', gap: 16 }}>
           <Select
             placeholder="Lọc theo game..."
@@ -274,7 +275,7 @@ export default function DrawManagement() {
         </div>
       </div>
 
-      <Table
+      <Table scroll={{ y: 'calc(100vh - 200px)', x: 'max-content' }}
         columns={columns}
         dataSource={draws}
         rowKey="_id"

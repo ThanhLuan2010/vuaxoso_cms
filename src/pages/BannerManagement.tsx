@@ -69,6 +69,7 @@ export default function BannerManagement() {
 
   const columns = [
     {
+      fixed: 'left',
       title: 'Hình ảnh',
       dataIndex: 'imageUrl',
       key: 'imageUrl',
@@ -93,6 +94,7 @@ export default function BannerManagement() {
     },
     {
       title: 'Hành động',
+      fixed: 'right',
       key: 'actions',
       render: (_: any, record: any) => (
         <Space>
@@ -106,13 +108,13 @@ export default function BannerManagement() {
   return (
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
-        <Title level={3} style={{ margin: 0 }}>Quản lý Banner</Title>
+        <Title style={{ marginTop: 0, marginBottom: 16 }} level={3} >Quản lý Banner</Title>
         <Button type="primary" icon={<PlusOutlined />} onClick={() => handleOpenModal()}>
           Thêm Banner
         </Button>
       </div>
 
-      <Table 
+      <Table scroll={{ y: 'calc(100vh - 200px)', x: 'max-content' }} 
         columns={columns} 
         dataSource={banners} 
         rowKey="_id"

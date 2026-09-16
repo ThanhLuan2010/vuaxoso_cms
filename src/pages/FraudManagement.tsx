@@ -31,7 +31,8 @@ export default function FraudManagement() {
 
   const expandedRowRender = (record: any) => {
     const columns = [
-      { title: 'SĐT', dataIndex: 'phone', key: 'phone' },
+      {
+      fixed: 'left', title: 'SĐT', dataIndex: 'phone', key: 'phone' },
       { title: 'Tên', dataIndex: 'name', key: 'name' },
       { 
         title: 'Trạng thái Info', 
@@ -53,7 +54,7 @@ export default function FraudManagement() {
       },
     ];
 
-    return <Table columns={columns} dataSource={record.users} pagination={false} rowKey="_id" size="small" />;
+    return <Table scroll={{ y: 'calc(100vh - 200px)', x: 'max-content' }} columns={columns} dataSource={record.users} pagination={false} rowKey="_id" size="small" />;
   };
 
   const ipColumns = [
@@ -105,7 +106,7 @@ export default function FraudManagement() {
       <Card>
         <Tabs defaultActiveKey="1">
           <TabPane tab={<span><ExclamationCircleOutlined /> Trùng IP Đăng nhập ({duplicateIps.length})</span>} key="1">
-            <Table 
+            <Table scroll={{ y: 'calc(100vh - 200px)', x: 'max-content' }} 
               columns={ipColumns} 
               dataSource={duplicateIps} 
               rowKey="ip" 
@@ -114,7 +115,7 @@ export default function FraudManagement() {
             />
           </TabPane>
           <TabPane tab={<span><ExclamationCircleOutlined /> Trùng Thiết bị ({duplicateDevices.length})</span>} key="2">
-            <Table 
+            <Table scroll={{ y: 'calc(100vh - 200px)', x: 'max-content' }} 
               columns={deviceColumns} 
               dataSource={duplicateDevices} 
               rowKey="device" 

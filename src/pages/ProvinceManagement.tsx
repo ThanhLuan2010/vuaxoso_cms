@@ -105,6 +105,7 @@ export default function ProvinceManagement() {
 
   const columns = [
     {
+      fixed: 'left',
       title: 'Khu vực',
       dataIndex: 'region',
       key: 'region',
@@ -170,7 +171,7 @@ export default function ProvinceManagement() {
   return (
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-        <Title level={4}>Cấu hình Tỉnh/Đài Xổ Số Kiến Thiết</Title>
+        <Title style={{ marginTop: 0, marginBottom: 16 }} level={4}>Cấu hình Tỉnh/Đài Xổ Số Kiến Thiết</Title>
         <Space>
           <Button 
             type="dashed" 
@@ -193,7 +194,7 @@ export default function ProvinceManagement() {
         </Space>
       </div>
       
-      <Table 
+      <Table scroll={{ y: 'calc(100vh - 200px)', x: 'max-content' }} 
         columns={columns} 
         dataSource={provinces} 
         rowKey="_id"

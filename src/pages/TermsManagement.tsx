@@ -38,7 +38,7 @@ export default function TermsManagement() {
 
   return (
     <div>
-      <Title level={3} style={{ marginTop: 0, marginBottom: 24 }}>Điều khoản hoạt động</Title>
+      <Title style={{ marginTop: 0, marginBottom: 16 }} level={3} >Điều khoản hoạt động</Title>
       
       <Card title="Cấu hình nội dung Điều khoản" style={{ maxWidth: 1000 }}>
         <Form

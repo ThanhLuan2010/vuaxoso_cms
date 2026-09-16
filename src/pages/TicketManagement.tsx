@@ -148,6 +148,7 @@ export default function TicketManagement() {
 
   const columns = [
     {
+      fixed: 'left',
       title: 'Dãy số',
       dataIndex: 'number',
       key: 'number',
@@ -212,7 +213,7 @@ export default function TicketManagement() {
   return (
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-        <Title level={4}>Quản lý Vé Kiến Thiết</Title>
+        <Title style={{ marginTop: 0, marginBottom: 16 }} level={4}>Quản lý Vé Kiến Thiết</Title>
         <Space>
           <Button
             type="dashed"
@@ -269,7 +270,7 @@ export default function TicketManagement() {
         </div>
       </div>
 
-      <Table
+      <Table scroll={{ y: 'calc(100vh - 200px)', x: 'max-content' }}
         columns={columns}
         dataSource={tickets}
         rowKey="_id"

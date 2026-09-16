@@ -28,6 +28,7 @@ export default function AdminLogs() {
 
   const columns = [
     {
+      fixed: 'left',
       title: 'Thời gian',
       dataIndex: 'createdAt',
       key: 'createdAt',
@@ -90,8 +91,8 @@ export default function AdminLogs() {
 
   return (
     <>
-      <Title level={3} style={{ marginTop: 0, marginBottom: 24 }}>Nhật ký Hoạt động</Title>
-      <Table
+      <Title style={{ marginTop: 0, marginBottom: 16 }} level={3} >Nhật ký Hoạt động</Title>
+      <Table scroll={{ y: 'calc(100vh - 200px)', x: 'max-content' }}
         columns={columns}
         dataSource={logs}
         rowKey="_id"

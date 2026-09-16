@@ -104,6 +104,7 @@ export default function GameManagement() {
 
   const columns = [
     {
+      fixed: 'left',
       title: 'Mã Game',
       dataIndex: 'code',
       key: 'code',
@@ -145,6 +146,7 @@ export default function GameManagement() {
     },
     {
       title: 'Hành động',
+      fixed: 'right',
       key: 'action',
       render: (_: any, record: any) => (
         <Button size="small" icon={<EditOutlined />} onClick={() => openEdit(record)}>Sửa</Button>
@@ -158,7 +160,7 @@ export default function GameManagement() {
         <h2 style={{ fontSize: 24, margin: 0 }}>Quản lý Danh sách Game</h2>
       </div>
 
-      <Table 
+      <Table scroll={{ y: 'calc(100vh - 200px)', x: 'max-content' }} 
         columns={columns} 
         dataSource={games} 
         rowKey="_id"

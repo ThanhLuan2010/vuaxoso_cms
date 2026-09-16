@@ -59,6 +59,7 @@ export default function NotificationManagement() {
 
   const columns = [
     {
+      fixed: 'left',
       title: 'Tiêu đề',
       dataIndex: 'title',
       key: 'title',
@@ -91,6 +92,7 @@ export default function NotificationManagement() {
     },
     {
       title: 'Hành động',
+      fixed: 'right',
       key: 'action',
       width: 100,
       render: (_: any, record: any) => (
@@ -112,7 +114,7 @@ export default function NotificationManagement() {
   return (
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-        <Title level={4} style={{ margin: 0 }}>Quản lý Thông báo</Title>
+        <Title style={{ marginTop: 0, marginBottom: 16 }} level={4} >Quản lý Thông báo</Title>
         <Button 
           type="primary" 
           icon={<PlusOutlined />} 
@@ -125,7 +127,7 @@ export default function NotificationManagement() {
         </Button>
       </div>
 
-      <Table 
+      <Table scroll={{ y: 'calc(100vh - 200px)', x: 'max-content' }} 
         columns={columns} 
         dataSource={notifications} 
         rowKey="_id"

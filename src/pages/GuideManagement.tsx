@@ -82,6 +82,7 @@ export default function GuideManagement() {
 
   const columns = [
     {
+      fixed: 'left',
       title: 'Thứ tự',
       dataIndex: 'order',
       key: 'order',
@@ -132,13 +133,13 @@ export default function GuideManagement() {
   return (
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 16 }}>
-        <Title level={2}>Quản Lý Hướng Dẫn</Title>
+        <Title style={{ marginTop: 0, marginBottom: 16 }} level={2}>Quản Lý Hướng Dẫn</Title>
         <Button type="primary" icon={<PlusOutlined />} onClick={handleAdd}>
           Thêm Hướng Dẫn
         </Button>
       </div>
 
-      <Table 
+      <Table scroll={{ y: 'calc(100vh - 200px)', x: 'max-content' }} 
         columns={columns} 
         dataSource={guides} 
         rowKey="_id"

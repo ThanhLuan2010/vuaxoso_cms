@@ -1,32 +1,34 @@
+import {
+  AppstoreOutlined,
+  CheckCircleOutlined,
+  CloseCircleOutlined,
+  EyeOutlined,
+  FileTextOutlined,
+  HistoryOutlined,
+  LogoutOutlined,
+  NotificationOutlined,
+  SafetyCertificateOutlined,
+  SettingOutlined,
+  TrophyOutlined,
+  UserOutlined,
+  WalletOutlined
+} from '@ant-design/icons';
+import { Button, Image, Input, Layout, Menu, message, Modal, Space, Table, Tag, theme, Typography } from 'antd';
 import { useEffect, useState } from 'react';
 import api from '../services/api';
 import { useAuthStore } from '../store/useAuthStore';
-import { Layout, Menu, Table, Tag, Button, Space, Typography, theme, message, Modal, InputNumber, Form, Image, Input } from 'antd';
-import {
-  LogoutOutlined,
-  WalletOutlined,
-  TrophyOutlined,
-  CheckCircleOutlined,
-  CloseCircleOutlined,
-  AppstoreOutlined,
-  UserOutlined,
-  SettingOutlined,
-  NotificationOutlined,
-  EyeOutlined
-} from '@ant-design/icons';
+import AdminLogs from './AdminLogs';
+import BannerManagement from './BannerManagement';
 import DrawManagement from './DrawManagement';
 import GameManagement from './GameManagement';
-import BannerManagement from './BannerManagement';
-import UserManagement from './UserManagement';
-import SettingsManagement from './SettingsManagement';
-import OrderManagement from './OrderManagement';
-import TicketManagement from './TicketManagement';
-import ProvinceManagement from './ProvinceManagement';
-import NotificationManagement from './NotificationManagement';
-import AdminLogs from './AdminLogs';
 import GuideManagement from './GuideManagement';
+import NotificationManagement from './NotificationManagement';
+import OrderManagement from './OrderManagement';
+import ProvinceManagement from './ProvinceManagement';
+import SettingsManagement from './SettingsManagement';
 import TermsManagement from './TermsManagement';
-import { SecurityScanOutlined, HistoryOutlined, FileTextOutlined, SafetyCertificateOutlined } from '@ant-design/icons';
+import TicketManagement from './TicketManagement';
+import UserManagement from './UserManagement';
 
 const { Header, Sider, Content } = Layout;
 const { Title } = Typography;
@@ -63,7 +65,7 @@ export default function Dashboard() {
 
   const [actionModalVisible, setActionModalVisible] = useState(false);
   const [currentRecord, setCurrentRecord] = useState<any>(null);
-  const [actionType, setActionType] = useState<'approve'|'reject'|'review'|null>(null);
+  const [actionType, setActionType] = useState<'approve' | 'reject' | 'review' | null>(null);
   const [actionNote, setActionNote] = useState('');
 
   const handleActionSubmit = async () => {
@@ -87,6 +89,7 @@ export default function Dashboard() {
 
   const columns = [
     {
+      fixed: 'left' as const,
       title: 'Người dùng',
       key: 'user',
       render: (_: any, record: any) => (
@@ -110,9 +113,11 @@ export default function Dashboard() {
       title: 'Số tiền',
       dataIndex: 'amount',
       key: 'amount',
-      render: (amount: number) => (
+      render: (amount: number, record: any) => (
         <span style={{ fontWeight: 'bold' }}>
-          {amount?.toLocaleString()} đ
+          {record.paymentMethod === 'binance' && record.destinationInfo?.amountUsdt 
+            ? `${record.destinationInfo.amountUsdt.toLocaleString()} USDT` 
+            : `${amount?.toLocaleString()} đ`}
         </span>
       )
     },
@@ -126,11 +131,17 @@ export default function Dashboard() {
               <div style={{ color: '#888', marginBottom: 4 }}>
                 {new Date(record.createdAt).toLocaleString('vi-VN')}
               </div>
+              {record.paymentMethod !== 'scratch' && record.paymentMethod !== 'binance' && (
+                <div style={{ fontSize: '11px', color: '#1890ff', marginBottom: 4 }}>
+                  Nội dung CK: {record.txId || '-'}
+                </div>
+              )}
               {record.receiptImage && (
                 <Image
                   src={record.receiptImage.startsWith('http') ? record.receiptImage : `${api.defaults.baseURL?.replace('/api', '')}${record.receiptImage}`}
                   alt="Biên lai"
                   width={50}
+                  height={50}
                   style={{ borderRadius: 4, objectFit: 'cover' }}
                   preview={{ src: record.receiptImage.startsWith('http') ? record.receiptImage : `${api.defaults.baseURL?.replace('/api', '')}${record.receiptImage}` }}
                 />
@@ -153,18 +164,18 @@ export default function Dashboard() {
           } else {
             dest = { ...dest, isBank: !!dest.bankName };
           }
-          
+
           let qrUrl = '';
           if (dest.isBank) {
-            qrUrl = dest.qrCode ? 
+            qrUrl = dest.qrCode ?
               (dest.qrCode.startsWith('http') ? dest.qrCode : `${api.defaults.baseURL?.replace('/api', '')}${dest.qrCode}`) :
               `https://img.vietqr.io/image/${dest.bankName}-${dest.accountNumber}-compact.png?accountName=${encodeURIComponent(dest.accountName)}`;
           } else {
-            qrUrl = dest.qrCode ? 
+            qrUrl = dest.qrCode ?
               (dest.qrCode.startsWith('http') ? dest.qrCode : `${api.defaults.baseURL?.replace('/api', '')}${dest.qrCode}`) :
               (dest.address ? `https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(dest.address)}` : '');
           }
-          
+
           return (
             <div style={{ fontSize: '12px' }}>
               <div style={{ color: '#888', marginBottom: 4 }}>
@@ -213,6 +224,7 @@ export default function Dashboard() {
     },
     {
       title: 'Hành động',
+      fixed: 'right' as const,
       key: 'action',
       render: (_: any, record: any) => (
         <Space direction="vertical" size="small">
@@ -357,33 +369,36 @@ export default function Dashboard() {
           }}
         />
       </Sider>
-      <Layout>
-        <Header style={{ padding: 0, background: colorBgContainer }} />
-        <Content style={{ margin: '24px 16px 0' }}>
+      <Layout style={{ height: '100vh', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+        <Content style={{ margin: 0, padding: 0, flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
           <div
             style={{
-              padding: 24,
-              minHeight: 360,
+              padding: '24px',
+              flex: 1,
+              display: 'flex',
+              flexDirection: 'column',
               background: colorBgContainer,
               borderRadius: borderRadiusLG,
+              overflowY: 'auto',
             }}
           >
             {activeTab === 'wallet' && (
               <>
-                <Title level={3} style={{ marginTop: 0, marginBottom: 24 }}>Quản lý Nạp / Rút</Title>
+                <Title level={3} style={{ marginTop: 0, marginBottom: 16 }}>Quản lý Nạp / Rút</Title>
                 <Table
                   columns={columns}
                   dataSource={transactions}
                   rowKey="_id"
                   loading={loading}
                   pagination={{ pageSize: 20 }}
+                  scroll={{ y: 'calc(100vh - 200px)', x: 'max-content' }}
                 />
 
                 <Modal
                   title={
                     actionType === 'review' ? 'Chi tiết giao dịch' :
-                    actionType === 'approve' ? 'Xác nhận Duyệt giao dịch' :
-                    'Xác nhận Từ chối giao dịch'
+                      actionType === 'approve' ? 'Xác nhận Duyệt giao dịch' :
+                        'Xác nhận Từ chối giao dịch'
                   }
                   open={actionModalVisible}
                   onCancel={() => {
@@ -393,17 +408,37 @@ export default function Dashboard() {
                   onOk={actionType === 'review' ? () => setActionModalVisible(false) : handleActionSubmit}
                   okText={actionType === 'review' ? 'Đóng' : 'Xác nhận'}
                   cancelText="Hủy"
-                  okButtonProps={{ 
-                    danger: actionType === 'reject', 
-                    type: actionType === 'approve' ? 'primary' : 'default' 
+                  okButtonProps={{
+                    danger: actionType === 'reject',
+                    type: actionType === 'approve' ? 'primary' : 'default'
                   }}
                 >
                   {currentRecord && (
                     <div>
                       <p><strong>Người dùng:</strong> {currentRecord.user?.name} - {currentRecord.user?.phone}</p>
                       <p><strong>Loại:</strong> {currentRecord.type === 'deposit' ? 'NẠP TIỀN' : 'RÚT TIỀN'}</p>
-                      <p><strong>Số tiền:</strong> {currentRecord.amount?.toLocaleString()} đ</p>
+                      <p><strong>Số tiền:</strong> {currentRecord.paymentMethod === 'binance' && currentRecord.destinationInfo?.amountUsdt ? `${currentRecord.destinationInfo.amountUsdt.toLocaleString()} USDT` : `${currentRecord.amount?.toLocaleString()} đ`}</p>
+                      <p><strong>Cổng nạp:</strong> {currentRecord.paymentMethod === 'manual' ? 'Ngân hàng' : currentRecord.paymentMethod === 'scratch' ? 'Thẻ cào' : currentRecord.paymentMethod?.toUpperCase()}</p>
                       
+                      {currentRecord.destinationInfo && currentRecord.paymentMethod === 'scratch' && (
+                        <div style={{ marginTop: 12, padding: 12, backgroundColor: '#f5f5f5', borderRadius: 8 }}>
+                          <p style={{ margin: 0 }}><strong>Nhà mạng:</strong> {currentRecord.destinationInfo.network}</p>
+                          <p style={{ margin: 0 }}><strong>Seri:</strong> {currentRecord.destinationInfo.seri}</p>
+                          <p style={{ margin: 0 }}><strong>PIN:</strong> {currentRecord.destinationInfo.pin}</p>
+                        </div>
+                      )}
+
+                      {currentRecord.receiptImage && (
+                        <div style={{ marginTop: 12 }}>
+                          <p><strong>Ảnh đính kèm:</strong></p>
+                          <Image
+                            width={200}
+                            src={currentRecord.receiptImage.startsWith('http') ? currentRecord.receiptImage : `${api.defaults.baseURL?.replace('/api', '')}${currentRecord.receiptImage}`}
+                            alt="Biên lai / Thẻ cào"
+                          />
+                        </div>
+                      )}
+
                       {actionType !== 'review' && (
                         <div style={{ marginTop: 16 }}>
                           <p style={{ marginBottom: 8 }}><strong>Ghi chú (tuỳ chọn):</strong></p>
@@ -415,7 +450,7 @@ export default function Dashboard() {
                           />
                         </div>
                       )}
-                      
+
                       {actionType === 'review' && currentRecord.note && (
                         <p style={{ marginTop: 16 }}><strong>Ghi chú:</strong> {currentRecord.note}</p>
                       )}

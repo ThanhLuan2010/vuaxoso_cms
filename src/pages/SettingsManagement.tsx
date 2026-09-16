@@ -66,7 +66,8 @@ export default function SettingsManagement() {
         transferPrefix: values.transferPrefix,
         transferIdentifier: values.transferIdentifier,
         banks: values.banks || [],
-        gateways: values.gateways || {}
+        gateways: values.gateways || {},
+        walletsConfig: values.walletsConfig || {}
       };
       const binanceConfig = {
         exchangeRate: values.binanceExchangeRate,
@@ -87,7 +88,7 @@ export default function SettingsManagement() {
 
   return (
     <div>
-      <Title level={3} style={{ marginTop: 0, marginBottom: 24 }}>Cấu hình chung</Title>
+      <Title style={{ marginTop: 0, marginBottom: 16 }} level={3} >Cấu hình chung</Title>
       
       <Card title="Cấu hình Đa Kênh Nạp Tiền" style={{ maxWidth: 800 }}>
         <Form
@@ -176,6 +177,25 @@ export default function SettingsManagement() {
               <Form.Item key={gw} name={['gateways', gw]} valuePropName="checked" style={{ marginBottom: 0 }}>
                 <Switch checkedChildren={gw.toUpperCase()} unCheckedChildren={gw.toUpperCase()} />
               </Form.Item>
+            ))}
+          </div>
+
+          <Title level={5} style={{ marginTop: 24 }}>4. Cấu hình ví điện tử (Momo, ZaloPay...)</Title>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', marginBottom: 24 }}>
+            {['momo', 'zalopay', 'vnpay', 'ninepay', 'shopeepay', 'tiktokpay', 'lazadapay', 'paypal'].map(gw => (
+              <Card size="small" key={gw} title={`Cấu hình ${gw.toUpperCase()}`}>
+                <Space style={{ display: 'flex', marginBottom: 8, flexWrap: 'wrap' }} align="baseline">
+                  <Form.Item name={['walletsConfig', gw, 'accountName']} label="Chủ tài khoản" style={{ width: 250 }}>
+                    <Input placeholder="Tên chủ ví" />
+                  </Form.Item>
+                  <Form.Item name={['walletsConfig', gw, 'accountNumber']} label="Số tài khoản / SĐT" style={{ width: 250 }}>
+                    <Input placeholder="Số điện thoại hoặc STK" />
+                  </Form.Item>
+                  <Form.Item name={['walletsConfig', gw, 'qrImage']} label="Link ảnh QR" style={{ width: 300 }}>
+                    <Input placeholder="Nhập URL ảnh QR..." />
+                  </Form.Item>
+                </Space>
+              </Card>
             ))}
           </div>
 

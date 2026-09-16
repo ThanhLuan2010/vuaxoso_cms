@@ -117,6 +117,7 @@ export default function OrderManagement() {
 
   const columns = [
     {
+      fixed: 'left',
       title: 'Khách hàng',
       key: 'user',
       render: (_: any, record: Order) => (
@@ -237,7 +238,7 @@ export default function OrderManagement() {
   return (
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-        <Title level={4} style={{ margin: 0 }}>Quản lý Đặt vé (Orders)</Title>
+        <Title style={{ marginTop: 0, marginBottom: 16 }} level={4} >Quản lý Đặt vé (Orders)</Title>
         <Space>
           <span>Lọc theo ngày:</span>
           <DatePicker
@@ -291,12 +292,12 @@ export default function OrderManagement() {
         </Col>
       </Row>
 
-      <Table
+      <Table scroll={{ y: 'calc(100vh - 200px)', x: 'max-content' }}
         columns={columns}
         dataSource={orders}
         rowKey="_id"
         loading={loading}
-        scroll={{ x: 1300 }}
+        
       />
 
       <Modal
