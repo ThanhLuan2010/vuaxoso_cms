@@ -67,7 +67,7 @@ export default function BannerManagement() {
     }
   };
 
-  const columns = [
+  const columns: any = [
     {
       fixed: 'left',
       title: 'Hình ảnh',
@@ -114,9 +114,9 @@ export default function BannerManagement() {
         </Button>
       </div>
 
-      <Table scroll={{ y: 'calc(100vh - 200px)', x: 'max-content' }} 
-        columns={columns} 
-        dataSource={banners} 
+      <Table scroll={{ y: 'calc(100vh - 200px)', x: 'max-content' }}
+        columns={columns}
+        dataSource={banners}
         rowKey="_id"
         loading={loading}
         pagination={false}

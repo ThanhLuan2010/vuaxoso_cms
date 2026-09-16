@@ -103,7 +103,7 @@ export default function ProvinceManagement() {
     });
   };
 
-  const columns = [
+  const columns: any = [
     {
       fixed: 'left',
       title: 'Khu vực',
@@ -152,15 +152,15 @@ export default function ProvinceManagement() {
       key: 'action',
       render: (_: any, record: Province) => (
         <Space>
-          <Button 
-            type="text" 
-            icon={<EditOutlined style={{ color: '#1890ff' }} />} 
+          <Button
+            type="text"
+            icon={<EditOutlined style={{ color: '#1890ff' }} />}
             onClick={() => handleEdit(record)}
           />
-          <Button 
-            type="text" 
-            danger 
-            icon={<DeleteOutlined />} 
+          <Button
+            type="text"
+            danger
+            icon={<DeleteOutlined />}
             onClick={() => handleDelete(record._id)}
           />
         </Space>
@@ -173,16 +173,16 @@ export default function ProvinceManagement() {
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
         <Title style={{ marginTop: 0, marginBottom: 16 }} level={4}>Cấu hình Tỉnh/Đài Xổ Số Kiến Thiết</Title>
         <Space>
-          <Button 
-            type="dashed" 
-            icon={<SyncOutlined />} 
+          <Button
+            type="dashed"
+            icon={<SyncOutlined />}
             onClick={handleSeed}
           >
             Khởi tạo dữ liệu chuẩn
           </Button>
-          <Button 
-            type="primary" 
-            icon={<PlusOutlined />} 
+          <Button
+            type="primary"
+            icon={<PlusOutlined />}
             onClick={() => {
               setEditingId(null);
               form.resetFields();
@@ -193,10 +193,10 @@ export default function ProvinceManagement() {
           </Button>
         </Space>
       </div>
-      
-      <Table scroll={{ y: 'calc(100vh - 200px)', x: 'max-content' }} 
-        columns={columns} 
-        dataSource={provinces} 
+
+      <Table scroll={{ y: 'calc(100vh - 200px)', x: 'max-content' }}
+        columns={columns}
+        dataSource={provinces}
         rowKey="_id"
         loading={loading}
         pagination={{ pageSize: 20 }}
@@ -210,30 +210,30 @@ export default function ProvinceManagement() {
         width={500}
       >
         <Form form={form} layout="vertical">
-          <Form.Item 
-            name="provinceId" 
-            label="Mã Tỉnh (Unique, VD: TG, MB)" 
+          <Form.Item
+            name="provinceId"
+            label="Mã Tỉnh (Unique, VD: TG, MB)"
             rules={[{ required: true, message: 'Vui lòng nhập mã tỉnh' }]}
           >
             <Input disabled={!!editingId} />
           </Form.Item>
-          <Form.Item 
-            name="name" 
-            label="Tên Tỉnh/Đài (VD: Tiền Giang)" 
+          <Form.Item
+            name="name"
+            label="Tên Tỉnh/Đài (VD: Tiền Giang)"
             rules={[{ required: true, message: 'Vui lòng nhập tên' }]}
           >
             <Input />
           </Form.Item>
-          <Form.Item 
-            name="code" 
-            label="Tên viết tắt (VD: T.Giang)" 
+          <Form.Item
+            name="code"
+            label="Tên viết tắt (VD: T.Giang)"
             rules={[{ required: true, message: 'Vui lòng nhập tên viết tắt' }]}
           >
             <Input />
           </Form.Item>
-          <Form.Item 
-            name="region" 
-            label="Khu vực" 
+          <Form.Item
+            name="region"
+            label="Khu vực"
             rules={[{ required: true }]}
             initialValue="MN"
           >
@@ -243,9 +243,9 @@ export default function ProvinceManagement() {
               <Option value="MN">Miền Nam</Option>
             </Select>
           </Form.Item>
-          <Form.Item 
-            name="drawDays" 
-            label="Lịch quay (Chọn các ngày trong tuần)" 
+          <Form.Item
+            name="drawDays"
+            label="Lịch quay (Chọn các ngày trong tuần)"
             rules={[{ required: true, message: 'Vui lòng chọn ít nhất 1 ngày' }]}
           >
             <Select mode="multiple" placeholder="Chọn ngày">

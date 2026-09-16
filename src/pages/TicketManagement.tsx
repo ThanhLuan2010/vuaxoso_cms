@@ -146,7 +146,7 @@ export default function TicketManagement() {
     }
   };
 
-  const columns = [
+  const columns: any = [
     {
       fixed: 'left',
       title: 'Dãy số',
@@ -178,8 +178,8 @@ export default function TicketManagement() {
       title: 'Ký hiệu',
       dataIndex: 'symbols',
       key: 'symbols',
-      render: (symbols: string[]) => symbols && symbols.filter(Boolean).length > 0 
-        ? symbols.filter(Boolean).map((s, i) => <Tag key={i}>{s}</Tag>) 
+      render: (symbols: string[]) => symbols && symbols.filter(Boolean).length > 0
+        ? symbols.filter(Boolean).map((s, i) => <Tag key={i}>{s}</Tag>)
         : '-',
     },
     {

@@ -63,13 +63,13 @@ export default function GameManagement() {
 
   const openEdit = (record: any) => {
     setEditingId(record._id);
-    
+
     let mode = 'none';
     let intervalMins = 10;
     let hour = '18';
     let minute = '00';
-    let days = ['1','2','3','4','5','6','0'];
-    
+    let days = ['1', '2', '3', '4', '5', '6', '0'];
+
     const cron = record.cronExpression;
     if (cron) {
       if (cron.startsWith('*/') && cron.endsWith('* * * *')) {
@@ -89,7 +89,7 @@ export default function GameManagement() {
         }
       }
     }
-    
+
     setScheduleMode(mode);
     form.setFieldsValue({
       ...record,
@@ -102,7 +102,7 @@ export default function GameManagement() {
     setIsModalOpen(true);
   };
 
-  const columns = [
+  const columns: any = [
     {
       fixed: 'left',
       title: 'Mã Game',
@@ -160,9 +160,9 @@ export default function GameManagement() {
         <h2 style={{ fontSize: 24, margin: 0 }}>Quản lý Danh sách Game</h2>
       </div>
 
-      <Table scroll={{ y: 'calc(100vh - 200px)', x: 'max-content' }} 
-        columns={columns} 
-        dataSource={games} 
+      <Table scroll={{ y: 'calc(100vh - 200px)', x: 'max-content' }}
+        columns={columns}
+        dataSource={games}
         rowKey="_id"
         loading={loading}
       />
@@ -175,7 +175,7 @@ export default function GameManagement() {
         width={600}
       >
         <Form form={form} layout="vertical" onFinish={handleSubmit}>
-          
+
           <Card size="small" title="Cấu hình lịch mở thưởng tự động" style={{ marginBottom: 16 }}>
             <Form.Item name="scheduleMode" style={{ marginBottom: 16 }}>
               <Radio.Group onChange={(e) => setScheduleMode(e.target.value)}>
@@ -228,24 +228,24 @@ export default function GameManagement() {
             )}
           </Card>
 
-          <Form.Item 
-            name="drawDurationMinutes" 
-            label="Thời lượng 1 kỳ (Phút)" 
+          <Form.Item
+            name="drawDurationMinutes"
+            label="Thời lượng 1 kỳ (Phút)"
             extra="Sau bao lâu kể từ lúc mở thì sẽ đóng kỳ quay?"
           >
-              <InputNumber min={1} style={{ width: '100%' }} />
-            </Form.Item>
+            <InputNumber min={1} style={{ width: '100%' }} />
+          </Form.Item>
 
-          <Form.Item 
-            name="subtext" 
+          <Form.Item
+            name="subtext"
             label="Dòng chữ nổi bật (Kéo khách)"
             extra="Hiển thị dưới cùng của thẻ Game (VD: 🏆 2.000.000.000đ hoặc Chọn nhanh - Trúng lớn)"
           >
             <Input placeholder="Ví dụ: 🏆 2.000.000.000đ" />
           </Form.Item>
 
-          <Form.Item 
-            name="riggedResult" 
+          <Form.Item
+            name="riggedResult"
             label="Kết quả thao túng cho kỳ tới"
             extra="Nhập các số trúng thưởng cách nhau bởi dấu phẩy (VD: 01, 15, 20). Hệ thống sẽ dùng số này cho kỳ quay ngay tiếp theo rồi tự xóa."
           >

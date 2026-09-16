@@ -115,7 +115,7 @@ export default function OrderManagement() {
     }
   };
 
-  const columns = [
+  const columns: any = [
     {
       fixed: 'left',
       title: 'Khách hàng',
@@ -297,7 +297,7 @@ export default function OrderManagement() {
         dataSource={orders}
         rowKey="_id"
         loading={loading}
-        
+
       />
 
       <Modal

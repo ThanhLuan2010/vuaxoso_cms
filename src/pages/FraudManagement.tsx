@@ -30,25 +30,26 @@ export default function FraudManagement() {
   };
 
   const expandedRowRender = (record: any) => {
-    const columns = [
+    const columns: any = [
       {
-      fixed: 'left', title: 'SĐT', dataIndex: 'phone', key: 'phone' },
+        fixed: 'left', title: 'SĐT', dataIndex: 'phone', key: 'phone'
+      },
       { title: 'Tên', dataIndex: 'name', key: 'name' },
-      { 
-        title: 'Trạng thái Info', 
-        dataIndex: 'isInfoUpdated', 
+      {
+        title: 'Trạng thái Info',
+        dataIndex: 'isInfoUpdated',
         key: 'isInfoUpdated',
         render: (val: boolean) => val ? <Tag color="green">Đã cập nhật</Tag> : <Tag color="red">Chưa cập nhật</Tag>
       },
-      { 
-        title: 'Số dư', 
-        dataIndex: 'balance', 
+      {
+        title: 'Số dư',
+        dataIndex: 'balance',
         key: 'balance',
         render: (val: number) => `${val?.toLocaleString() || 0} đ`
       },
-      { 
-        title: 'Ngày tạo', 
-        dataIndex: 'createdAt', 
+      {
+        title: 'Ngày tạo',
+        dataIndex: 'createdAt',
         key: 'createdAt',
         render: (val: string) => moment(val).format('DD/MM/YYYY HH:mm')
       },
@@ -58,24 +59,24 @@ export default function FraudManagement() {
   };
 
   const ipColumns = [
-    { 
-      title: 'Địa chỉ IP', 
-      dataIndex: 'ip', 
+    {
+      title: 'Địa chỉ IP',
+      dataIndex: 'ip',
       key: 'ip',
       render: (val: string) => <Text strong>{val}</Text>
     },
-    { 
-      title: 'Số tài khoản trùng', 
-      dataIndex: 'count', 
+    {
+      title: 'Số tài khoản trùng',
+      dataIndex: 'count',
       key: 'count',
       render: (val: number) => <Tag color="orange">{val} tài khoản</Tag>
     },
   ];
 
   const deviceColumns = [
-    { 
-      title: 'Thiết bị (User Agent)', 
-      dataIndex: 'device', 
+    {
+      title: 'Thiết bị (User Agent)',
+      dataIndex: 'device',
       key: 'device',
       render: (val: string) => (
         <Text style={{ maxWidth: 400 }} ellipsis={{ tooltip: val }}>
@@ -83,9 +84,9 @@ export default function FraudManagement() {
         </Text>
       )
     },
-    { 
-      title: 'Số tài khoản trùng', 
-      dataIndex: 'count', 
+    {
+      title: 'Số tài khoản trùng',
+      dataIndex: 'count',
       key: 'count',
       render: (val: number) => <Tag color="orange">{val} tài khoản</Tag>
     },
@@ -106,19 +107,19 @@ export default function FraudManagement() {
       <Card>
         <Tabs defaultActiveKey="1">
           <TabPane tab={<span><ExclamationCircleOutlined /> Trùng IP Đăng nhập ({duplicateIps.length})</span>} key="1">
-            <Table scroll={{ y: 'calc(100vh - 200px)', x: 'max-content' }} 
-              columns={ipColumns} 
-              dataSource={duplicateIps} 
-              rowKey="ip" 
+            <Table scroll={{ y: 'calc(100vh - 200px)', x: 'max-content' }}
+              columns={ipColumns}
+              dataSource={duplicateIps}
+              rowKey="ip"
               loading={loading}
               expandable={{ expandedRowRender }}
             />
           </TabPane>
           <TabPane tab={<span><ExclamationCircleOutlined /> Trùng Thiết bị ({duplicateDevices.length})</span>} key="2">
-            <Table scroll={{ y: 'calc(100vh - 200px)', x: 'max-content' }} 
-              columns={deviceColumns} 
-              dataSource={duplicateDevices} 
-              rowKey="device" 
+            <Table scroll={{ y: 'calc(100vh - 200px)', x: 'max-content' }}
+              columns={deviceColumns}
+              dataSource={duplicateDevices}
+              rowKey="device"
               loading={loading}
               expandable={{ expandedRowRender }}
             />

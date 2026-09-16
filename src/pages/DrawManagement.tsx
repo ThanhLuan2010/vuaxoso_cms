@@ -21,7 +21,7 @@ export default function DrawManagement() {
 
   const [editingDrawId, setEditingDrawId] = useState<string | null>(null);
   const [winningNumbersInput, setWinningNumbersInput] = useState('');
-  
+
   const [isKienThietModalOpen, setIsKienThietModalOpen] = useState(false);
   const [currentKienThietDraw, setCurrentKienThietDraw] = useState<any>(null);
 
@@ -75,7 +75,7 @@ export default function DrawManagement() {
     const nums = new Set<string>();
     let maxNum = 45;
     let reqCount = 6;
-    
+
     if (!game) {
       // Fallback
     } else if (game.code === 'keno' || game.code === 'bao_keno' || game.code === 'clln_keno') {
@@ -97,7 +97,7 @@ export default function DrawManagement() {
       const rnd = Math.floor(Math.random() * maxNum) + 1;
       nums.add(rnd.toString().padStart(2, '0'));
     }
-    
+
     const sortedNums = Array.from(nums).sort((a, b) => parseInt(a) - parseInt(b));
     setWinningNumbersInput(sortedNums.join(', '));
   };
@@ -142,12 +142,12 @@ export default function DrawManagement() {
           values.g8,
         ];
       }
-      
+
       numbers = numbers.map(n => (n || '').trim()).filter(Boolean);
 
-      await api.put(`/draws/admin/${currentKienThietDraw._id}/results`, { 
+      await api.put(`/draws/admin/${currentKienThietDraw._id}/results`, {
         winningNumbers: numbers,
-        provinceId: values.provinceId 
+        provinceId: values.provinceId
       });
       message.success('Lưu kết quả thành công');
       setIsKienThietModalOpen(false);
@@ -158,7 +158,7 @@ export default function DrawManagement() {
     }
   };
 
-  const columns = [
+  const columns: any = [
     {
       fixed: 'left',
       title: 'Mã Kỳ',
@@ -305,7 +305,7 @@ export default function DrawManagement() {
             label="Loại Game"
             rules={[{ required: true, message: 'Vui lòng chọn game' }]}
           >
-            <Select 
+            <Select
               placeholder="Chọn game..."
               onChange={(value) => {
                 const game = games.find(g => g._id === value);
@@ -319,7 +319,7 @@ export default function DrawManagement() {
                   } else if (game.code === 'MN') {
                     closeTime = now.hour(16).minute(15).second(0);
                   }
-                  
+
                   if (closeTime) {
                     form.setFieldsValue({
                       openTime: now,
@@ -426,33 +426,33 @@ export default function DrawManagement() {
             <>
               <Title level={5}>Đặc biệt</Title>
               <Form.Item name="gdb"><Input placeholder="5 chữ số" maxLength={5} style={{ width: 150 }} /></Form.Item>
-              
+
               <Title level={5}>Giải Nhất</Title>
               <Form.Item name="g1"><Input placeholder="5 chữ số" maxLength={5} style={{ width: 150 }} /></Form.Item>
-              
+
               <Title level={5}>Giải Nhì</Title>
               <Space wrap><Form.Item name="g2_1"><Input placeholder="5 chữ số" maxLength={5} style={{ width: 120 }} /></Form.Item><Form.Item name="g2_2"><Input placeholder="5 chữ số" maxLength={5} style={{ width: 120 }} /></Form.Item></Space>
-              
+
               <Title level={5}>Giải Ba</Title>
               <Space wrap>
                 <Form.Item name="g3_1"><Input placeholder="5 chữ số" maxLength={5} style={{ width: 100 }} /></Form.Item><Form.Item name="g3_2"><Input placeholder="5 chữ số" maxLength={5} style={{ width: 100 }} /></Form.Item><Form.Item name="g3_3"><Input placeholder="5 chữ số" maxLength={5} style={{ width: 100 }} /></Form.Item>
                 <Form.Item name="g3_4"><Input placeholder="5 chữ số" maxLength={5} style={{ width: 100 }} /></Form.Item><Form.Item name="g3_5"><Input placeholder="5 chữ số" maxLength={5} style={{ width: 100 }} /></Form.Item><Form.Item name="g3_6"><Input placeholder="5 chữ số" maxLength={5} style={{ width: 100 }} /></Form.Item>
               </Space>
-              
+
               <Title level={5}>Giải Tư</Title>
               <Space wrap>
                 <Form.Item name="g4_1"><Input placeholder="4 chữ số" maxLength={4} style={{ width: 100 }} /></Form.Item><Form.Item name="g4_2"><Input placeholder="4 chữ số" maxLength={4} style={{ width: 100 }} /></Form.Item><Form.Item name="g4_3"><Input placeholder="4 chữ số" maxLength={4} style={{ width: 100 }} /></Form.Item><Form.Item name="g4_4"><Input placeholder="4 chữ số" maxLength={4} style={{ width: 100 }} /></Form.Item>
               </Space>
-              
+
               <Title level={5}>Giải Năm</Title>
               <Space wrap>
                 <Form.Item name="g5_1"><Input placeholder="4 chữ số" maxLength={4} style={{ width: 100 }} /></Form.Item><Form.Item name="g5_2"><Input placeholder="4 chữ số" maxLength={4} style={{ width: 100 }} /></Form.Item><Form.Item name="g5_3"><Input placeholder="4 chữ số" maxLength={4} style={{ width: 100 }} /></Form.Item>
                 <Form.Item name="g5_4"><Input placeholder="4 chữ số" maxLength={4} style={{ width: 100 }} /></Form.Item><Form.Item name="g5_5"><Input placeholder="4 chữ số" maxLength={4} style={{ width: 100 }} /></Form.Item><Form.Item name="g5_6"><Input placeholder="4 chữ số" maxLength={4} style={{ width: 100 }} /></Form.Item>
               </Space>
-              
+
               <Title level={5}>Giải Sáu</Title>
               <Space wrap><Form.Item name="g6_1"><Input placeholder="3 chữ số" maxLength={3} style={{ width: 100 }} /></Form.Item><Form.Item name="g6_2"><Input placeholder="3 chữ số" maxLength={3} style={{ width: 100 }} /></Form.Item><Form.Item name="g6_3"><Input placeholder="3 chữ số" maxLength={3} style={{ width: 100 }} /></Form.Item></Space>
-              
+
               <Title level={5}>Giải Bảy</Title>
               <Space wrap><Form.Item name="g7_1"><Input placeholder="2 chữ số" maxLength={2} style={{ width: 100 }} /></Form.Item><Form.Item name="g7_2"><Input placeholder="2 chữ số" maxLength={2} style={{ width: 100 }} /></Form.Item><Form.Item name="g7_3"><Input placeholder="2 chữ số" maxLength={2} style={{ width: 100 }} /></Form.Item><Form.Item name="g7_4"><Input placeholder="2 chữ số" maxLength={2} style={{ width: 100 }} /></Form.Item></Space>
             </>
@@ -460,31 +460,31 @@ export default function DrawManagement() {
             <>
               <Title level={5}>Giải Tám</Title>
               <Form.Item name="g8"><Input placeholder="2 chữ số" maxLength={2} style={{ width: 100 }} /></Form.Item>
-              
+
               <Title level={5}>Giải Bảy</Title>
               <Form.Item name="g7"><Input placeholder="3 chữ số" maxLength={3} style={{ width: 100 }} /></Form.Item>
-              
+
               <Title level={5}>Giải Sáu</Title>
               <Space wrap><Form.Item name="g6_1"><Input placeholder="4 chữ số" maxLength={4} style={{ width: 100 }} /></Form.Item><Form.Item name="g6_2"><Input placeholder="4 chữ số" maxLength={4} style={{ width: 100 }} /></Form.Item><Form.Item name="g6_3"><Input placeholder="4 chữ số" maxLength={4} style={{ width: 100 }} /></Form.Item></Space>
-              
+
               <Title level={5}>Giải Năm</Title>
               <Form.Item name="g5"><Input placeholder="4 chữ số" maxLength={4} style={{ width: 120 }} /></Form.Item>
-              
+
               <Title level={5}>Giải Tư</Title>
               <Space wrap>
                 <Form.Item name="g4_1"><Input placeholder="5 chữ số" maxLength={5} style={{ width: 100 }} /></Form.Item><Form.Item name="g4_2"><Input placeholder="5 chữ số" maxLength={5} style={{ width: 100 }} /></Form.Item><Form.Item name="g4_3"><Input placeholder="5 chữ số" maxLength={5} style={{ width: 100 }} /></Form.Item><Form.Item name="g4_4"><Input placeholder="5 chữ số" maxLength={5} style={{ width: 100 }} /></Form.Item>
                 <Form.Item name="g4_5"><Input placeholder="5 chữ số" maxLength={5} style={{ width: 100 }} /></Form.Item><Form.Item name="g4_6"><Input placeholder="5 chữ số" maxLength={5} style={{ width: 100 }} /></Form.Item><Form.Item name="g4_7"><Input placeholder="5 chữ số" maxLength={5} style={{ width: 100 }} /></Form.Item>
               </Space>
-              
+
               <Title level={5}>Giải Ba</Title>
               <Space wrap><Form.Item name="g3_1"><Input placeholder="5 chữ số" maxLength={5} style={{ width: 120 }} /></Form.Item><Form.Item name="g3_2"><Input placeholder="5 chữ số" maxLength={5} style={{ width: 120 }} /></Form.Item></Space>
-              
+
               <Title level={5}>Giải Nhì</Title>
               <Form.Item name="g2"><Input placeholder="5 chữ số" maxLength={5} style={{ width: 150 }} /></Form.Item>
-              
+
               <Title level={5}>Giải Nhất</Title>
               <Form.Item name="g1"><Input placeholder="5 chữ số" maxLength={5} style={{ width: 150 }} /></Form.Item>
-              
+
               <Title level={5}>Đặc biệt</Title>
               <Form.Item name="gdb"><Input placeholder="6 chữ số" maxLength={6} style={{ width: 150 }} /></Form.Item>
             </>

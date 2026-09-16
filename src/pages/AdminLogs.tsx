@@ -26,7 +26,7 @@ export default function AdminLogs() {
     }
   };
 
-  const columns = [
+  const columns: any = [
     {
       fixed: 'left',
       title: 'Thời gian',

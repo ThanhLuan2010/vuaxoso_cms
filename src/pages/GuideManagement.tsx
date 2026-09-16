@@ -80,7 +80,7 @@ export default function GuideManagement() {
     }
   };
 
-  const columns = [
+  const columns: any = [
     {
       fixed: 'left',
       title: 'Thứ tự',
@@ -139,9 +139,9 @@ export default function GuideManagement() {
         </Button>
       </div>
 
-      <Table scroll={{ y: 'calc(100vh - 200px)', x: 'max-content' }} 
-        columns={columns} 
-        dataSource={guides} 
+      <Table scroll={{ y: 'calc(100vh - 200px)', x: 'max-content' }}
+        columns={columns}
+        dataSource={guides}
         rowKey="_id"
         loading={loading}
       />
@@ -163,7 +163,7 @@ export default function GuideManagement() {
           >
             <Input />
           </Form.Item>
-          
+
           <Form.Item
             name="subtitle"
             label="Phụ đề (Lịch quay)"

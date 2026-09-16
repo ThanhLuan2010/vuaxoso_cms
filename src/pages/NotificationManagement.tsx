@@ -57,7 +57,7 @@ export default function NotificationManagement() {
     }
   };
 
-  const columns = [
+  const columns: any = [
     {
       fixed: 'left',
       title: 'Tiêu đề',
@@ -115,9 +115,9 @@ export default function NotificationManagement() {
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
         <Title style={{ marginTop: 0, marginBottom: 16 }} level={4} >Quản lý Thông báo</Title>
-        <Button 
-          type="primary" 
-          icon={<PlusOutlined />} 
+        <Button
+          type="primary"
+          icon={<PlusOutlined />}
           onClick={() => {
             form.resetFields();
             setModalVisible(true);
@@ -127,9 +127,9 @@ export default function NotificationManagement() {
         </Button>
       </div>
 
-      <Table scroll={{ y: 'calc(100vh - 200px)', x: 'max-content' }} 
-        columns={columns} 
-        dataSource={notifications} 
+      <Table scroll={{ y: 'calc(100vh - 200px)', x: 'max-content' }}
+        columns={columns}
+        dataSource={notifications}
         rowKey="_id"
         loading={loading}
         pagination={{ pageSize: 10 }}
@@ -156,7 +156,7 @@ export default function NotificationManagement() {
           >
             <Input placeholder="Ví dụ: LOA LOA... KHUYẾN MÃI LỚN" />
           </Form.Item>
-          
+
           <Form.Item
             name="body"
             label="Nội dung"
