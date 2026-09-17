@@ -138,12 +138,12 @@ export default function Dashboard() {
               )}
               {record.receiptImage && (
                 <Image
-                  src={record.receiptImage.startsWith('http') ? record.receiptImage : `${api.defaults.baseURL?.replace('/api', '')}${record.receiptImage}`}
+                  src={record.receiptImage.startsWith('http') ? record.receiptImage : `${api.defaults.baseURL?.replace(/\/api$/, '')}${record.receiptImage.startsWith('/') ? '' : '/'}${record.receiptImage}`}
                   alt="Biên lai"
                   width={50}
                   height={50}
                   style={{ borderRadius: 4, objectFit: 'cover' }}
-                  preview={{ src: record.receiptImage.startsWith('http') ? record.receiptImage : `${api.defaults.baseURL?.replace('/api', '')}${record.receiptImage}` }}
+                  preview={{ src: record.receiptImage.startsWith('http') ? record.receiptImage : `${api.defaults.baseURL?.replace(/\/api$/, '')}${record.receiptImage.startsWith('/') ? '' : '/'}${record.receiptImage}` }}
                 />
               )}
             </div>
@@ -168,11 +168,11 @@ export default function Dashboard() {
           let qrUrl = '';
           if (dest.isBank) {
             qrUrl = dest.qrCode ?
-              (dest.qrCode.startsWith('http') ? dest.qrCode : `${api.defaults.baseURL?.replace('/api', '')}${dest.qrCode}`) :
+              (dest.qrCode.startsWith('http') ? dest.qrCode : `${api.defaults.baseURL?.replace(/\/api$/, '')}${dest.qrCode.startsWith('/') ? '' : '/'}${dest.qrCode}`) :
               `https://img.vietqr.io/image/${dest.bankName}-${dest.accountNumber}-compact.png?accountName=${encodeURIComponent(dest.accountName)}`;
           } else {
             qrUrl = dest.qrCode ?
-              (dest.qrCode.startsWith('http') ? dest.qrCode : `${api.defaults.baseURL?.replace('/api', '')}${dest.qrCode}`) :
+              (dest.qrCode.startsWith('http') ? dest.qrCode : `${api.defaults.baseURL?.replace(/\/api$/, '')}${dest.qrCode.startsWith('/') ? '' : '/'}${dest.qrCode}`) :
               (dest.address ? `https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(dest.address)}` : '');
           }
 
@@ -433,7 +433,7 @@ export default function Dashboard() {
                           <p><strong>Ảnh đính kèm:</strong></p>
                           <Image
                             width={200}
-                            src={currentRecord.receiptImage.startsWith('http') ? currentRecord.receiptImage : `${api.defaults.baseURL?.replace('/api', '')}${currentRecord.receiptImage}`}
+                            src={currentRecord.receiptImage.startsWith('http') ? currentRecord.receiptImage : `${api.defaults.baseURL?.replace(/\/api$/, '')}${currentRecord.receiptImage.startsWith('/') ? '' : '/'}${currentRecord.receiptImage}`}
                             alt="Biên lai / Thẻ cào"
                           />
                         </div>

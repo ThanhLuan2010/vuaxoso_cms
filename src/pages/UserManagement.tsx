@@ -394,7 +394,7 @@ export default function UserManagement() {
               {cccdImageVal && (
                 <div style={{ marginTop: 8, marginBottom: 24, textAlign: 'center' }}>
                   <Image
-                    src={cccdImageVal.startsWith('http') ? cccdImageVal : `${api.defaults.baseURL?.replace('/api', '')}${cccdImageVal}`}
+                    src={cccdImageVal.startsWith('http') ? cccdImageVal : `${api.defaults.baseURL?.replace(/\/api$/, '')}${cccdImageVal.startsWith('/') ? '' : '/'}${cccdImageVal}`}
                     alt="CCCD"
                     style={{ maxHeight: 200, objectFit: 'contain', borderRadius: 8, border: '1px solid #d9d9d9' }}
                   />
@@ -426,7 +426,7 @@ export default function UserManagement() {
                           <div style={{ alignSelf: 'flex-start', marginBottom: 16 }}>
                             <div style={{ fontSize: 12, color: '#888', marginBottom: 4 }}>Mã QR Code Ngân hàng:</div>
                             <Image
-                              src={banksVal[name].qrCode.startsWith('http') ? banksVal[name].qrCode : `${api.defaults.baseURL?.replace('/api', '')}${banksVal[name].qrCode}`}
+                              src={banksVal[name].qrCode.startsWith('http') ? banksVal[name].qrCode : `${api.defaults.baseURL?.replace(/\/api$/, '')}${banksVal[name].qrCode.startsWith('/') ? '' : '/'}${banksVal[name].qrCode}`}
                               alt="QR Code"
                               style={{ width: 100, height: 100, objectFit: 'cover', borderRadius: 8, border: '1px solid #d9d9d9' }}
                             />
@@ -473,7 +473,7 @@ export default function UserManagement() {
                           <div style={{ alignSelf: 'flex-start' }}>
                             <div style={{ fontSize: 12, color: '#888', marginBottom: 4 }}>Mã QR Code:</div>
                             <Image
-                              src={walletsVal[name].qrCode.startsWith('http') ? walletsVal[name].qrCode : `${api.defaults.baseURL?.replace('/api', '')}${walletsVal[name].qrCode}`}
+                              src={walletsVal[name].qrCode.startsWith('http') ? walletsVal[name].qrCode : `${api.defaults.baseURL?.replace(/\/api$/, '')}${walletsVal[name].qrCode.startsWith('/') ? '' : '/'}${walletsVal[name].qrCode}`}
                               alt="QR Code"
                               style={{ width: 100, height: 100, objectFit: 'cover', borderRadius: 8, border: '1px solid #d9d9d9' }}
                             />
