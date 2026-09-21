@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
-import { Table, Button, Space, Typography, message, Modal, Form, Input, Popconfirm } from 'antd';
-import { PlusOutlined, DeleteOutlined } from '@ant-design/icons';
+import { Table, Button, Space, Typography, Form, Input, message, Modal, Popconfirm, Popover } from 'antd';
+import { DeleteOutlined, PlusOutlined, MoreOutlined } from '@ant-design/icons';
 import api from '../services/api';
 import dayjs from 'dayjs';
 
@@ -96,17 +96,25 @@ export default function NotificationManagement() {
       key: 'action',
       width: 100,
       render: (_: any, record: any) => (
-        <Space size="middle">
-          <Popconfirm
-            title="Xóa thông báo"
-            description="Bạn có chắc muốn xóa thông báo này?"
-            onConfirm={() => handleDelete(record._id)}
-            okText="Xóa"
-            cancelText="Hủy"
-          >
-            <Button danger icon={<DeleteOutlined />} type="text" />
-          </Popconfirm>
-        </Space>
+        <Popover
+          placement="left"
+          trigger="click"
+          content={
+            <Space direction="vertical" size="small">
+              <Popconfirm
+                title="Xóa thông báo"
+                description="Bạn có chắc muốn xóa thông báo này?"
+                onConfirm={() => handleDelete(record._id)}
+                okText="Xóa"
+                cancelText="Hủy"
+              >
+                <Button danger icon={<DeleteOutlined />} block>Xóa</Button>
+              </Popconfirm>
+            </Space>
+          }
+        >
+          <Button icon={<MoreOutlined />} />
+        </Popover>
       ),
     },
   ];

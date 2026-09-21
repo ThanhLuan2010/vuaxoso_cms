@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import api from '../services/api';
-import { Table, Tag, Button, Space, Form, Input, Select, Modal, Switch, message, InputNumber, Radio, Checkbox, Card } from 'antd';
-import { EditOutlined } from '@ant-design/icons';
+import { Table, Button, Space, Drawer, Form, Input, Select, Modal, Switch, message, InputNumber, Radio, Checkbox, Card, Tag, Typography, Popover } from 'antd';
+import { EditOutlined, MoreOutlined } from '@ant-design/icons';
 
 export default function GameManagement() {
   const [games, setGames] = useState<any[]>([]);
@@ -149,7 +149,17 @@ export default function GameManagement() {
       fixed: 'right',
       key: 'action',
       render: (_: any, record: any) => (
-        <Button size="small" icon={<EditOutlined />} onClick={() => openEdit(record)}>Sửa</Button>
+        <Popover
+          placement="left"
+          trigger="click"
+          content={
+            <Space direction="vertical" size="small">
+              <Button size="small" icon={<EditOutlined />} onClick={() => openEdit(record)} block>Sửa</Button>
+            </Space>
+          }
+        >
+          <Button icon={<MoreOutlined />} />
+        </Popover>
       )
     }
   ];

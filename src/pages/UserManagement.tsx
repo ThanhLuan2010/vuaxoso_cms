@@ -1,12 +1,13 @@
 import { useState, useEffect } from 'react';
-import { Table, Tag, Button, Space, Typography, Drawer, Tabs, Form, Input, Select, message, Spin, Descriptions, Row, Col, Switch, Divider, Image, Modal, List } from 'antd';
-import { EditOutlined, LockOutlined, UnlockOutlined, EyeOutlined, EyeInvisibleOutlined, MessageOutlined } from '@ant-design/icons';
+import { Table, Tag, Button, Space, Typography, Drawer, Tabs, Form, Input, Select, message, Spin, Descriptions, Row, Col, Switch, Divider, Image, Modal, List, Popover } from 'antd';
+import { EditOutlined, LockOutlined, UnlockOutlined, EyeOutlined, EyeInvisibleOutlined, MessageOutlined, MoreOutlined } from '@ant-design/icons';
 import api from '../services/api';
 
 const { Title } = Typography;
 
 export default function UserManagement() {
   const [users, setUsers] = useState<any[]>([]);
+  console.log("===users===", users)
   const [loading, setLoading] = useState(false);
   const [isDrawerVisible, setIsDrawerVisible] = useState(false);
   const [editingUser, setEditingUser] = useState<any>(null);
@@ -16,7 +17,7 @@ export default function UserManagement() {
   const [historyData, setHistoryData] = useState({ orders: [], transactions: [] });
   const [userLogs, setUserLogs] = useState<any[]>([]);
   const [userActionLogs, setUserActionLogs] = useState<any[]>([]);
-  
+
   const [msgModalVisible, setMsgModalVisible] = useState(false);
   const [msgForm] = Form.useForm();
   const [selectedUserForMsg, setSelectedUserForMsg] = useState<any>(null);
@@ -254,44 +255,52 @@ export default function UserManagement() {
       fixed: 'right' as const,
       key: 'action',
       render: (_: any, record: any) => (
-        <Space size="middle" direction="vertical">
-          <Button
-            type="primary"
-            size="small"
-            icon={<EditOutlined />}
-            onClick={() => showEditDrawer(record)}
-            block
-          >
-            Sửa
-          </Button>
-          <Button 
-            size="small" 
-            type="dashed" 
-            icon={<MessageOutlined />} 
-            onClick={() => showMessageModal(record)} 
-            block
-          >
-            Nhắn tin
-          </Button>
-          {record.status === 'locked' ? (
-            <Button size="small" icon={<UnlockOutlined />} onClick={() => handleToggleStatus(record, 'active')} block>
-              Mở Khoá
-            </Button>
-          ) : (
-            <Button size="small" danger icon={<LockOutlined />} onClick={() => handleToggleStatus(record, 'locked')} block>
-              Khoá
-            </Button>
-          )}
-          {record.status === 'review' ? (
-            <Button size="small" icon={<EyeInvisibleOutlined />} onClick={() => handleToggleStatus(record, 'active')} block>
-              Bỏ Review
-            </Button>
-          ) : (
-            <Button size="small" style={{ color: '#fa8c16', borderColor: '#fa8c16' }} icon={<EyeOutlined />} onClick={() => handleToggleStatus(record, 'review')} block disabled={record.status === 'locked'}>
-              Review
-            </Button>
-          )}
-        </Space>
+        <Popover
+          placement="left"
+          trigger="click"
+          content={
+            <Space size="middle" direction="vertical">
+              <Button
+                type="primary"
+                size="small"
+                icon={<EditOutlined />}
+                onClick={() => showEditDrawer(record)}
+                block
+              >
+                Sửa
+              </Button>
+              <Button
+                size="small"
+                type="dashed"
+                icon={<MessageOutlined />}
+                onClick={() => showMessageModal(record)}
+                block
+              >
+                Nhắn tin
+              </Button>
+              {record.status === 'locked' ? (
+                <Button size="small" icon={<UnlockOutlined />} onClick={() => handleToggleStatus(record, 'active')} block>
+                  Mở Khoá
+                </Button>
+              ) : (
+                <Button size="small" danger icon={<LockOutlined />} onClick={() => handleToggleStatus(record, 'locked')} block>
+                  Khoá
+                </Button>
+              )}
+              {record.status === 'review' ? (
+                <Button size="small" icon={<EyeInvisibleOutlined />} onClick={() => handleToggleStatus(record, 'active')} block>
+                  Bỏ Review
+                </Button>
+              ) : (
+                <Button size="small" style={{ color: '#fa8c16', borderColor: '#fa8c16' }} icon={<EyeOutlined />} onClick={() => handleToggleStatus(record, 'review')} block disabled={record.status === 'locked'}>
+                  Review
+                </Button>
+              )}
+            </Space>
+          }
+        >
+          <Button icon={<MoreOutlined />} />
+        </Popover>
       ),
     },
   ];
@@ -300,8 +309,8 @@ export default function UserManagement() {
     <>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
         <Title style={{ margin: 0 }} level={3} >Quản lý User</Title>
-        <Input.Search 
-          placeholder="Tìm theo IP, thiết bị, họ tên, TKNH, CCCD..." 
+        <Input.Search
+          placeholder="Tìm theo IP, thiết bị, họ tên, TKNH, CCCD..."
           allowClear
           onSearch={(value) => fetchUsers(value)}
           style={{ width: 400 }}
@@ -312,7 +321,7 @@ export default function UserManagement() {
         dataSource={users}
         rowKey="_id"
         loading={loading}
-        
+
       />
 
       <Drawer
@@ -679,7 +688,7 @@ export default function UserManagement() {
           >
             <Input placeholder="Tiêu đề tin nhắn..." />
           </Form.Item>
-          
+
           <Form.Item
             name="body"
             label="Nội dung"

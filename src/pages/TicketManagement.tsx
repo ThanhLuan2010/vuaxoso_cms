@@ -1,6 +1,6 @@
-import { useState, useEffect, useCallback } from 'react';
-import { Table, Button, Typography, message, Modal, Form, Input, Select, InputNumber, Space, Tag } from 'antd';
-import { PlusOutlined, DeleteOutlined, SyncOutlined } from '@ant-design/icons';
+import { useEffect, useState, useCallback } from 'react';
+import { Table, Button, Typography, message, Modal, Form, Input, Select, InputNumber, Space, Tag, Popconfirm, Popover } from 'antd';
+import { PlusOutlined, DeleteOutlined, SyncOutlined, ExportOutlined, MoreOutlined } from '@ant-design/icons';
 import api from '../services/api';
 
 const { Title } = Typography;
@@ -200,12 +200,25 @@ export default function TicketManagement() {
       title: 'Thao tác',
       key: 'action',
       render: (_: any, record: Ticket) => (
-        <Button
-          type="text"
-          danger
-          icon={<DeleteOutlined />}
-          onClick={() => handleDelete(record._id)}
-        />
+        <Popover
+          placement="left"
+          trigger="click"
+          content={
+            <Space direction="vertical" size="small">
+              <Button
+                size="small"
+                danger
+                icon={<DeleteOutlined />}
+                onClick={() => handleDelete(record._id)}
+                block
+              >
+                Xóa
+              </Button>
+            </Space>
+          }
+        >
+          <Button icon={<MoreOutlined />} />
+        </Popover>
       ),
     },
   ];

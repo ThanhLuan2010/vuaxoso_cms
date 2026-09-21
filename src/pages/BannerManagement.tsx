@@ -1,5 +1,5 @@
-import { DeleteOutlined, EditOutlined, PlusOutlined } from '@ant-design/icons';
-import { Button, Form, Input, InputNumber, Modal, Space, Switch, Table, Typography, message, Image } from 'antd';
+import { DeleteOutlined, EditOutlined, MoreOutlined, PlusOutlined } from '@ant-design/icons';
+import { Button, Form, Image, Input, InputNumber, Modal, Popover, Space, Switch, Table, Typography, message } from 'antd';
 import { useEffect, useState } from 'react';
 import api from '../services/api';
 
@@ -97,10 +97,18 @@ export default function BannerManagement() {
       fixed: 'right',
       key: 'actions',
       render: (_: any, record: any) => (
-        <Space>
-          <Button size="small" type="primary" icon={<EditOutlined />} onClick={() => handleOpenModal(record)}>Sửa</Button>
-          <Button size="small" danger icon={<DeleteOutlined />} onClick={() => handleDeleteBanner(record._id)}>Xóa</Button>
-        </Space>
+        <Popover
+          placement="left"
+          trigger="click"
+          content={
+            <Space direction="vertical" size="small">
+              <Button size="small" type="primary" icon={<EditOutlined />} onClick={() => handleOpenModal(record)} block>Sửa</Button>
+              <Button size="small" danger icon={<DeleteOutlined />} onClick={() => handleDeleteBanner(record._id)} block>Xóa</Button>
+            </Space>
+          }
+        >
+          <Button icon={<MoreOutlined />} />
+        </Popover>
       )
     }
   ];

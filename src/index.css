@@ -7,3 +7,8 @@ body {
     'Noto Sans', sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol',
     'Noto Color Emoji';
 }
+
+.ant-modal-body {
+  max-height: calc(100vh - 250px) !important;
+  overflow-y: auto !important;
+}

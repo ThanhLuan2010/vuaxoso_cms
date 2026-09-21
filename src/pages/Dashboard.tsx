@@ -11,9 +11,10 @@ import {
   SettingOutlined,
   TrophyOutlined,
   UserOutlined,
-  WalletOutlined
+  WalletOutlined,
+  MoreOutlined
 } from '@ant-design/icons';
-import { Button, Image, Input, Layout, Menu, message, Modal, Space, Table, Tag, theme, Typography } from 'antd';
+import { Button, Image, Input, Layout, Menu, message, Modal, Space, Table, Tag, theme, Typography, Popover } from 'antd';
 import { useEffect, useState } from 'react';
 import api from '../services/api';
 import { useAuthStore } from '../store/useAuthStore';
@@ -115,8 +116,8 @@ export default function Dashboard() {
       key: 'amount',
       render: (amount: number, record: any) => (
         <span style={{ fontWeight: 'bold' }}>
-          {record.paymentMethod === 'binance' && record.destinationInfo?.amountUsdt 
-            ? `${record.destinationInfo.amountUsdt.toLocaleString()} USDT` 
+          {record.paymentMethod === 'binance' && record.destinationInfo?.amountUsdt
+            ? `${record.destinationInfo.amountUsdt.toLocaleString()} USDT`
             : `${amount?.toLocaleString()} đ`}
         </span>
       )
@@ -134,6 +135,18 @@ export default function Dashboard() {
               {record.paymentMethod !== 'scratch' && record.paymentMethod !== 'binance' && (
                 <div style={{ fontSize: '11px', color: '#1890ff', marginBottom: 4 }}>
                   Nội dung CK: {record.txId || '-'}
+                </div>
+              )}
+              {record.paymentMethod === 'binance' && (
+                <div style={{ fontSize: '11px', color: '#1890ff', marginBottom: 4 }}>
+                  Mã Giao Dịch (TxID): <span style={{ fontWeight: 'bold' }}>{record.txId || '-'}</span>
+                </div>
+              )}
+              {record.paymentMethod === 'scratch' && record.destinationInfo && (
+                <div style={{ fontSize: '11px', color: '#d46b08', marginBottom: 4, backgroundColor: '#fffbe6', padding: '4px', borderRadius: '4px', border: '1px solid #ffe58f' }}>
+                  <div><strong>Mạng:</strong> {record.destinationInfo.network}</div>
+                  <div><strong>Seri:</strong> {record.destinationInfo.seri}</div>
+                  <div><strong>PIN:</strong> {record.destinationInfo.pin}</div>
                 </div>
               )}
               {record.receiptImage && (
@@ -167,13 +180,13 @@ export default function Dashboard() {
 
           let qrUrl = '';
           if (dest.isBank) {
-            qrUrl = dest.qrCode ?
+            qrUrl = (dest.qrCode && dest.qrCode !== 'undefined' && dest.qrCode !== 'null') ?
               (dest.qrCode.startsWith('http') ? dest.qrCode : `${api.defaults.baseURL?.replace(/\/api$/, '')}${dest.qrCode.startsWith('/') ? '' : '/'}${dest.qrCode}`) :
               `https://img.vietqr.io/image/${dest.bankName}-${dest.accountNumber}-compact.png?accountName=${encodeURIComponent(dest.accountName)}`;
           } else {
-            qrUrl = dest.qrCode ?
+            qrUrl = (dest.qrCode && dest.qrCode !== 'undefined' && dest.qrCode !== 'null') ?
               (dest.qrCode.startsWith('http') ? dest.qrCode : `${api.defaults.baseURL?.replace(/\/api$/, '')}${dest.qrCode.startsWith('/') ? '' : '/'}${dest.qrCode}`) :
-              (dest.address ? `https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(dest.address)}` : '');
+              (dest.address ? `https://quickchart.io/qr?text=${encodeURIComponent(dest.address)}&size=150` : '');
           }
 
           return (
@@ -227,47 +240,58 @@ export default function Dashboard() {
       fixed: 'right' as const,
       key: 'action',
       render: (_: any, record: any) => (
-        <Space direction="vertical" size="small">
-          <Button
-            size="small"
-            icon={<EyeOutlined />}
-            onClick={() => {
-              setCurrentRecord(record);
-              setActionType('review');
-              setActionModalVisible(true);
-            }}
-          >
-            Review
-          </Button>
-          {record.status === 'pending' && (
-            <Space>
+        <Popover
+          placement="left"
+          trigger="click"
+          content={
+            <Space direction="vertical" size="small">
               <Button
-                type="primary"
                 size="small"
-                icon={<CheckCircleOutlined />}
+                icon={<EyeOutlined />}
+                block
                 onClick={() => {
                   setCurrentRecord(record);
-                  setActionType('approve');
+                  setActionType('review');
                   setActionModalVisible(true);
                 }}
               >
-                Duyệt
+                Review
               </Button>
-              <Button
-                danger
-                size="small"
-                icon={<CloseCircleOutlined />}
-                onClick={() => {
-                  setCurrentRecord(record);
-                  setActionType('reject');
-                  setActionModalVisible(true);
-                }}
-              >
-                Từ chối
-              </Button>
+              {record.status === 'pending' && (
+                <>
+                  <Button
+                    type="primary"
+                    size="small"
+                    icon={<CheckCircleOutlined />}
+                    block
+                    onClick={() => {
+                      setCurrentRecord(record);
+                      setActionType('approve');
+                      setActionModalVisible(true);
+                    }}
+                  >
+                    Duyệt
+                  </Button>
+                  <Button
+                    danger
+                    size="small"
+                    icon={<CloseCircleOutlined />}
+                    block
+                    onClick={() => {
+                      setCurrentRecord(record);
+                      setActionType('reject');
+                      setActionModalVisible(true);
+                    }}
+                  >
+                    Từ chối
+                  </Button>
+                </>
+              )}
             </Space>
-          )}
-        </Space>
+          }
+        >
+          <Button icon={<MoreOutlined />} />
+        </Popover>
       )
     }
   ];
@@ -419,12 +443,69 @@ export default function Dashboard() {
                       <p><strong>Loại:</strong> {currentRecord.type === 'deposit' ? 'NẠP TIỀN' : 'RÚT TIỀN'}</p>
                       <p><strong>Số tiền:</strong> {currentRecord.paymentMethod === 'binance' && currentRecord.destinationInfo?.amountUsdt ? `${currentRecord.destinationInfo.amountUsdt.toLocaleString()} USDT` : `${currentRecord.amount?.toLocaleString()} đ`}</p>
                       <p><strong>Cổng nạp:</strong> {currentRecord.paymentMethod === 'manual' ? 'Ngân hàng' : currentRecord.paymentMethod === 'scratch' ? 'Thẻ cào' : currentRecord.paymentMethod?.toUpperCase()}</p>
-                      
+
                       {currentRecord.destinationInfo && currentRecord.paymentMethod === 'scratch' && (
                         <div style={{ marginTop: 12, padding: 12, backgroundColor: '#f5f5f5', borderRadius: 8 }}>
                           <p style={{ margin: 0 }}><strong>Nhà mạng:</strong> {currentRecord.destinationInfo.network}</p>
                           <p style={{ margin: 0 }}><strong>Seri:</strong> {currentRecord.destinationInfo.seri}</p>
                           <p style={{ margin: 0 }}><strong>PIN:</strong> {currentRecord.destinationInfo.pin}</p>
+                        </div>
+                      )}
+
+                      {currentRecord.type === 'withdraw' && currentRecord.destinationInfo && (
+                        <div style={{ marginTop: 12, padding: 12, backgroundColor: '#f5f5f5', borderRadius: 8 }}>
+                          <p style={{ margin: 0, marginBottom: 8, fontWeight: 'bold' }}>Thông tin nhận tiền:</p>
+                          {(() => {
+                            let dest = currentRecord.destinationInfo;
+                            if (dest.type && dest.details) {
+                              dest = { ...dest.details, isBank: dest.type === 'bank' };
+                            } else {
+                              dest = { ...dest, isBank: !!dest.bankName };
+                            }
+                            
+                            let qrUrl = '';
+                            if (dest.isBank) {
+                              if (dest.qrCode && dest.qrCode !== 'undefined' && dest.qrCode !== 'null') {
+                                qrUrl = dest.qrCode.startsWith('http') ? dest.qrCode : `${api.defaults.baseURL?.replace(/\/api$/, '')}${dest.qrCode.startsWith('/') ? '' : '/'}${dest.qrCode}`;
+                              } else {
+                                qrUrl = `https://img.vietqr.io/image/${dest.bankName}-${dest.accountNumber}-compact.png?accountName=${encodeURIComponent(dest.accountName)}`;
+                              }
+                            } else {
+                              if (dest.qrCode && dest.qrCode !== 'undefined' && dest.qrCode !== 'null') {
+                                qrUrl = dest.qrCode.startsWith('http') ? dest.qrCode : `${api.defaults.baseURL?.replace(/\/api$/, '')}${dest.qrCode.startsWith('/') ? '' : '/'}${dest.qrCode}`;
+                              } else if (dest.address) {
+                                qrUrl = `https://quickchart.io/qr?text=${encodeURIComponent(dest.address)}&size=150`;
+                              }
+                            }
+                            
+                            return (
+                              <div>
+                                {dest.isBank ? (
+                                  <>
+                                    <p style={{ margin: 0 }}><strong>Ngân hàng:</strong> {dest.bankName}</p>
+                                    <p style={{ margin: 0 }}><strong>STK:</strong> {dest.accountNumber}</p>
+                                    <p style={{ margin: 0 }}><strong>Tên:</strong> {dest.accountName}</p>
+                                  </>
+                                ) : (
+                                  <>
+                                    <p style={{ margin: 0 }}><strong>Mạng:</strong> {dest.network === 'Binance Pay' ? 'Binance Pay' : `Ví ${dest.network || 'Không rõ'}`}</p>
+                                    <p style={{ margin: 0 }}><strong>Địa chỉ:</strong> {dest.address}</p>
+                                  </>
+                                )}
+                                {qrUrl && (
+                                  <div style={{ marginTop: 12 }}>
+                                    <p style={{ margin: 0, marginBottom: 4 }}><strong>QR Code:</strong></p>
+                                    <Image
+                                      width={200}
+                                      src={qrUrl}
+                                      alt="QR Code"
+                                      style={{ borderRadius: 8, objectFit: 'contain' }}
+                                    />
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })()}
                         </div>
                       )}
 

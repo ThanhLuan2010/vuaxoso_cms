@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { Table, Button, Space, Typography, Modal, Form, Input, Switch, InputNumber, Select, message, Popconfirm } from 'antd';
-import { EditOutlined, DeleteOutlined, PlusOutlined } from '@ant-design/icons';
+import { Table, Button, Typography, message, Space, Popconfirm, Modal, Form, Input, Image, Upload, Popover, Switch, InputNumber, Select } from 'antd';
+import { PlusOutlined, EditOutlined, DeleteOutlined, UploadOutlined, MoreOutlined } from '@ant-design/icons';
 import api from '../services/api';
 
 const { Title } = Typography;
@@ -115,17 +115,25 @@ export default function GuideManagement() {
       key: 'action',
       width: 150,
       render: (_: any, record: any) => (
-        <Space size="middle">
-          <Button type="primary" icon={<EditOutlined />} onClick={() => handleEdit(record)} />
-          <Popconfirm
-            title="Bạn có chắc muốn xoá hướng dẫn này?"
-            onConfirm={() => handleDelete(record._id)}
-            okText="Xoá"
-            cancelText="Huỷ"
-          >
-            <Button danger icon={<DeleteOutlined />} />
-          </Popconfirm>
-        </Space>
+        <Popover
+          placement="left"
+          trigger="click"
+          content={
+            <Space direction="vertical" size="small">
+              <Button type="primary" icon={<EditOutlined />} onClick={() => handleEdit(record)} block>Sửa</Button>
+              <Popconfirm
+                title="Bạn có chắc muốn xoá hướng dẫn này?"
+                onConfirm={() => handleDelete(record._id)}
+                okText="Xoá"
+                cancelText="Huỷ"
+              >
+                <Button danger icon={<DeleteOutlined />} block>Xóa</Button>
+              </Popconfirm>
+            </Space>
+          }
+        >
+          <Button icon={<MoreOutlined />} />
+        </Popover>
       ),
     },
   ];

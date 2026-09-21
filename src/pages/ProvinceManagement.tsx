@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
-import { Table, Button, Typography, message, Modal, Form, Input, Select, Space, Tag } from 'antd';
-import { PlusOutlined, DeleteOutlined, SyncOutlined, EditOutlined } from '@ant-design/icons';
+import { Table, Button, Typography, message, Modal, Form, Input, Select, Space, Tag, Popover } from 'antd';
+import { PlusOutlined, DeleteOutlined, SyncOutlined, EditOutlined, MoreOutlined } from '@ant-design/icons';
 import api from '../services/api';
 
 const { Title } = Typography;
@@ -151,19 +151,33 @@ export default function ProvinceManagement() {
       title: 'Thao tác',
       key: 'action',
       render: (_: any, record: Province) => (
-        <Space>
-          <Button
-            type="text"
-            icon={<EditOutlined style={{ color: '#1890ff' }} />}
-            onClick={() => handleEdit(record)}
-          />
-          <Button
-            type="text"
-            danger
-            icon={<DeleteOutlined />}
-            onClick={() => handleDelete(record._id)}
-          />
-        </Space>
+        <Popover
+          placement="left"
+          trigger="click"
+          content={
+            <Space direction="vertical" size="small">
+              <Button
+                size="small"
+                icon={<EditOutlined style={{ color: '#1890ff' }} />}
+                onClick={() => handleEdit(record)}
+                block
+              >
+                Sửa
+              </Button>
+              <Button
+                size="small"
+                danger
+                icon={<DeleteOutlined />}
+                onClick={() => handleDelete(record._id)}
+                block
+              >
+                Xóa
+              </Button>
+            </Space>
+          }
+        >
+          <Button icon={<MoreOutlined />} />
+        </Popover>
       ),
     },
   ];

@@ -1,5 +1,5 @@
-import { CameraOutlined, CheckCircleOutlined, UploadOutlined } from '@ant-design/icons';
-import { Button, Card, Col, DatePicker, Divider, Input, message, Modal, Row, Space, Statistic, Table, Tag, Typography, Upload } from 'antd';
+import { CameraOutlined, CheckCircleOutlined, MoreOutlined, UploadOutlined } from '@ant-design/icons';
+import { Button, Card, Col, DatePicker, Divider, Input, message, Modal, Popover, Row, Space, Statistic, Table, Tag, Typography, Upload } from 'antd';
 import dayjs from 'dayjs';
 import { useEffect, useState } from 'react';
 import api from '../services/api';
@@ -196,26 +196,36 @@ export default function OrderManagement() {
       fixed: 'right' as const,
       width: 160,
       render: (_: any, record: Order) => (
-        <>
-          {(!record.ticketImageUrl && record.status !== 'cancelled') && (
-            <Button
-              type="primary"
-              icon={<CameraOutlined />}
-              onClick={() => handleOpenUpload(record)}
-            >
-              In & Chụp vé
-            </Button>
-          )}
-          {record.ticketImageUrl && (
-            <Button
-              type="dashed"
-              icon={<CheckCircleOutlined style={{ color: 'green' }} />}
-              onClick={() => window.open(`http://localhost:5000${record.ticketImageUrl}`, '_blank')}
-            >
-              Xem vé
-            </Button>
-          )}
-        </>
+        <Popover
+          placement="left"
+          trigger="click"
+          content={
+            <Space direction="vertical" size="small">
+              {(!record.ticketImageUrl && record.status !== 'cancelled') && (
+                <Button
+                  type="primary"
+                  icon={<CameraOutlined />}
+                  onClick={() => handleOpenUpload(record)}
+                  block
+                >
+                  In & Chụp vé
+                </Button>
+              )}
+              {record.ticketImageUrl && (
+                <Button
+                  type="dashed"
+                  icon={<CheckCircleOutlined style={{ color: 'green' }} />}
+                  onClick={() => window.open(`http://localhost:5000${record.ticketImageUrl}`, '_blank')}
+                  block
+                >
+                  Xem vé
+                </Button>
+              )}
+            </Space>
+          }
+        >
+          <Button icon={<MoreOutlined />} />
+        </Popover>
       ),
     },
     {
