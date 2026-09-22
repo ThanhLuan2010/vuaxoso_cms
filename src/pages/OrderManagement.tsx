@@ -24,7 +24,7 @@ interface Order {
   totalCost: number;
   status: string;
   createdAt: string;
-  user: { name: string; phone: string };
+  user: { _id: string; name: string; phone: string };
   ticketImageUrl?: string;
   isWinner?: boolean;
   prizeAmount?: number;
@@ -39,7 +39,7 @@ export default function OrderManagement() {
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
 
   const [resultModalVisible, setResultModalVisible] = useState(false);
-  const [selectedResultOrder] = useState<Order | null>(null);
+  const [selectedResultOrder, setSelectedResultOrder] = useState<Order | null>(null);
   const [fileList, setFileList] = useState<any[]>([]);
   const [uploading, setUploading] = useState(false);
   const [ticketLink, setTicketLink] = useState('');
