@@ -114,13 +114,16 @@ export default function Dashboard() {
       title: 'Số tiền',
       dataIndex: 'amount',
       key: 'amount',
-      render: (amount: number, record: any) => (
-        <span style={{ fontWeight: 'bold' }}>
-          {record.paymentMethod === 'binance' && record.destinationInfo?.amountUsdt
-            ? `${record.destinationInfo.amountUsdt.toLocaleString()} USDT`
-            : `${amount?.toLocaleString()} đ`}
-        </span>
-      )
+      render: (amount: number, record: any) => {
+        const isCrypto = record.paymentMethod === 'binance' || (record.type === 'withdraw' && record.destinationInfo?.network);
+        return (
+          <span style={{ fontWeight: 'bold' }}>
+            {isCrypto && record.destinationInfo?.amountUsdt
+              ? `${record.destinationInfo.amountUsdt.toLocaleString()} USDT`
+              : `${amount?.toLocaleString()} đ`}
+          </span>
+        );
+      }
     },
     {
       title: 'Chi tiết Nạp',
