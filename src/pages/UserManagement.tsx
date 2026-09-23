@@ -70,6 +70,9 @@ export default function UserManagement() {
     // Fetch History
     setHistoryLoading(true);
     try {
+      // Log the view action
+      await api.post('/logs/view-user', { targetUserId: user._id }).catch(err => console.error('Failed to log view action', err));
+
       const res = await api.get(`/users/${user._id}/history`);
       setHistoryData(res.data);
       const logRes = await api.get(`/logs/user/${user._id}`);
