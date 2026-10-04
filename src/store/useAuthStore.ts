@@ -4,7 +4,7 @@ import api from '../services/api';
 interface AuthState {
   user: any;
   token: string | null;
-  login: (phone: string, password: string) => Promise<{ success: boolean; message?: string }>;
+  login: (phone: string, password: string) => Promise<{ success: boolean; message?: string, code?: string }>;
   logout: () => void;
 }
 
@@ -15,14 +15,18 @@ export const useAuthStore = create<AuthState>((set) => ({
   login: async (phone, password) => {
     try {
       const { data } = await api.post('/auth/login', { phone, password });
-      if (data.role !== 'admin') {
+      if (data.role !== 'admin' && data.role !== 'staff') {
         return { success: false, message: 'Bạn không có quyền truy cập.' };
       }
       localStorage.setItem('adminToken', data.token);
       set({ user: data, token: data.token });
       return { success: true };
     } catch (error: any) {
-      return { success: false, message: error.response?.data?.message || 'Đăng nhập thất bại' };
+      return { 
+        success: false, 
+        message: error.response?.data?.message || 'Đăng nhập thất bại',
+        code: error.response?.data?.code 
+      };
     }
   },
 

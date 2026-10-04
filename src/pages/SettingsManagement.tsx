@@ -74,8 +74,7 @@ export default function SettingsManagement() {
         wallets: values.binanceWallets || []
       };
 
-      await api.put('/settings/deposit_config', { value: depositConfig });
-      await api.put('/settings/binance_config', { value: binanceConfig });
+      await api.put('/settings/bulk', { deposit_config: depositConfig, binance_config: binanceConfig });
       message.success('Cập nhật thông tin cấu hình thành công');
     } catch (error) {
       message.error('Lỗi khi cập nhật cấu hình');
@@ -89,13 +88,13 @@ export default function SettingsManagement() {
   return (
     <div>
       <Title style={{ marginTop: 0, marginBottom: 16 }} level={3} >Cấu hình chung</Title>
+      <Form
+        form={form}
+        layout="vertical"
+        onFinish={handleSave}
+      >
       
-      <Card title="Cấu hình Đa Kênh Nạp Tiền" style={{ maxWidth: 800 }}>
-        <Form
-          form={form}
-          layout="vertical"
-          onFinish={handleSave}
-        >
+      <Card title="Cấu hình Đa Kênh Nạp Tiền" style={{ maxWidth: 800, marginBottom: 24 }}>
           <Title level={5}>1. Nội dung chuyển khoản</Title>
           <Space style={{ display: 'flex', marginBottom: 8 }} align="baseline">
             <Form.Item
@@ -199,20 +198,9 @@ export default function SettingsManagement() {
             ))}
           </div>
 
-          <Form.Item>
-            <Button type="primary" htmlType="submit" icon={<SaveOutlined />} loading={loading} size="large">
-              Lưu thay đổi Nạp Tiền
-            </Button>
-          </Form.Item>
-        </Form>
       </Card>
       
-      <Card title="Cấu hình Nạp tự động qua Binance" style={{ maxWidth: 800, marginTop: 24 }}>
-        <Form
-          form={form}
-          layout="vertical"
-          onFinish={handleSave}
-        >
+      <Card title="Cấu hình Nạp tự động qua Binance" style={{ maxWidth: 800, marginBottom: 24 }}>
           <Form.List name="binanceWallets">
             {(fields, { add, remove }) => (
               <>
@@ -273,14 +261,14 @@ export default function SettingsManagement() {
             <Input type="number" placeholder="VD: 25000" />
           </Form.Item>
 
-          <Form.Item>
-            <Button type="primary" htmlType="submit" icon={<SaveOutlined />} loading={loading} size="large">
-              Lưu cấu hình Binance
-            </Button>
-          </Form.Item>
-        </Form>
       </Card>
 
+      <div style={{ maxWidth: 800 }}>
+        <Button type="primary" htmlType="submit" icon={<SaveOutlined />} loading={loading} size="large" block style={{ height: 48, fontSize: 16 }}>
+          Lưu tất cả thay đổi cấu hình
+        </Button>
+      </div>
+    </Form>
 
     </div>
   );

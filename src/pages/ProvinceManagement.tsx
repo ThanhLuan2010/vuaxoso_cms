@@ -183,8 +183,8 @@ export default function ProvinceManagement() {
   ];
 
   return (
-    <div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+    <div style={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 110px)' }}>
+      <div style={{ flex: 'none', display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
         <Title style={{ marginTop: 0, marginBottom: 16 }} level={4}>Cấu hình Tỉnh/Đài Xổ Số Kiến Thiết</Title>
         <Space>
           <Button
@@ -208,7 +208,9 @@ export default function ProvinceManagement() {
         </Space>
       </div>
 
-      <Table scroll={{ y: 'calc(100vh - 200px)', x: 'max-content' }}
+      <Table 
+        style={{ flex: 1 }}
+        scroll={{ y: 'calc(100vh - 260px)', x: 'max-content' }}
         columns={columns}
         dataSource={provinces}
         rowKey="_id"

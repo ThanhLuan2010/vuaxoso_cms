@@ -6,12 +6,40 @@ import api from '../services/api';
 const { Title } = Typography;
 
 export default function UserManagement() {
+  const [searchText, setSearchText] = useState('');
   const [users, setUsers] = useState<any[]>([]);
   console.log("===users===", users)
   const [loading, setLoading] = useState(false);
   const [isDrawerVisible, setIsDrawerVisible] = useState(false);
+  const [balanceHistoryData, setBalanceHistoryData] = useState<any[]>([]);
+  const [balanceHistoryLoading, setBalanceHistoryLoading] = useState(false);
+  const [balanceHistoryTotal, setBalanceHistoryTotal] = useState(0);
+  const [balanceHistoryPage, setBalanceHistoryPage] = useState(1);
+  const [activeTab, setActiveTab] = useState('1');
+
+  const fetchBalanceHistory = async (userId: string, page: number = 1) => {
+    try {
+      setBalanceHistoryLoading(true);
+      const res = await api.get(`/users/${userId}/balance-history?page=${page}&limit=20`);
+      setBalanceHistoryData(res.data.history);
+      setBalanceHistoryTotal(res.data.total);
+      setBalanceHistoryPage(page);
+    } catch (error) {
+      console.error(error);
+      message.error('Không thể tải biến động số dư');
+    } finally {
+      setBalanceHistoryLoading(false);
+    }
+  };
+
   const [editingUser, setEditingUser] = useState<any>(null);
   const [form] = Form.useForm();
+
+  useEffect(() => {
+    if (isDrawerVisible && editingUser && activeTab === 'balance_history') {
+      fetchBalanceHistory(editingUser._id, 1);
+    }
+  }, [isDrawerVisible, editingUser, activeTab]);
 
   const [historyLoading, setHistoryLoading] = useState(false);
   const [historyData, setHistoryData] = useState({ orders: [], transactions: [] });
@@ -35,6 +63,7 @@ export default function UserManagement() {
     try {
       const res = await api.get('/users', { params: { search } });
       setUsers(res.data);
+      return res.data;
     } catch (err) {
       message.error('Lỗi khi tải danh sách user');
     } finally {
@@ -43,7 +72,21 @@ export default function UserManagement() {
   };
 
   useEffect(() => {
-    fetchUsers();
+    const searchPhone = localStorage.getItem('userSearchPhone');
+    if (searchPhone) {
+      setSearchText(searchPhone);
+      fetchUsers(searchPhone).then((data) => {
+        if (data && data.length > 0) {
+          const exactUser = data.find((u: any) => u.phone === searchPhone) || data[0];
+          if (exactUser) {
+            showEditDrawer(exactUser);
+          }
+        }
+      });
+      localStorage.removeItem('userSearchPhone');
+    } else {
+      fetchUsers();
+    }
   }, []);
 
   const showEditDrawer = async (user: any) => {
@@ -75,11 +118,27 @@ export default function UserManagement() {
 
       const res = await api.get(`/users/${user._id}/history`);
       setHistoryData(res.data);
-      const logRes = await api.get(`/logs/user/${user._id}`);
-      setUserLogs(logRes.data);
+      
+      const adminLogsRes = await api.get(`/logs/user/${user._id}`);
+      const userLogsRes = await api.get(`/logs/user-actions/${user._id}`);
 
-      const actionLogRes = await api.get(`/logs/user-actions/${user._id}`);
-      setUserActionLogs(actionLogRes.data);
+      // Filter only notes for the notes section
+      const notesOnly = adminLogsRes.data.filter((log: any) => log.details?.includes('Ghi chú:'));
+      setUserLogs(notesOnly);
+
+      // Merge Admin actions and User actions for the activity tab, excluding VIEW_USER
+      const mergedActions = [
+        ...adminLogsRes.data.filter((log: any) => log.action !== 'VIEW_USER').map((log: any) => ({
+          ...log,
+          actor: 'Admin'
+        })),
+        ...userLogsRes.data.map((log: any) => ({
+          ...log,
+          actor: 'User'
+        }))
+      ].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+
+      setUserActionLogs(mergedActions);
     } catch (err) {
       message.error('Không thể tải lịch sử người dùng');
     } finally {
@@ -309,17 +368,21 @@ export default function UserManagement() {
   ];
 
   return (
-    <>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+    <div style={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 110px)' }}>
+      <div style={{ flex: 'none', display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
         <Title style={{ margin: 0 }} level={3} >Quản lý User</Title>
         <Input.Search
           placeholder="Tìm theo IP, thiết bị, họ tên, TKNH, CCCD..."
           allowClear
+          value={searchText}
+          onChange={(e) => setSearchText(e.target.value)}
           onSearch={(value) => fetchUsers(value)}
           style={{ width: 400 }}
         />
       </div>
-      <Table scroll={{ y: 'calc(100vh - 200px)', x: 'max-content' }}
+      <Table 
+        style={{ flex: 1 }}
+        scroll={{ y: 'calc(100vh - 260px)', x: 'max-content' }}
         columns={columns}
         dataSource={users}
         rowKey="_id"
@@ -339,7 +402,7 @@ export default function UserManagement() {
           </Space>
         }
       >
-        <Tabs defaultActiveKey="1">
+        <Tabs activeKey={activeTab} onChange={setActiveTab}>
           <Tabs.TabPane tab="Thông tin chung" key="1">
             <Form form={form} layout="vertical">
               <Row gutter={16}>
@@ -507,7 +570,7 @@ export default function UserManagement() {
                 )}
               </Form.List>
 
-              <Divider plain>Lịch sử Ghi chú & Cập nhật</Divider>
+              <Divider plain>Lịch sử Ghi chú</Divider>
               {userLogs.length > 0 ? (
                 <List
                   dataSource={userLogs}
@@ -543,12 +606,27 @@ export default function UserManagement() {
 
           <Tabs.TabPane tab="Lịch sử Mua vé" key="2">
             <Spin spinning={historyLoading}>
-              <Table scroll={{ y: 'calc(100vh - 200px)', x: 'max-content' }}
+              <Table 
+        style={{ flex: 1 }}
+        scroll={{ y: 'calc(100vh - 260px)', x: 'max-content' }}
                 dataSource={historyData.orders}
                 rowKey="_id"
                 pagination={{ pageSize: 5 }}
                 columns={[
-                  { title: 'Mã Đơn', dataIndex: 'orderId', key: 'orderId' },
+                  { 
+      title: 'Mã Đơn', 
+      dataIndex: 'orderId', 
+      key: 'orderId',
+      render: (val: string, record: any) => (
+        <a onClick={() => {
+          setIsDrawerVisible(false);
+          window.dispatchEvent(new CustomEvent('changeTab', { detail: 'orders' }));
+          setTimeout(() => {
+            window.dispatchEvent(new CustomEvent('openOrder', { detail: { orderId: val, date: record.createdAt } }));
+          }, 300);
+        }}>{val}</a>
+      )
+    },
                   { title: 'Game', dataIndex: ['game', 'name'], key: 'game' },
                   { title: 'Tổng tiền', dataIndex: 'totalCost', key: 'cost', render: val => `${val.toLocaleString()}đ` },
                   { title: 'Ngày đặt', dataIndex: 'createdAt', key: 'date', render: val => new Date(val).toLocaleString() },
@@ -559,12 +637,25 @@ export default function UserManagement() {
 
           <Tabs.TabPane tab="Lịch sử Nạp / Rút" key="3">
             <Spin spinning={historyLoading}>
-              <Table scroll={{ y: 'calc(100vh - 200px)', x: 'max-content' }}
+              <Table 
+        style={{ flex: 1 }}
+        scroll={{ y: 'calc(100vh - 260px)', x: 'max-content' }}
                 dataSource={historyData.transactions}
                 rowKey="_id"
                 pagination={{ pageSize: 5 }}
                 columns={[
-                  { title: 'Mã GD', dataIndex: 'txId', key: 'txId', render: val => val || '---' },
+                  { 
+      title: 'Mã GD', 
+      dataIndex: 'txId', 
+      key: 'txId', 
+      render: (val: any) => val ? (
+        <a onClick={() => {
+          setIsDrawerVisible(false);
+          window.dispatchEvent(new CustomEvent('changeTab', { detail: 'wallet' }));
+          // Note: Dashboard doesn't have a searchText yet, so it just switches tab
+        }}>{val}</a>
+      ) : '---' 
+    },
                   { title: 'Loại', dataIndex: 'type', key: 'type', render: val => val === 'deposit' ? <Tag color="green">Nạp tiền</Tag> : <Tag color="red">Rút tiền</Tag> },
                   { title: 'Số tiền', dataIndex: 'amount', key: 'amount', render: val => `${val.toLocaleString()}đ` },
                   {
@@ -646,6 +737,13 @@ export default function UserManagement() {
                   render: (val) => new Date(val).toLocaleString('vi-VN')
                 },
                 {
+                  title: 'Người thao tác',
+                  dataIndex: 'actor',
+                  key: 'actor',
+                  width: 120,
+                  render: (val, record: any) => val === 'Admin' ? <Tag color="purple">{record.adminName || 'Admin'}</Tag> : <Tag color="green">Khách hàng</Tag>
+                },
+                {
                   title: 'Hành động',
                   dataIndex: 'action',
                   key: 'action',
@@ -667,7 +765,68 @@ export default function UserManagement() {
               ]}
             />
           </Tabs.TabPane>
-        </Tabs>
+                  <Tabs.TabPane tab="Biến động số dư" key="balance_history">
+            <Table
+              dataSource={balanceHistoryData}
+              rowKey="_id"
+              loading={balanceHistoryLoading}
+              pagination={{
+                current: balanceHistoryPage,
+                total: balanceHistoryTotal,
+                pageSize: 20,
+                onChange: (page) => {
+                  if (editingUser) fetchBalanceHistory(editingUser._id, page);
+                }
+              }}
+              columns={[
+                {
+                  title: 'Thời gian',
+                  dataIndex: 'createdAt',
+                  render: (date) => new Date(date).toLocaleString('vi-VN')
+                },
+                {
+                  title: 'Loại',
+                  dataIndex: 'type',
+                  render: (type) => {
+                    switch (type) {
+                      case 'deposit': return <Tag color="green">Nạp tiền</Tag>;
+                      case 'withdraw': return <Tag color="red">Rút tiền</Tag>;
+                      case 'bet': return <Tag color="orange">Cược vé</Tag>;
+                      case 'win': return <Tag color="gold">Trúng thưởng</Tag>;
+                      case 'refund': return <Tag color="blue">Hoàn tiền</Tag>;
+                      case 'admin': return <Tag color="purple">Admin điều chỉnh</Tag>;
+                      default: return <Tag>{type}</Tag>;
+                    }
+                  }
+                },
+                {
+                  title: 'Giao dịch',
+                  dataIndex: 'amount',
+                  render: (amount, record) => (
+                    <span style={{ color: ['deposit', 'win', 'refund', 'admin'].includes(record.type) && record.balanceAfter > record.balanceBefore ? 'green' : 'red', fontWeight: 'bold' }}>
+                      {['deposit', 'win', 'refund'].includes(record.type) || (record.type === 'admin' && record.balanceAfter > record.balanceBefore) ? '+' : '-'}{amount?.toLocaleString()} đ
+                    </span>
+                  )
+                },
+                {
+                  title: 'Số dư trước',
+                  dataIndex: 'balanceBefore',
+                  render: (amount) => `${amount?.toLocaleString() || 0} đ`
+                },
+                {
+                  title: 'Số dư sau',
+                  dataIndex: 'balanceAfter',
+                  render: (amount) => `${amount?.toLocaleString() || 0} đ`
+                },
+                {
+                  title: 'Ghi chú',
+                  dataIndex: 'description'
+                }
+              ]}
+              size="small"
+            />
+          </Tabs.TabPane>
+</Tabs>
       </Drawer>
 
       <Modal
@@ -701,6 +860,6 @@ export default function UserManagement() {
           </Form.Item>
         </Form>
       </Modal>
-    </>
+    </div>
   );
 }

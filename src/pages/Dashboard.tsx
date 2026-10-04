@@ -37,7 +37,15 @@ const { Title } = Typography;
 export default function Dashboard() {
   const { logout } = useAuthStore();
   const [transactions, setTransactions] = useState<any[]>([]);
+  const [searchText, setSearchText] = useState('');
   const [activeTab, setActiveTab] = useState('wallet');
+
+  useEffect(() => {
+    const handleTabChange = (e: any) => setActiveTab(e.detail);
+    window.addEventListener('changeTab', handleTabChange);
+    return () => window.removeEventListener('changeTab', handleTabChange);
+  }, []);
+
   const [loading, setLoading] = useState(false);
 
 
@@ -46,10 +54,10 @@ export default function Dashboard() {
     token: { colorBgContainer, borderRadiusLG },
   } = theme.useToken();
 
-  const fetchTransactions = async () => {
+  const fetchTransactions = async (search = '') => {
     try {
       setLoading(true);
-      const { data } = await api.get('/wallet/admin/transactions');
+      const { data } = await api.get('/wallet/admin/transactions', { params: { search } });
       setTransactions(data);
     } catch (error) {
       console.error(error);
@@ -94,8 +102,16 @@ export default function Dashboard() {
       title: 'Người dùng',
       key: 'user',
       render: (_: any, record: any) => (
-        <div>
-          <div style={{ fontWeight: 'bold' }}>{record.user?.name}</div>
+        <div 
+          style={{ cursor: 'pointer', padding: '4px', borderRadius: '4px', backgroundColor: '#f0f5ff' }} 
+          onClick={() => {
+            if (record.user?.phone) {
+              localStorage.setItem('userSearchPhone', record.user.phone);
+              setActiveTab('users');
+            }
+          }}
+        >
+          <div style={{ fontWeight: 'bold', color: '#1890ff' }}>{record.user?.name}</div>
           <div style={{ fontSize: '12px', color: '#888' }}>{record.user?.phone}</div>
         </div>
       )
@@ -116,12 +132,22 @@ export default function Dashboard() {
       key: 'amount',
       render: (amount: number, record: any) => {
         const isCrypto = record.paymentMethod === 'binance' || (record.type === 'withdraw' && record.destinationInfo?.network);
+        const isScratch = record.paymentMethod === 'scratch';
+        const displayAmount = isScratch ? Math.floor(amount * 0.83) : amount;
+        
         return (
-          <span style={{ fontWeight: 'bold' }}>
-            {isCrypto && record.destinationInfo?.amountUsdt
-              ? `${record.destinationInfo.amountUsdt.toLocaleString()} USDT`
-              : `${amount?.toLocaleString()} đ`}
-          </span>
+          <div>
+            <span style={{ fontWeight: 'bold', color: isScratch ? '#faad14' : 'inherit' }}>
+              {isCrypto && record.destinationInfo?.amountUsdt
+                ? `${record.destinationInfo.amountUsdt.toLocaleString()} USDT`
+                : `${displayAmount?.toLocaleString()} đ`}
+            </span>
+            {isScratch && (
+              <div style={{ fontSize: '11px', color: '#999', marginTop: '2px' }}>
+                Thực nhận (Gốc: {amount?.toLocaleString()}đ)
+              </div>
+            )}
+          </div>
         );
       }
     },
@@ -411,7 +437,17 @@ export default function Dashboard() {
           >
             {activeTab === 'wallet' && (
               <>
-                <Title level={3} style={{ marginTop: 0, marginBottom: 16 }}>Quản lý Nạp / Rút</Title>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+                  <Title level={3} style={{ margin: 0 }}>Quản lý Nạp / Rút</Title>
+                  <Input.Search
+                    placeholder="Tìm theo Tên, SĐT, Mã GD..."
+                    allowClear
+                    value={searchText}
+                    onChange={(e) => setSearchText(e.target.value)}
+                    onSearch={(value) => fetchTransactions(value)}
+                    style={{ width: 300 }}
+                  />
+                </div>
                 <Table
                   columns={columns}
                   dataSource={transactions}
@@ -444,7 +480,18 @@ export default function Dashboard() {
                     <div>
                       <p><strong>Người dùng:</strong> {currentRecord.user?.name} - {currentRecord.user?.phone}</p>
                       <p><strong>Loại:</strong> {currentRecord.type === 'deposit' ? 'NẠP TIỀN' : 'RÚT TIỀN'}</p>
-                      <p><strong>Số tiền:</strong> {currentRecord.paymentMethod === 'binance' && currentRecord.destinationInfo?.amountUsdt ? `${currentRecord.destinationInfo.amountUsdt.toLocaleString()} USDT` : `${currentRecord.amount?.toLocaleString()} đ`}</p>
+                      <p>
+                        <strong>Số tiền:</strong> 
+                        {currentRecord.paymentMethod === 'binance' && currentRecord.destinationInfo?.amountUsdt 
+                          ? ` ${currentRecord.destinationInfo.amountUsdt.toLocaleString()} USDT` 
+                          : ` ${currentRecord.paymentMethod === 'scratch' ? Math.floor(currentRecord.amount * 0.83).toLocaleString() : currentRecord.amount?.toLocaleString()} đ`}
+                        
+                        {currentRecord.paymentMethod === 'scratch' && (
+                          <span style={{ fontSize: '12px', color: '#888', marginLeft: '8px' }}>
+                            (Gốc: {currentRecord.amount?.toLocaleString()} đ - Phí 17%)
+                          </span>
+                        )}
+                      </p>
                       <p><strong>Cổng nạp:</strong> {currentRecord.paymentMethod === 'manual' ? 'Ngân hàng' : currentRecord.paymentMethod === 'scratch' ? 'Thẻ cào' : currentRecord.paymentMethod?.toUpperCase()}</p>
 
                       {currentRecord.destinationInfo && currentRecord.paymentMethod === 'scratch' && (

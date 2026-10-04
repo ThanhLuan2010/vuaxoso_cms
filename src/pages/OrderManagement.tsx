@@ -1,4 +1,4 @@
-import { CameraOutlined, CheckCircleOutlined, MoreOutlined, UploadOutlined, DownloadOutlined, WarningOutlined } from '@ant-design/icons';
+import { CameraOutlined, CheckCircleOutlined, MoreOutlined, UploadOutlined, DownloadOutlined, WarningOutlined , EyeOutlined } from '@ant-design/icons';
 import { Button, Card, Col, DatePicker, Divider, Input, message, Modal, Popover, Row, Space, Statistic, Table, Tag, Typography, Upload } from 'antd';
 import dayjs from 'dayjs';
 import { useEffect, useState } from 'react';
@@ -19,6 +19,7 @@ interface Order {
     id?: string;
     numbers: string[];
     cost: number;
+    baseCost?: number;
   }>;
   numbers?: string[];
   totalCost: number;
@@ -30,6 +31,44 @@ interface Order {
   prizeAmount?: number;
   winningNumbers?: string[];
 }
+
+
+const calculateCostPerNum = (record: any): number | undefined => {
+  let baseCost: number | undefined;
+
+  if (record.items && record.items.length > 0) {
+    const item0 = record.items[0];
+    if (item0.baseCost !== undefined && item0.baseCost > 0) baseCost = item0.baseCost;
+    else if (item0.multiplier !== undefined && item0.multiplier > 0) baseCost = item0.multiplier;
+    else if (item0.unitAmount !== undefined && item0.unitAmount > 0) baseCost = item0.unitAmount;
+  }
+
+  if (baseCost === undefined || baseCost <= 0) {
+    let count = 0;
+    if (record.items && record.items.length > 0) {
+      record.items.forEach((item: any) => count += (item.numbers ? item.numbers.length : 0));
+    } else if (record.numbers) {
+      count = record.numbers.length;
+    }
+
+    if (count > 0 && record.totalCost > 0) {
+      const pType = (record.playType || '').toLowerCase();
+      const gType = (record.gameType || '').toLowerCase();
+
+      if (pType.includes('bao 2 số') || pType.includes('bao lô tô 2 số')) {
+        baseCost = Math.round(record.totalCost / count / 13.5);
+      } else if (pType.includes('lô tô 5 số')) {
+        baseCost = Math.round(record.totalCost / count / 27);
+      } else if (pType.includes('lô tô 2 số') || pType.includes('lô tô 3 số') || pType.includes('lô tô 4 số') || gType.includes('loto')) {
+        baseCost = Math.round(record.totalCost / count / 4);
+      } else {
+        baseCost = Math.round(record.totalCost / count);
+      }
+    }
+  }
+
+  return baseCost;
+};
 
 export default function OrderManagement() {
   const [orders, setOrders] = useState<Order[]>([]);
@@ -45,13 +84,36 @@ export default function OrderManagement() {
   const [ticketLink, setTicketLink] = useState('');
 
   const [arbitrageModalVisible, setArbitrageModalVisible] = useState(false);
+  const [arbitrageUsername, setArbitrageUsername] = useState('');
   const [arbitrageResults, setArbitrageResults] = useState<any[]>([]);
 
   const [searchText, setSearchText] = useState('');
+
+  const [selectedTicketOrder, setSelectedTicketOrder] = useState<any>(null);
+  const [ticketModalVisible, setTicketModalVisible] = useState(false);
+  const [autoOpenOrderId, setAutoOpenOrderId] = useState<string | null>(null);
+
+
+  useEffect(() => {
+    const handleOpenOrder = (e: any) => {
+      const { orderId, date } = e.detail;
+      setSearchText(orderId);
+      if (date) {
+        setSelectedDate(dayjs(date));
+      }
+      setAutoOpenOrderId(orderId);
+    };
+    window.addEventListener('openOrder', handleOpenOrder);
+    return () => window.removeEventListener('openOrder', handleOpenOrder);
+  }, []);
+
+
+
   const [minBet, setMinBet] = useState('');
   const [minWin, setMinWin] = useState('');
 
   const [selectedDate, setSelectedDate] = useState<dayjs.Dayjs | null>(dayjs());
+  const [exportDateRange, setExportDateRange] = useState<any>([dayjs().startOf('day'), dayjs().endOf('day')]);
   const [summaryData, setSummaryData] = useState({
     totalTickets: 0,
     totalSales: 0,
@@ -74,11 +136,13 @@ export default function OrderManagement() {
     }
   };
 
-  const fetchOrders = async () => {
+  const fetchOrders = async (searchValue: string = searchText) => {
     try {
       setLoading(true);
       const dateParam = selectedDate ? selectedDate.format('YYYY-MM-DD') : '';
-      const res = await api.get('/orders/admin', { params: { date: dateParam } });
+      const params: any = { date: dateParam };
+      if (searchValue) params.search = searchValue;
+      const res = await api.get('/orders/admin', { params });
       setOrders(res.data);
     } catch (error) {
       console.error('Error fetching orders:', error);
@@ -116,6 +180,11 @@ export default function OrderManagement() {
         imageUrl = uploadRes.data.url;
       }
 
+      if (imageUrl && !imageUrl.startsWith('http://') && !imageUrl.startsWith('https://')) {
+        const baseUrl = api.defaults.baseURL?.replace(/\/api\/?$/, '') || '';
+        imageUrl = `${baseUrl}${imageUrl.startsWith('/') ? '' : '/'}${imageUrl}`;
+      }
+
       await api.put(`/orders/admin/${selectedOrder._id}`, {
         status: 'completed',
         ticketImageUrl: imageUrl
@@ -133,7 +202,7 @@ export default function OrderManagement() {
   };
 
   const handleCheckArbitrage = () => {
-    const groups: Record<string, { numbers: Set<string>, users: Map<string, any> }> = {};
+    const groups: Record<string, { numbers: Set<string>, orders: any[] }> = {};
 
     filteredOrders.forEach(order => {
       const province = order.provinceName || order.gameType;
@@ -142,18 +211,14 @@ export default function OrderManagement() {
       const processItems = (playType: string, nums: string[]) => {
         if (!nums || nums.length === 0) return;
         const numLen = nums[0].length;
-        if (numLen < 2 || numLen > 4) return;
         
         const key = `${province}|${draw}|${playType}|len${numLen}`;
         if (!groups[key]) {
-          groups[key] = { numbers: new Set(), users: new Map() };
+          groups[key] = { numbers: new Set(), orders: [] };
         }
         
         nums.forEach(n => groups[key].numbers.add(n));
-        
-        if (order.user) {
-          groups[key].users.set(order.user._id, order.user);
-        }
+        groups[key].orders.push(order);
       };
 
       if (order.items && order.items.length > 0) {
@@ -163,6 +228,8 @@ export default function OrderManagement() {
         });
       } else if (order.numbers && order.numbers.length > 0) {
         processItems(order.playType || 'Vé cơ bản', order.numbers);
+      } else {
+        processItems(order.playType || 'Vé cơ bản', ['N/A']);
       }
     });
 
@@ -173,20 +240,24 @@ export default function OrderManagement() {
       const province = parts[0];
       const draw = parts[1];
       const playType = parts[2];
-      const len = parseInt(parts[3].replace('len', ''));
       
-      let maxCount = 0;
-      if (len === 2) maxCount = 100;
-      if (len === 3) maxCount = 1000;
-      if (len === 4) maxCount = 10000;
+      const hasArbitrageUser = arbitrageUsername 
+        ? g.orders.some(o => (o.user?.name || o.user?.phone || o.user?.username || '').toLowerCase().includes(arbitrageUsername.toLowerCase()))
+        : false;
+
+      // condition to flag: either the admin specifically searched a user and that user is in this group,
+      // OR they covered the max numbers and there's more than 1 unique user involved.
+      // (When no username searched, we just fallback to groups with > 1 user, wait, we don't know maxCount easily for Chẵn Lẻ,
+      // so if no username is provided, we just show groups that have > 1 unique users.)
+      const uniqueUsers = new Set(g.orders.map(o => o.user?._id)).size;
       
-      if (maxCount > 0 && g.numbers.size === maxCount) {
+      if (hasArbitrageUser || (!arbitrageUsername && uniqueUsers > 1)) {
+        // filter orders if a username is searched, wait, no, show ALL orders in that group to see the opposing bets!
         results.push({
           province,
           draw,
           playType,
-          len,
-          users: Array.from(g.users.values())
+          orders: g.orders
         });
       }
     });
@@ -198,9 +269,26 @@ export default function OrderManagement() {
   const handleExportExcel = async () => {
     try {
       setLoading(true);
+      if (!exportDateRange || exportDateRange.length < 2 || !exportDateRange[0] || !exportDateRange[1]) {
+        message.warning('Vui lòng chọn khoảng thời gian cần xuất dữ liệu');
+        setLoading(false);
+        return;
+      }
+
       const res = await api.get('/orders/admin'); 
-      const startDate = dayjs().subtract(2, 'month').startOf('day');
-      const allOrders = res.data.filter((o: Order) => dayjs(o.createdAt).isAfter(startDate));
+      const startDate = exportDateRange[0].startOf('day');
+      const endDate = exportDateRange[1].endOf('day');
+      
+      const allOrders = res.data.filter((o: Order) => {
+        const orderDate = dayjs(o.createdAt);
+        return orderDate.isAfter(startDate) && orderDate.isBefore(endDate);
+      });
+
+      if (allOrders.length === 0) {
+        message.warning('Không có dữ liệu trong khoảng thời gian này');
+        setLoading(false);
+        return;
+      }
 
       const exportData = allOrders.map((o: Order) => {
         let count = 0;
@@ -209,7 +297,31 @@ export default function OrderManagement() {
         } else if (o.numbers) {
           count = o.numbers.length;
         }
-        const costPerNum = o.items && o.items.length > 0 ? o.items[0].cost : 0;
+        let rawCost = 0;
+        let c = 0;
+        let providedBaseCost: number | undefined;
+        
+        if (o.items && o.items.length > 0) {
+          rawCost = o.items[0].cost;
+          providedBaseCost = o.items[0].baseCost;
+          c = o.items[0].numbers.length;
+        } else if (o.numbers && o.numbers.length > 0) {
+          rawCost = o.totalCost;
+          c = o.numbers.length;
+        }
+
+        const vietlottGames = [
+          'keno', 'bao_keno', 'clln_keno',
+          'power', 'mega',
+          'max_3d', 'max_3d_pro', 'max_3d_plus', 'max_4d',
+          'bingo18',
+          'lotto', 'lotto_535', 'lotto_570'
+        ];
+        const gType = (o.gameType || '').toLowerCase();
+        const isVietlott = vietlottGames.some(vg => gType.includes(vg));
+
+        const calculatedBase = calculateCostPerNum(o);
+        const costPerNum = calculatedBase !== undefined && calculatedBase > 0 ? calculatedBase : '--';
 
         const exportRow: any = {
           'Mã Đơn': o.orderId,
@@ -250,13 +362,6 @@ export default function OrderManagement() {
 
   const filteredOrders = orders.filter(o => {
     let match = true;
-    if (searchText) {
-      const txt = searchText.toLowerCase();
-      const matchText = o.orderId.toLowerCase().includes(txt) 
-        || o.user?.name?.toLowerCase().includes(txt) 
-        || o.user?.phone?.includes(txt);
-      if (!matchText) match = false;
-    }
     if (minBet) {
       if (o.totalCost < Number(minBet)) match = false;
     }
@@ -266,6 +371,16 @@ export default function OrderManagement() {
     return match;
   });
 
+  useEffect(() => {
+    if (autoOpenOrderId && filteredOrders.length > 0) {
+      const order = filteredOrders.find((o: any) => o.orderId === autoOpenOrderId);
+      if (order) {
+        setSelectedTicketOrder(order);
+        setTicketModalVisible(true);
+        setAutoOpenOrderId(null);
+      }
+    }
+  }, [filteredOrders, autoOpenOrderId]);
   const columns: any = [
     {
       fixed: 'left',
@@ -281,7 +396,24 @@ export default function OrderManagement() {
     {
       title: 'Tỉnh/Đài',
       key: 'province',
-      render: (_: any, record: Order) => <strong>{record.provinceName || record.gameType.toUpperCase()}</strong>,
+      render: (_: any, record: Order) => {
+        const gameNames: Record<string, string> = {
+          loto_235: 'LÔ TÔ 2,3,5',
+          loto_cap: 'LÔ TÔ CẶP',
+          dientoan_636: 'ĐIỆN TOÁN 6X36',
+          truot_loto: 'TRƯỢT LÔ TÔ',
+          than_tai_4: 'THẦN TÀI 4',
+          power_655: 'POWER 6/55',
+          mega_645: 'MEGA 6/45',
+          max_3d: 'MAX 3D',
+          max_4d: 'MAX 4D',
+          keno: 'KENO',
+          bao_keno: 'BAO KENO',
+          bingo18: 'BINGO18',
+        };
+        const name = record.provinceName || gameNames[record.gameType] || record.gameType.toUpperCase();
+        return <strong>{name}</strong>;
+      },
     },
     {
       title: 'Mã vé cược',
@@ -323,11 +455,11 @@ export default function OrderManagement() {
         };
 
         if (record.items && record.items.length > 0) {
-          const displayItems = record.items.slice(0, 5);
+          const displayItems = record.items.slice(0, 1);
           const hiddenCount = record.items.length - displayItems.length;
 
           return (
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px 8px', maxHeight: 80, overflowY: 'auto' }}>
+            <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '4px 8px' }}>
               {displayItems.map((item: any, idx: number) => (
                 <div key={idx} style={{ display: 'flex', alignItems: 'center' }}>
                   <strong style={{ marginRight: 4 }}>{item.id || String.fromCharCode(65 + idx)}:</strong>
@@ -335,7 +467,16 @@ export default function OrderManagement() {
                 </div>
               ))}
               {hiddenCount > 0 && (
-                <Tag color="orange" style={{ alignSelf: 'center' }}>+ {hiddenCount} dãy số khác</Tag>
+                <Tag 
+                  color="orange" 
+                  style={{ cursor: 'pointer', margin: 0 }}
+                  onClick={() => {
+                    setSelectedTicketOrder(record);
+                    setTicketModalVisible(true);
+                  }}
+                >
+                  + {hiddenCount} dãy số khác (Xem chi tiết)
+                </Tag>
               )}
             </div>
           );
@@ -364,10 +505,11 @@ export default function OrderManagement() {
       title: 'Số tiền/1con',
       key: 'costPerNum',
       render: (_: any, record: Order) => {
-        if (record.items && record.items.length > 0) {
-          return `${record.items[0].cost.toLocaleString('vi-VN')}đ`;
+        const baseCost = calculateCostPerNum(record);
+        if (baseCost !== undefined && baseCost > 0) {
+          return <span style={{ fontWeight: '600' }}>{baseCost.toLocaleString('vi-VN')}đ</span>;
         }
-        return '-';
+        return '--';
       },
     },
     {
@@ -393,11 +535,14 @@ export default function OrderManagement() {
       title: 'Trạng thái',
       key: 'status',
       render: (_: any, record: Order) => {
-        if (record.isWinner === true) return <Tag color="green">Thắng</Tag>;
-        if (record.isWinner === false) return <Tag color="red">Thua</Tag>;
+        if (record.status === 'cancelled') return <Tag color="default">Đã huỷ</Tag>;
         if (record.status === 'pending') return <Tag color="orange">Chờ kết quả</Tag>;
-        if (record.status === 'completed') return <Tag color="cyan">Đã in</Tag>;
-        return <Tag color="default">Đã huỷ</Tag>;
+        if (record.status === 'completed') {
+          if (record.isWinner === true) return <Tag color="green">Thắng</Tag>;
+          if (record.isWinner === false) return <Tag color="red">Thua</Tag>;
+          return <Tag color="cyan">Đã in</Tag>;
+        }
+        return <Tag color="default">{record.status}</Tag>;
       },
     },
     {
@@ -424,17 +569,11 @@ export default function OrderManagement() {
       title: 'Kết quả',
       key: 'checkResult',
       render: (_: any, record: Order) => {
-        if (record.isWinner !== undefined) {
+        if (record.status === 'completed') {
           return <Button type="link" onClick={() => { setSelectedResultOrder(record); setResultModalVisible(true); }}>Bảng kết quả</Button>;
         }
         return <span style={{ color: 'gray' }}>Chưa có KQ</span>;
       },
-    },
-    {
-      title: 'Ngày đặt',
-      dataIndex: 'createdAt',
-      key: 'createdAt',
-      render: (val: string) => new Date(val).toLocaleString('vi-VN'),
     },
     {
       title: 'Thao tác',
@@ -447,7 +586,20 @@ export default function OrderManagement() {
           trigger="click"
           content={
             <Space direction="vertical" size="small">
-              {(!record.ticketImageUrl && record.status !== 'cancelled') && (
+              
+                    <Button
+                      type="default"
+                      icon={<EyeOutlined />}
+                      onClick={() => {
+                        setSelectedTicketOrder(record);
+                        setTicketModalVisible(true);
+                      }}
+                      block
+                    >
+                      Chi tiết vé
+                    </Button>
+
+{(!record.ticketImageUrl && record.status !== 'cancelled') && (
                 <Button
                   type="primary"
                   icon={<CameraOutlined />}
@@ -461,7 +613,14 @@ export default function OrderManagement() {
                 <Button
                   type="dashed"
                   icon={<CheckCircleOutlined style={{ color: 'green' }} />}
-                  onClick={() => window.open(`http://localhost:5000${record.ticketImageUrl}`, '_blank')}
+                  onClick={() => {
+                    let url = record.ticketImageUrl || '';
+                    if (!url.startsWith('http')) {
+                      const baseUrl = api.defaults.baseURL?.replace(/\/api$/, '') || 'http://localhost:5000';
+                      url = `${baseUrl}${url.startsWith('/') ? '' : '/'}${url}`;
+                    }
+                    window.open(url, '_blank');
+                  }}
                   block
                 >
                   Xem vé
@@ -492,8 +651,8 @@ export default function OrderManagement() {
   ];
 
   return (
-    <div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+    <div style={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 110px)' }}>
+      <div style={{ flex: 'none', display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
         <Title style={{ marginTop: 0, marginBottom: 16 }} level={4} >Quản lý Đặt vé (Orders)</Title>
         <Space>
           <span>Lọc theo ngày:</span>
@@ -549,11 +708,14 @@ export default function OrderManagement() {
       </Row>
 
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 16, marginBottom: 16, background: '#fff', padding: 16, borderRadius: 8 }}>
-        <Input 
+        <Input.Search 
           placeholder="Tìm tên, SĐT, Mã vé..." 
-          style={{ width: 200 }} 
+          style={{ width: 250 }} 
           value={searchText} 
           onChange={e => setSearchText(e.target.value)} 
+          onSearch={(value) => fetchOrders(value)}
+          enterButton
+          allowClear
         />
         
         <Space>
@@ -576,6 +738,12 @@ export default function OrderManagement() {
           />
         </Space>
 
+        <DatePicker.RangePicker
+          style={{ width: 260 }}
+          value={exportDateRange}
+          onChange={(dates) => setExportDateRange(dates)}
+          format="DD/MM/YYYY"
+        />
         <Button 
           type="primary" 
           icon={<DownloadOutlined />} 
@@ -583,9 +751,16 @@ export default function OrderManagement() {
           onClick={handleExportExcel}
           loading={loading}
         >
-          Xuất dữ liệu (Max 2 tháng)
+          Xuất dữ liệu
         </Button>
 
+        <Input 
+          placeholder="Nhập tên KH để check đối nghịch..." 
+          value={arbitrageUsername} 
+          onChange={e => setArbitrageUsername(e.target.value)} 
+          style={{ width: 250, marginRight: 10 }} 
+          allowClear
+        />
         <Button 
           type="primary" 
           danger
@@ -596,7 +771,9 @@ export default function OrderManagement() {
         </Button>
       </div>
 
-      <Table scroll={{ y: 'calc(100vh - 350px)', x: 'max-content' }}
+      <Table 
+        style={{ flex: 1 }}
+        scroll={{ y: 'calc(100vh - 380px)', x: 'max-content' }}
         columns={columns}
         dataSource={filteredOrders}
         rowKey="_id"
@@ -669,34 +846,94 @@ export default function OrderManagement() {
         footer={[
           <Button key="close" onClick={() => setArbitrageModalVisible(false)}>Đóng</Button>
         ]}
-        width={700}
+        width={900}
       >
         {arbitrageResults.length === 0 ? (
           <div style={{ textAlign: 'center', padding: '20px', color: 'green', fontSize: '16px' }}>
             <CheckCircleOutlined style={{ fontSize: '32px', marginBottom: '10px' }} /><br />
-            Không phát hiện trường hợp đối nghịch (bao hết số) nào.
+            Không tìm thấy dữ liệu đối nghịch.
           </div>
         ) : (
-          <div>
+          <div style={{ maxHeight: '70vh', overflowY: 'auto' }}>
             <Typography.Paragraph type="danger">
-              Phát hiện {arbitrageResults.length} nhóm cược có dấu hiệu bao hết toàn bộ các bộ số!
+              Tìm thấy {arbitrageResults.length} nhóm cược khớp điều kiện!
             </Typography.Paragraph>
             {arbitrageResults.map((res, index) => (
               <Card key={index} size="small" style={{ marginBottom: 10, borderColor: '#ffa39e', backgroundColor: '#fff1f0' }}>
                 <div style={{ fontWeight: 'bold', fontSize: '15px' }}>
                   [{res.province}] - {res.draw}
                 </div>
-                <div>Loại cược: <Tag color="red">{res.playType}</Tag> (Gồm {res.len === 2 ? '100' : res.len === 3 ? '1000' : '10000'} số)</div>
+                <div>Loại cược: <Tag color="red">{res.playType}</Tag></div>
                 <div style={{ marginTop: 8 }}>
-                  <strong>Danh sách User tham gia (Nhóm cược chéo):</strong>
-                  <ul style={{ paddingLeft: 20, marginTop: 4, marginBottom: 0 }}>
-                    {res.users.map((u: any, i: number) => (
-                      <li key={i}>{u.name} - {u.phone}</li>
+                  <strong>Chi tiết vé cược trong nhóm:</strong>
+                  <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    {res.orders.map((o: any, i: number) => (
+                      <div key={i} style={{ padding: 8, backgroundColor: '#fff', border: '1px solid #d9d9d9', borderRadius: 4 }}>
+                        <div><strong>Khách:</strong> {o.user?.name} - {o.user?.phone}</div>
+                        <div><strong>Mã đơn:</strong> {o.orderId} | <strong>Trạng thái:</strong> {o.status === 'pending' ? 'Chờ KQ' : o.status === 'completed' ? 'Đã có KQ' : o.status}</div>
+                        <div><strong>Ngày đặt:</strong> {new Date(o.createdAt).toLocaleString('vi-VN')}</div>
+                        <div><strong>IP:</strong> {o.ip || o.ipAddress || 'N/A'} | <strong>Thiết bị:</strong> {o.loginDevice || 'N/A'}</div>
+                        <div>
+                          <strong>Dãy số:</strong>{' '}
+                          <span style={{ color: 'blue', wordBreak: 'break-all' }}>
+                            {o.items && o.items.length > 0 
+                              ? o.items.map((it: any) => it.numbers.join(', ')).join(' | ') 
+                              : o.numbers ? o.numbers.join(', ') : 'N/A'}
+                          </span>
+                        </div>
+                      </div>
                     ))}
-                  </ul>
+                  </div>
                 </div>
               </Card>
             ))}
+          </div>
+        )}
+      </Modal>
+
+      <Modal
+        title={`Chi tiết Vé - ${selectedTicketOrder?.orderId}`}
+        open={ticketModalVisible}
+        onCancel={() => setTicketModalVisible(false)}
+        footer={[
+          <Button key="close" onClick={() => setTicketModalVisible(false)}>Đóng</Button>
+        ]}
+        width={600}
+      >
+        {selectedTicketOrder && (
+          <div style={{ fontSize: '15px', lineHeight: '2.0' }}>
+            <p><strong>Khách hàng:</strong> {selectedTicketOrder.user?.name} - {selectedTicketOrder.user?.phone}</p>
+            <p><strong>Ngày đặt:</strong> {new Date(selectedTicketOrder.createdAt).toLocaleString('vi-VN')}</p>
+            <p><strong>Tỉnh/Đài:</strong> {selectedTicketOrder.provinceName || selectedTicketOrder.gameType?.toUpperCase()}</p>
+            <p><strong>Loại cược:</strong> <Tag color="geekblue">{selectedTicketOrder.playType || 'Vé cơ bản'}</Tag></p>
+            <p><strong>Số tiền cược:</strong> <strong style={{color: 'red'}}>{selectedTicketOrder.totalCost?.toLocaleString('vi-VN')} đ</strong></p>
+            <div><strong>Chi tiết các dãy số ({selectedTicketOrder.items?.length || 1} dãy):</strong></div>
+            <div style={{ padding: 12, backgroundColor: '#f9f9f9', borderRadius: 8, marginTop: 8, maxHeight: '450px', overflowY: 'auto' }}>
+              {selectedTicketOrder.items && selectedTicketOrder.items.length > 0 ? (
+                selectedTicketOrder.items.map((item: any, idx: number) => (
+                  <div key={idx} style={{ marginBottom: 12, paddingBottom: 12, borderBottom: '1px solid #eee' }}>
+                    <strong>Dãy {item.id || String.fromCharCode(65 + idx)}:</strong> 
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginTop: 4 }}>
+                      {item.numbers.map((n: string, i: number) => <Tag key={i} color="blue">{n}</Tag>)}
+                    </div>
+                    <div style={{ fontSize: '13px', color: '#666', marginTop: 4 }}>
+                      Cược: {(() => {
+                        const vietlottGames = ['keno', 'bao_keno', 'clln_keno', 'power', 'mega', 'max_3d', 'max_3d_pro', 'max_3d_plus', 'max_4d', 'bingo18', 'lotto', 'lotto_535', 'lotto_570'];
+                        const isVietlott = vietlottGames.some(vg => (selectedTicketOrder.gameType || '').toLowerCase().includes(vg));
+                        if (isVietlott) {
+                          return `${item.cost?.toLocaleString('vi-VN')} đ`;
+                        }
+                        return item.baseCost !== undefined ? `${item.baseCost.toLocaleString('vi-VN')} đ/con (Tổng nhánh: ${item.cost?.toLocaleString('vi-VN')} đ)` : `${item.cost?.toLocaleString('vi-VN')} đ`;
+                      })()}
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+                  {selectedTicketOrder.numbers?.map((n: string, i: number) => <Tag key={i} color="blue">{n}</Tag>)}
+                </div>
+              )}
+            </div>
           </div>
         )}
       </Modal>

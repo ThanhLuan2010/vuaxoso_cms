@@ -3,6 +3,8 @@ import { Table, Button, Typography, message, Space, Popconfirm, Modal, Form, Inp
 import { PlusOutlined, EditOutlined, DeleteOutlined, UploadOutlined, MoreOutlined } from '@ant-design/icons';
 import api from '../services/api';
 
+import JoditEditor from 'jodit-react';
+
 const { Title } = Typography;
 
 export default function GuideManagement() {
@@ -11,6 +13,27 @@ export default function GuideManagement() {
   const [isModalVisible, setIsModalVisible] = useState(false);
   const [editingGuide, setEditingGuide] = useState<any>(null);
   const [form] = Form.useForm();
+
+
+  // Nuclear fix for Antd Modal stealing focus from Jodit Editor popups
+  useEffect(() => {
+    const handleFocusTrap = (e: any) => {
+      // Intercept any focus or mousedown event inside Jodit popups/dialogs
+      // and stop propagation immediately so Antd Modal's focus trap never sees it.
+      if (e.target && e.target.closest && e.target.closest('[class*="jodit"]')) {
+        e.stopPropagation();
+      }
+    };
+    
+    // Use capture phase to catch the event before it bubbles up to Antd listeners
+    document.addEventListener('focusin', handleFocusTrap, { capture: true });
+    document.addEventListener('mousedown', handleFocusTrap, { capture: true });
+    
+    return () => {
+      document.removeEventListener('focusin', handleFocusTrap, { capture: true });
+      document.removeEventListener('mousedown', handleFocusTrap, { capture: true });
+    };
+  }, []);
 
   const fetchGuides = async () => {
     try {
@@ -139,15 +162,17 @@ export default function GuideManagement() {
   ];
 
   return (
-    <div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 16 }}>
+    <div style={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 110px)' }}>
+      <div style={{ flex: 'none', display: 'flex', justifyContent: 'space-between', marginBottom: 16 }}>
         <Title style={{ marginTop: 0, marginBottom: 16 }} level={2}>Quản Lý Hướng Dẫn</Title>
         <Button type="primary" icon={<PlusOutlined />} onClick={handleAdd}>
           Thêm Hướng Dẫn
         </Button>
       </div>
 
-      <Table scroll={{ y: 'calc(100vh - 200px)', x: 'max-content' }}
+      <Table 
+        style={{ flex: 1 }}
+        scroll={{ y: 'calc(100vh - 260px)', x: 'max-content' }}
         columns={columns}
         dataSource={guides}
         rowKey="_id"
@@ -155,6 +180,7 @@ export default function GuideManagement() {
       />
 
       <Modal
+        getContainer={false}
         title={editingGuide ? 'Sửa Hướng Dẫn' : 'Thêm Hướng Dẫn'}
         open={isModalVisible}
         onOk={handleModalOk}
@@ -187,18 +213,44 @@ export default function GuideManagement() {
             <Select>
               <Select.Option value="X">Logo</Select.Option>
               <Select.Option value="KENO">KENO</Select.Option>
-              <Select.Option value="MUACHUNG">MUA CHUNG</Select.Option>
+              <Select.Option value="BAO KENO">BAO KENO</Select.Option>
               <Select.Option value="POWER">POWER 6/55</Select.Option>
               <Select.Option value="MEGA">MEGA 6/45</Select.Option>
+              <Select.Option value="MAX 3D/3DPRO">MAX 3D/3DPRO</Select.Option>
+              <Select.Option value="MAX 4D">MAX 4D</Select.Option>
+              <Select.Option value="LOTTO 5/35">LOTTO 5/35</Select.Option>
+              <Select.Option value="LOTTO 5/70">LOTTO 5/70</Select.Option>
+              <Select.Option value="BINGO18">BINGO18</Select.Option>
+              <Select.Option value="LÔ TÔ 235">LÔ TÔ 235</Select.Option>
+              <Select.Option value="LÔ TÔ 234">LÔ TÔ 234</Select.Option>
+              <Select.Option value="ĐT 6X36">ĐT 6X36</Select.Option>
+              <Select.Option value="BAO LÔ TÔ 2">BAO LÔ TÔ 2</Select.Option>
+              <Select.Option value="THẦN TÀI 4">THẦN TÀI 4</Select.Option>
+              <Select.Option value="BAO 6X36">BAO 6X36</Select.Option>
+              <Select.Option value="TRƯỢT LÔ TÔ">TRƯỢT LÔ TÔ</Select.Option>
+              <Select.Option value="LÔ ĐỀ MIỀN NAM">LÔ ĐỀ MIỀN NAM</Select.Option>
+              <Select.Option value="LÔ ĐỀ MIỀN TRUNG">LÔ ĐỀ MIỀN TRUNG</Select.Option>
+              <Select.Option value="LÔ ĐỀ MIỀN BẮC">LÔ ĐỀ MIỀN BẮC</Select.Option>
+              <Select.Option value="XSKT 3 MIỀN">XSKT 3 MIỀN</Select.Option>
+              <Select.Option value="HƯỚNG DẪN">HƯỚNG DẪN</Select.Option>
+              <Select.Option value="MUACHUNG">MUA CHUNG</Select.Option>
             </Select>
           </Form.Item>
 
           <Form.Item
             name="content"
-            label="Nội dung Hướng dẫn"
+            label="Nội dung chi tiết (Định dạng H2, H3, In Đậm, Kẻ Bảng, Chèn Ảnh):"
             rules={[{ required: true, message: 'Vui lòng nhập nội dung' }]}
           >
-            <Input.TextArea rows={8} placeholder="Nhập nội dung bài viết hướng dẫn..." />
+            <JoditEditor 
+              config={{
+                height: 400,
+                placeholder: "Nhập nội dung bài viết hướng dẫn...",
+                buttons: "source,|,bold,strikethrough,underline,italic,|,ul,ol,|,outdent,indent,|,font,fontsize,brush,paragraph,|,image,video,table,link,|,align,undo,redo,|,hr,eraser,copyformat,|,symbol,fullsize,print,about",
+                zIndex: 99999,
+                useSearch: false
+              }}
+            />
           </Form.Item>
 
           <div style={{ display: 'flex', gap: 16 }}>

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Table, Button, Space, Typography, Form, Input, message, Modal, Popconfirm, Popover } from 'antd';
-import { DeleteOutlined, PlusOutlined, MoreOutlined } from '@ant-design/icons';
+import { DeleteOutlined, PlusOutlined, MoreOutlined, EyeOutlined, EyeInvisibleOutlined } from '@ant-design/icons';
 import api from '../services/api';
 import dayjs from 'dayjs';
 
@@ -8,15 +8,16 @@ const { Title } = Typography;
 
 export default function NotificationManagement() {
   const [notifications, setNotifications] = useState<any[]>([]);
+  const [searchText, setSearchText] = useState('');
   const [loading, setLoading] = useState(false);
   const [modalVisible, setModalVisible] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [form] = Form.useForm();
 
-  const fetchNotifications = async () => {
+  const fetchNotifications = async (search = '') => {
     try {
       setLoading(true);
-      const { data } = await api.get('/notifications/admin');
+      const { data } = await api.get('/notifications/admin', { params: { search } });
       setNotifications(data);
     } catch (error) {
       console.error(error);
@@ -43,6 +44,18 @@ export default function NotificationManagement() {
       message.error('Lỗi khi tạo thông báo');
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  
+  const handleToggleVisibility = async (id: string) => {
+    try {
+      await api.put(`/notifications/admin/${id}/toggle-visibility`);
+      message.success('Cập nhật trạng thái hiển thị thành công');
+      fetchNotifications();
+    } catch (error) {
+      console.error(error);
+      message.error('Lỗi khi cập nhật trạng thái hiển thị');
     }
   };
 
@@ -81,7 +94,15 @@ export default function NotificationManagement() {
       dataIndex: 'user',
       key: 'user',
       width: 150,
-      render: (val: any) => val ? 'Cá nhân' : 'Tất cả (Promo)',
+      render: (val: any) => val ? (val.name || val.phone || 'Cá nhân') : 'Tất cả (Promo)',
+    },
+
+    {
+      title: 'Người gửi',
+      dataIndex: 'sender',
+      key: 'sender',
+      width: 150,
+      render: (val: any) => val?.name || 'Hệ thống',
     },
     {
       title: 'Ngày tạo',
@@ -100,7 +121,24 @@ export default function NotificationManagement() {
           placement="left"
           trigger="click"
           content={
-            <Space direction="vertical" size="small">
+            <Space direction="vertical" size="small" style={{ width: 160 }}>
+              <Button icon={<EyeOutlined />} block onClick={() => {
+                Modal.info({
+                  title: record.title,
+                  content: (
+                    <div>
+                      <p><strong>Nội dung:</strong> {record.body}</p>
+                      <p><strong>Loại:</strong> {record.type}</p>
+                      <p><strong>Người nhận:</strong> {record.user ? (record.user.name || record.user.phone) : 'Tất cả'}</p>
+                    </div>
+                  ),
+                });
+              }}>
+                Xem
+              </Button>
+              <Button icon={record.isHidden ? <EyeOutlined /> : <EyeInvisibleOutlined />} block onClick={() => handleToggleVisibility(record._id)}>
+                {record.isHidden ? 'Hiện (trên app)' : 'Ẩn (trên app)'}
+              </Button>
               <Popconfirm
                 title="Xóa thông báo"
                 description="Bạn có chắc muốn xóa thông báo này?"
@@ -120,22 +158,34 @@ export default function NotificationManagement() {
   ];
 
   return (
-    <div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+    <div style={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 110px)' }}>
+      <div style={{ flex: 'none', display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
         <Title style={{ marginTop: 0, marginBottom: 16 }} level={4} >Quản lý Thông báo</Title>
-        <Button
-          type="primary"
-          icon={<PlusOutlined />}
-          onClick={() => {
-            form.resetFields();
-            setModalVisible(true);
-          }}
-        >
-          Thêm thông báo (Promo)
-        </Button>
+        <Space>
+          <Input.Search
+            placeholder="Tìm theo Tiêu đề, Nội dung..."
+            allowClear
+            value={searchText}
+            onChange={(e) => setSearchText(e.target.value)}
+            onSearch={(value) => fetchNotifications(value)}
+            style={{ width: 300 }}
+          />
+          <Button
+            type="primary"
+            icon={<PlusOutlined />}
+            onClick={() => {
+              form.resetFields();
+              setModalVisible(true);
+            }}
+          >
+            Thêm thông báo (Promo)
+          </Button>
+        </Space>
       </div>
 
-      <Table scroll={{ y: 'calc(100vh - 200px)', x: 'max-content' }}
+      <Table 
+        style={{ flex: 1 }}
+        scroll={{ y: 'calc(100vh - 260px)', x: 'max-content' }}
         columns={columns}
         dataSource={notifications}
         rowKey="_id"

@@ -5,6 +5,7 @@ import { EditOutlined, MoreOutlined } from '@ant-design/icons';
 
 export default function GameManagement() {
   const [games, setGames] = useState<any[]>([]);
+  const [searchText, setSearchText] = useState('');
   const [loading, setLoading] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -12,10 +13,10 @@ export default function GameManagement() {
 
   const [form] = Form.useForm();
 
-  const fetchGames = async () => {
+  const fetchGames = async (search = '') => {
     try {
       setLoading(true);
-      const { data } = await api.get('/games');
+      const { data } = await api.get('/games', { params: { search, admin: 'true' } });
       setGames(data);
     } catch (error) {
       message.error('Lỗi lấy danh sách game');
@@ -134,7 +135,7 @@ export default function GameManagement() {
       title: 'Thời gian 1 kỳ',
       dataIndex: 'drawDurationMinutes',
       key: 'drawDurationMinutes',
-      render: (val: number) => val ? `${val} phút` : '-'
+      render: (val: number, record: any) => (val && val > 0 && (record.code || '').toLowerCase().includes('keno')) ? `${val} phút` : <Tag color="orange">Theo lịch quay</Tag>
     },
     {
       title: 'Trạng thái',
@@ -165,12 +166,22 @@ export default function GameManagement() {
   ];
 
   return (
-    <div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
+    <div style={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 110px)' }}>
+      <div style={{ flex: 'none', display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
         <h2 style={{ fontSize: 24, margin: 0 }}>Quản lý Danh sách Game</h2>
+        <Input.Search
+          placeholder="Tìm theo Tên game, Mã game..."
+          allowClear
+          value={searchText}
+          onChange={(e) => setSearchText(e.target.value)}
+          onSearch={(value) => fetchGames(value)}
+          style={{ width: 300 }}
+        />
       </div>
 
-      <Table scroll={{ y: 'calc(100vh - 200px)', x: 'max-content' }}
+      <Table 
+        style={{ flex: 1 }}
+        scroll={{ y: 'calc(100vh - 260px)', x: 'max-content' }}
         columns={columns}
         dataSource={games}
         rowKey="_id"

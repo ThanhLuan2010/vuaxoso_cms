@@ -55,7 +55,9 @@ export default function FraudManagement() {
       },
     ];
 
-    return <Table scroll={{ y: 'calc(100vh - 200px)', x: 'max-content' }} columns={columns} dataSource={record.users} pagination={false} rowKey="_id" size="small" />;
+    return <Table 
+        style={{ flex: 1 }}
+        scroll={{ y: 'calc(100vh - 260px)', x: 'max-content' }} columns={columns} dataSource={record.users} pagination={false} rowKey="_id" size="small" />;
   };
 
   const ipColumns = [
@@ -93,8 +95,8 @@ export default function FraudManagement() {
   ];
 
   return (
-    <div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
+    <div style={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 110px)' }}>
+      <div style={{ flex: 'none', display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
         <Title level={2} style={{ margin: 0 }}>
           <SecurityScanOutlined style={{ marginRight: 12, color: '#ff4d4f' }} />
           Kiểm tra Gian lận
@@ -107,7 +109,9 @@ export default function FraudManagement() {
       <Card>
         <Tabs defaultActiveKey="1">
           <TabPane tab={<span><ExclamationCircleOutlined /> Trùng IP Đăng nhập ({duplicateIps.length})</span>} key="1">
-            <Table scroll={{ y: 'calc(100vh - 200px)', x: 'max-content' }}
+            <Table 
+        style={{ flex: 1 }}
+        scroll={{ y: 'calc(100vh - 260px)', x: 'max-content' }}
               columns={ipColumns}
               dataSource={duplicateIps}
               rowKey="ip"
@@ -116,7 +120,9 @@ export default function FraudManagement() {
             />
           </TabPane>
           <TabPane tab={<span><ExclamationCircleOutlined /> Trùng Thiết bị ({duplicateDevices.length})</span>} key="2">
-            <Table scroll={{ y: 'calc(100vh - 200px)', x: 'max-content' }}
+            <Table 
+        style={{ flex: 1 }}
+        scroll={{ y: 'calc(100vh - 260px)', x: 'max-content' }}
               columns={deviceColumns}
               dataSource={duplicateDevices}
               rowKey="device"
