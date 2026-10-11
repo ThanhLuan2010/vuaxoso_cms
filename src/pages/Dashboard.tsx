@@ -14,7 +14,8 @@ import {
   WalletOutlined,
   MoreOutlined
 } from '@ant-design/icons';
-import { Button, Image, Input, Layout, Menu, message, Modal, Space, Table, Tag, theme, Typography, Popover } from 'antd';
+import { Button, DatePicker, Image, Input, Layout, Menu, message, Modal, Popover, Select, Space, Table, Tag, theme, Typography } from 'antd';
+import dayjs from 'dayjs';
 import { useEffect, useState } from 'react';
 import api from '../services/api';
 import { useAuthStore } from '../store/useAuthStore';
@@ -39,6 +40,9 @@ export default function Dashboard() {
   const [transactions, setTransactions] = useState<any[]>([]);
   const [searchText, setSearchText] = useState('');
   const [activeTab, setActiveTab] = useState('wallet');
+  const [dateRange, setDateRange] = useState<[dayjs.Dayjs, dayjs.Dayjs] | null>(null);
+  const [depositStatus, setDepositStatus] = useState<string | undefined>(undefined);
+  const [withdrawStatus, setWithdrawStatus] = useState<string | undefined>(undefined);
 
   useEffect(() => {
     const handleTabChange = (e: any) => setActiveTab(e.detail);
@@ -48,16 +52,33 @@ export default function Dashboard() {
 
   const [loading, setLoading] = useState(false);
 
-
-
   const {
     token: { colorBgContainer, borderRadiusLG },
   } = theme.useToken();
 
-  const fetchTransactions = async (search = '') => {
+  const fetchTransactions = async (
+    customSearch?: string,
+    customRange?: [dayjs.Dayjs, dayjs.Dayjs] | null,
+    customDStatus?: string,
+    customWStatus?: string
+  ) => {
     try {
       setLoading(true);
-      const { data } = await api.get('/wallet/admin/transactions', { params: { search } });
+      const search = customSearch !== undefined ? customSearch : searchText;
+      const range = customRange !== undefined ? customRange : dateRange;
+      const dStatus = customDStatus !== undefined ? customDStatus : depositStatus;
+      const wStatus = customWStatus !== undefined ? customWStatus : withdrawStatus;
+
+      const params: any = {};
+      if (search) params.search = search;
+      if (range && range[0] && range[1]) {
+        params.startDate = range[0].format('YYYY-MM-DD');
+        params.endDate = range[1].format('YYYY-MM-DD');
+      }
+      if (dStatus) params.depositStatus = dStatus;
+      if (wStatus) params.withdrawStatus = wStatus;
+
+      const { data } = await api.get('/wallet/admin/transactions', { params });
       setTransactions(data);
     } catch (error) {
       console.error(error);
@@ -68,9 +89,9 @@ export default function Dashboard() {
 
   useEffect(() => {
     if (activeTab === 'wallet') {
-      fetchTransactions();
+      fetchTransactions(searchText, dateRange, depositStatus, withdrawStatus);
     }
-  }, [activeTab]);
+  }, [activeTab, dateRange, depositStatus, withdrawStatus]);
 
   const [actionModalVisible, setActionModalVisible] = useState(false);
   const [currentRecord, setCurrentRecord] = useState<any>(null);
@@ -437,16 +458,76 @@ export default function Dashboard() {
           >
             {activeTab === 'wallet' && (
               <>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-                  <Title level={3} style={{ margin: 0 }}>Quản lý Nạp / Rút</Title>
-                  <Input.Search
-                    placeholder="Tìm theo Tên, SĐT, Mã GD..."
-                    allowClear
-                    value={searchText}
-                    onChange={(e) => setSearchText(e.target.value)}
-                    onSearch={(value) => fetchTransactions(value)}
-                    style={{ width: 300 }}
-                  />
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12, marginBottom: 16 }}>
+                  <Title level={3} style={{ margin: 0, whiteSpace: 'nowrap' }}>Quản lý Nạp / Rút</Title>
+                  <Space wrap size="middle">
+                    <Space size="small">
+                      <span style={{ fontWeight: 500, fontSize: '13px' }}>Nạp tiền:</span>
+                      <Select
+                        placeholder="Trạng thái"
+                        allowClear
+                        value={depositStatus}
+                        onChange={(val) => setDepositStatus(val)}
+                        style={{ width: 130 }}
+                        options={[
+                          { label: 'Tất cả nạp', value: 'all' },
+                          { label: 'Chờ duyệt', value: 'pending' },
+                          { label: 'Đã duyệt', value: 'approved' },
+                          { label: 'Từ chối', value: 'rejected' },
+                        ]}
+                      />
+                    </Space>
+
+                    <Space size="small">
+                      <span style={{ fontWeight: 500, fontSize: '13px' }}>Rút tiền:</span>
+                      <Select
+                        placeholder="Trạng thái"
+                        allowClear
+                        value={withdrawStatus}
+                        onChange={(val) => setWithdrawStatus(val)}
+                        style={{ width: 130 }}
+                        options={[
+                          { label: 'Tất cả rút', value: 'all' },
+                          { label: 'Chờ duyệt', value: 'pending' },
+                          { label: 'Đã duyệt', value: 'approved' },
+                          { label: 'Từ chối', value: 'rejected' },
+                        ]}
+                      />
+                    </Space>
+
+                    <Space size="small">
+                      <span style={{ fontWeight: 500, fontSize: '13px' }}>Ngày tháng:</span>
+                      <DatePicker.RangePicker
+                        format="DD/MM/YYYY"
+                        allowClear
+                        value={dateRange}
+                        onChange={(dates) => setDateRange(dates as any)}
+                        placeholder={['Từ ngày', 'Đến ngày']}
+                        style={{ width: 240 }}
+                        presets={[
+                          { label: 'Hôm nay', value: [dayjs().startOf('day'), dayjs().endOf('day')] },
+                          { label: 'Hôm qua', value: [dayjs().subtract(1, 'day').startOf('day'), dayjs().subtract(1, 'day').endOf('day')] },
+                          { label: '7 ngày qua', value: [dayjs().subtract(7, 'day').startOf('day'), dayjs().endOf('day')] },
+                          { label: '30 ngày qua', value: [dayjs().subtract(30, 'day').startOf('day'), dayjs().endOf('day')] },
+                          { label: 'Tháng này', value: [dayjs().startOf('month'), dayjs().endOf('month')] },
+                        ]}
+                      />
+                    </Space>
+
+                    <Input.Search
+                      placeholder="Tìm theo Tên, SĐT, Mã GD..."
+                      allowClear
+                      value={searchText}
+                      onChange={(e) => {
+                        setSearchText(e.target.value);
+                        if (!e.target.value) {
+                          fetchTransactions('', dateRange, depositStatus, withdrawStatus);
+                        }
+                      }}
+                      onSearch={(value) => fetchTransactions(value)}
+                      style={{ width: 250 }}
+                    />
+                  </Space>
                 </div>
                 <Table
                   columns={columns}
