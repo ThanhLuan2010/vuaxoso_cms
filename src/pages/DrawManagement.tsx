@@ -1,5 +1,6 @@
-import { PlusOutlined, SaveOutlined, SyncOutlined } from '@ant-design/icons';
-import { Button, DatePicker, Form, Input, Modal, Select, Space, Table, Tag, Typography, message } from 'antd';
+import { PlusOutlined, SaveOutlined, SyncOutlined, EditOutlined, DeleteOutlined } from '@ant-design/icons';
+import { Button, DatePicker, Form, Input, Modal, Popconfirm, Select, Space, Table, Tag, Typography, message } from 'antd';
+import useAuthStore from '../store/useAuthStore';
 import { useEffect, useState } from 'react';
 import api from '../services/api';
 import dayjs from 'dayjs';
@@ -18,6 +19,15 @@ export default function DrawManagement() {
 
   const [form] = Form.useForm();
   const [ktForm] = Form.useForm();
+  const [editForm] = Form.useForm();
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [editingDraw, setEditingDraw] = useState<any>(null);
+  const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([]);
+
+  const { isMasterAdmin, hasPermission } = useAuthStore();
+  const isMaster = isMasterAdmin();
+  const canDeleteDraw = isMaster || hasPermission('draws', 'delete');
+  const canEditDraw = isMaster || hasPermission('draws', 'update');
 
   const [editingDrawId, setEditingDrawId] = useState<string | null>(null);
   const [winningNumbersInput, setWinningNumbersInput] = useState('');
@@ -68,6 +78,69 @@ export default function DrawManagement() {
       fetchData();
     } catch (error) {
       message.error('Lỗi tạo kỳ quay');
+    }
+  };
+
+  const handleDeleteDraw = async (id: string) => {
+    try {
+      await api.delete(`/draws/admin/${id}`);
+      message.success('Xóa kỳ quay thành công');
+      fetchData();
+    } catch (err: any) {
+      message.error(err.response?.data?.message || 'Lỗi khi xóa kỳ quay');
+    }
+  };
+
+  const handleBulkDelete = async () => {
+    if (selectedRowKeys.length === 0) return;
+    try {
+      setLoading(true);
+      await Promise.all(selectedRowKeys.map(id => api.delete(`/draws/admin/${id}`)));
+      message.success(`Đã xóa thành công ${selectedRowKeys.length} kỳ quay`);
+      setSelectedRowKeys([]);
+      fetchData();
+    } catch (err: any) {
+      message.error('Lỗi khi xóa các kỳ quay đã chọn');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleOpenEdit = (record: any) => {
+    setEditingDraw(record);
+    editForm.setFieldsValue({
+      drawCode: record.drawCode,
+      status: record.status,
+      openTime: record.openTime ? dayjs(record.openTime) : null,
+      closeTime: record.closeTime ? dayjs(record.closeTime) : null,
+      drawTime: record.drawTime ? dayjs(record.drawTime) : null,
+      winningNumbers: record.winningNumbers?.join(', ') || '',
+      jackpotAmount: record.jackpotAmount || 0,
+      provinceId: record.provinceId
+    });
+    setIsEditModalOpen(true);
+  };
+
+  const handleSaveEdit = async (values: any) => {
+    try {
+      const payload: any = {
+        drawCode: values.drawCode,
+        status: values.status,
+        openTime: values.openTime?.toISOString(),
+        closeTime: values.closeTime?.toISOString(),
+        drawTime: values.drawTime ? values.drawTime.toISOString() : undefined,
+        jackpotAmount: values.jackpotAmount,
+        provinceId: values.provinceId
+      };
+      if (values.winningNumbers !== undefined) {
+        payload.winningNumbers = values.winningNumbers.split(',').map((s: string) => s.trim()).filter(Boolean);
+      }
+      await api.put(`/draws/admin/${editingDraw._id}`, payload);
+      message.success('Cập nhật kỳ quay thành công');
+      setIsEditModalOpen(false);
+      fetchData();
+    } catch (err: any) {
+      message.error(err.response?.data?.message || 'Lỗi khi cập nhật kỳ quay');
     }
   };
 
@@ -248,7 +321,46 @@ export default function DrawManagement() {
           </Button>
         );
       }
-    }
+    },
+    ...(canEditDraw || canDeleteDraw ? [{
+      fixed: 'right' as const,
+      title: 'Thao tác',
+      key: 'actions',
+      width: 140,
+      render: (_: any, record: any) => (
+        <Space>
+          {canEditDraw && (
+            <Button
+              type="link"
+              size="small"
+              icon={<EditOutlined />}
+              onClick={() => handleOpenEdit(record)}
+            >
+              Sửa
+            </Button>
+          )}
+          {canDeleteDraw && (
+            <Popconfirm
+              title="Xác nhận xóa kỳ quay?"
+              description={`Bạn có chắc muốn xóa kỳ quay ${record.drawCode}?`}
+              onConfirm={() => handleDeleteDraw(record._id)}
+              okText="Xóa"
+              cancelText="Hủy"
+              okButtonProps={{ danger: true }}
+            >
+              <Button
+                type="link"
+                danger
+                size="small"
+                icon={<DeleteOutlined />}
+              >
+                Xóa
+              </Button>
+            </Popconfirm>
+          )}
+        </Space>
+      )
+    }] : [])
   ];
 
   return (
@@ -269,6 +381,20 @@ export default function DrawManagement() {
               <Select.Option key={g._id} value={g._id}>{g.name}</Select.Option>
             ))}
           </Select>
+          {canDeleteDraw && selectedRowKeys.length > 0 && (
+            <Popconfirm
+              title={`Xóa ${selectedRowKeys.length} kỳ quay đã chọn?`}
+              description="Hành động này sẽ xóa vĩnh viễn các kỳ quay đã chọn."
+              onConfirm={handleBulkDelete}
+              okText="Xóa ngay"
+              cancelText="Hủy"
+              okButtonProps={{ danger: true }}
+            >
+              <Button danger icon={<DeleteOutlined />}>
+                Xóa ({selectedRowKeys.length}) kỳ đã chọn
+              </Button>
+            </Popconfirm>
+          )}
           <Button type="primary" icon={<PlusOutlined />} onClick={() => setIsModalOpen(true)}>
             Mở kỳ quay mới
           </Button>
@@ -282,6 +408,10 @@ export default function DrawManagement() {
         dataSource={draws}
         rowKey="_id"
         loading={loading}
+        rowSelection={canDeleteDraw ? {
+          selectedRowKeys,
+          onChange: (newSelectedKeys) => setSelectedRowKeys(newSelectedKeys)
+        } : undefined}
         pagination={{
           current: page,
           pageSize: 10,
@@ -496,6 +626,86 @@ export default function DrawManagement() {
             <Space>
               <Button onClick={() => setIsKienThietModalOpen(false)}>Hủy</Button>
               <Button type="primary" htmlType="submit">Lưu Kết Quả</Button>
+            </Space>
+          </Form.Item>
+        </Form>
+      </Modal>
+      <Modal
+        title={`Chỉnh sửa kỳ quay ${editingDraw?.drawCode || ''}`}
+        open={isEditModalOpen}
+        onCancel={() => setIsEditModalOpen(false)}
+        footer={null}
+        width={550}
+        centered
+      >
+        <Form
+          form={editForm}
+          layout="vertical"
+          onFinish={handleSaveEdit}
+        >
+          <Form.Item
+            name="drawCode"
+            label="Mã kỳ quay"
+            rules={[{ required: true, message: 'Vui lòng nhập mã kỳ' }]}
+          >
+            <Input placeholder="VD: #1320" />
+          </Form.Item>
+
+          <Form.Item
+            name="status"
+            label="Trạng thái"
+            rules={[{ required: true }]}
+          >
+            <Select>
+              <Select.Option value="open">Đang mở cược (OPEN)</Select.Option>
+              <Select.Option value="closed">Đã chốt vé / Chờ xổ (CLOSED)</Select.Option>
+              <Select.Option value="completed">Đã hoàn thành / Đã có KQ (COMPLETED)</Select.Option>
+            </Select>
+          </Form.Item>
+
+          <Form.Item
+            name="openTime"
+            label="Thời gian mở cược"
+            rules={[{ required: true, message: 'Vui lòng chọn thời gian mở' }]}
+          >
+            <DatePicker showTime style={{ width: '100%' }} format="YYYY-MM-DD HH:mm:ss" />
+          </Form.Item>
+
+          <Form.Item
+            name="closeTime"
+            label="Thời gian chốt vé (Đóng cược)"
+            rules={[{ required: true, message: 'Vui lòng chọn thời gian chốt' }]}
+          >
+            <DatePicker showTime style={{ width: '100%' }} format="YYYY-MM-DD HH:mm:ss" />
+          </Form.Item>
+
+          <Form.Item
+            name="drawTime"
+            label="Thời gian mở thưởng xổ số (Tùy chọn)"
+          >
+            <DatePicker showTime style={{ width: '100%' }} format="YYYY-MM-DD HH:mm:ss" placeholder="Chọn thời gian mở thưởng (nếu có)" />
+          </Form.Item>
+
+          <Form.Item
+            name="winningNumbers"
+            label="Kết quả xổ số (Các số cách nhau bằng dấu phẩy)"
+          >
+            <Input.TextArea rows={2} placeholder="VD: 05, 12, 28, 45, 60..." />
+          </Form.Item>
+
+          {editingDraw?.game?.type === 'vietlott' && (
+            <Form.Item
+              name="jackpotAmount"
+              label="Giải Jackpot (VNĐ)"
+            >
+              <Input type="number" placeholder="VD: 15000000000" />
+            </Form.Item>
+          )}
+
+          <Form.Item style={{ marginBottom: 0, textAlign: 'right' }}>
+            <Space>
+              <Button onClick={() => setIsEditModalOpen(false)}>Hủy</Button>
+              <Button type="primary" htmlType="submit">Lưu thay đổi</Button>
             </Space>
           </Form.Item>
         </Form>
