@@ -12,7 +12,8 @@ import {
   TrophyOutlined,
   UserOutlined,
   WalletOutlined,
-  MoreOutlined
+  MoreOutlined,
+  CrownOutlined
 } from '@ant-design/icons';
 import { Button, DatePicker, Image, Input, Layout, Menu, message, Modal, Popover, Select, Space, Table, Tag, theme, Typography } from 'antd';
 import dayjs from 'dayjs';
@@ -31,18 +32,23 @@ import SettingsManagement from './SettingsManagement';
 import TermsManagement from './TermsManagement';
 import TicketManagement from './TicketManagement';
 import UserManagement from './UserManagement';
+import AdminManagement from './AdminManagement';
 
 const { Header, Sider, Content } = Layout;
 const { Title } = Typography;
 
 export default function Dashboard() {
-  const { logout } = useAuthStore();
+  const { logout, user, hasPermission, isMasterAdmin, fetchProfile } = useAuthStore();
   const [transactions, setTransactions] = useState<any[]>([]);
   const [searchText, setSearchText] = useState('');
   const [activeTab, setActiveTab] = useState('wallet');
   const [dateRange, setDateRange] = useState<[dayjs.Dayjs, dayjs.Dayjs] | null>(null);
   const [depositStatus, setDepositStatus] = useState<string | undefined>(undefined);
   const [withdrawStatus, setWithdrawStatus] = useState<string | undefined>(undefined);
+
+  useEffect(() => {
+    fetchProfile();
+  }, []);
 
   useEffect(() => {
     const handleTabChange = (e: any) => setActiveTab(e.detail);
@@ -307,7 +313,7 @@ export default function Dashboard() {
               >
                 Review
               </Button>
-              {record.status === 'pending' && (
+              {record.status === 'pending' && hasPermission('wallet', 'update') && (
                 <>
                   <Button
                     type="primary"
@@ -346,7 +352,7 @@ export default function Dashboard() {
     }
   ];
 
-  const menuItems = [
+  const allMenuItems = [
     {
       key: 'wallet',
       icon: <WalletOutlined />,
@@ -412,6 +418,13 @@ export default function Dashboard() {
       icon: <SafetyCertificateOutlined />,
       label: 'Điều khoản hoạt động',
     },
+    ...(isMasterAdmin() ? [
+      {
+        key: 'adminManagement',
+        icon: <CrownOutlined style={{ color: '#faad14' }} />,
+        label: <span style={{ fontWeight: 'bold', color: '#faad14' }}>Quản lý Admin</span>,
+      }
+    ] : []),
     {
       type: 'divider',
     },
@@ -422,6 +435,23 @@ export default function Dashboard() {
       danger: true,
     }
   ];
+
+  const menuItems = allMenuItems.filter(item => {
+    if (item.type === 'divider') return true;
+    if (item.key === 'logout') return true;
+    if (item.key === 'adminManagement') return isMasterAdmin();
+    if (!item.key) return false;
+    return hasPermission(String(item.key), 'view');
+  });
+
+  useEffect(() => {
+    const allowedKeys: string[] = menuItems
+      .map(item => item.key)
+      .filter((k): k is string => typeof k === 'string' && k !== 'logout');
+    if (allowedKeys.length > 0 && !allowedKeys.includes(activeTab) && allowedKeys[0]) {
+      setActiveTab(allowedKeys[0]);
+    }
+  }, [user, menuItems.length]);
 
   return (
     <Layout style={{ minHeight: '100vh' }}>
@@ -685,6 +715,7 @@ export default function Dashboard() {
             {activeTab === 'notifications' && <NotificationManagement />}
             {activeTab === 'guides' && <GuideManagement />}
             {activeTab === 'terms' && <TermsManagement />}
+            {activeTab === 'adminManagement' && isMasterAdmin() && <AdminManagement />}
           </div>
         </Content>
       </Layout>

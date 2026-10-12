@@ -2,13 +2,15 @@ import { useState, useEffect } from 'react';
 import { Table, Tag, Button, Space, Typography, Drawer, Tabs, Form, Input, Select, message, Spin, Descriptions, Row, Col, Switch, Divider, Image, Modal, List, Popover } from 'antd';
 import { EditOutlined, LockOutlined, UnlockOutlined, EyeOutlined, EyeInvisibleOutlined, MessageOutlined, MoreOutlined } from '@ant-design/icons';
 import api from '../services/api';
+import useAuthStore from '../store/useAuthStore';
 
 const { Title } = Typography;
 
 export default function UserManagement() {
+  const { hasPermission, canViewField } = useAuthStore();
+  const canUpdateUser = hasPermission('users', 'update');
   const [searchText, setSearchText] = useState('');
   const [users, setUsers] = useState<any[]>([]);
-  console.log("===users===", users)
   const [loading, setLoading] = useState(false);
   const [isDrawerVisible, setIsDrawerVisible] = useState(false);
   const [balanceHistoryData, setBalanceHistoryData] = useState<any[]>([]);
@@ -255,50 +257,57 @@ export default function UserManagement() {
       title: 'Họ Tên',
       dataIndex: 'name',
       key: 'name',
-      render: (text: string) => text || '-',
+      render: (text: string) => (!canViewField('name') ? '******' : (text || '-')),
     },
     {
       title: 'Số điện thoại',
       dataIndex: 'phone',
       key: 'phone',
+      render: (text: string) => (!canViewField('phone') ? '******' : (text || '-')),
     },
     {
       title: 'Số dư (đ)',
       dataIndex: 'balance',
       key: 'balance',
-      render: (val: number) => <span style={{ color: '#52c41a', fontWeight: 'bold' }}>{val?.toLocaleString('vi-VN')}</span>,
+      render: (val: any) => (!canViewField('balance') ? '******' : (
+        <span style={{ color: '#52c41a', fontWeight: 'bold' }}>{typeof val === 'number' ? val.toLocaleString('vi-VN') : (val || 0)}</span>
+      )),
     },
     {
       title: 'Quyền',
       dataIndex: 'role',
       key: 'role',
       render: (role: string) => (
-        <Tag color={role === 'admin' ? 'purple' : 'green'}>{role.toUpperCase()}</Tag>
+        <Tag color={role === 'admin' ? 'purple' : 'green'}>{role?.toUpperCase()}</Tag>
       ),
     },
     {
       title: 'Tổng nạp',
       dataIndex: 'totalDeposit',
       key: 'totalDeposit',
-      render: (val: number) => <span style={{ color: '#1890ff' }}>{val ? val.toLocaleString('vi-VN') : 0} đ</span>,
+      render: (val: any) => (!canViewField('totalDepositWithdraw') ? '******' : (
+        <span style={{ color: '#1890ff' }}>{typeof val === 'number' ? val.toLocaleString('vi-VN') : (val || 0)} đ</span>
+      )),
     },
     {
       title: 'Tổng rút',
       dataIndex: 'totalWithdraw',
       key: 'totalWithdraw',
-      render: (val: number) => <span style={{ color: '#faad14' }}>{val ? val.toLocaleString('vi-VN') : 0} đ</span>,
+      render: (val: any) => (!canViewField('totalDepositWithdraw') ? '******' : (
+        <span style={{ color: '#faad14' }}>{typeof val === 'number' ? val.toLocaleString('vi-VN') : (val || 0)} đ</span>
+      )),
     },
     {
       title: 'IP Đăng ký',
       dataIndex: 'registerIp',
       key: 'registerIp',
-      render: (val: string) => val ? val.split(',')[0].trim() : '-',
+      render: (val: string) => (!canViewField('ipInfo') ? '******' : (val ? val.split(',')[0].trim() : '-')),
     },
     {
       title: 'IP Đăng nhập',
       dataIndex: 'loginIp',
       key: 'loginIp',
-      render: (val: string) => val ? val.split(',')[0].trim() : '-',
+      render: (val: string) => (!canViewField('ipInfo') ? '******' : (val ? val.split(',')[0].trim() : '-')),
     },
     {
       title: 'Ngày ĐN cuối',
@@ -329,7 +338,7 @@ export default function UserManagement() {
                 onClick={() => showEditDrawer(record)}
                 block
               >
-                Sửa
+                {canUpdateUser ? 'Sửa' : 'Xem'}
               </Button>
               <Button
                 size="small"
@@ -340,23 +349,27 @@ export default function UserManagement() {
               >
                 Nhắn tin
               </Button>
-              {record.status === 'locked' ? (
-                <Button size="small" icon={<UnlockOutlined />} onClick={() => handleToggleStatus(record, 'active')} block>
-                  Mở Khoá
-                </Button>
-              ) : (
-                <Button size="small" danger icon={<LockOutlined />} onClick={() => handleToggleStatus(record, 'locked')} block>
-                  Khoá
-                </Button>
-              )}
-              {record.status === 'review' ? (
-                <Button size="small" icon={<EyeInvisibleOutlined />} onClick={() => handleToggleStatus(record, 'active')} block>
-                  Bỏ Review
-                </Button>
-              ) : (
-                <Button size="small" style={{ color: '#fa8c16', borderColor: '#fa8c16' }} icon={<EyeOutlined />} onClick={() => handleToggleStatus(record, 'review')} block disabled={record.status === 'locked'}>
-                  Review
-                </Button>
+              {canUpdateUser && (
+                <>
+                  {record.status === 'locked' ? (
+                    <Button size="small" icon={<UnlockOutlined />} onClick={() => handleToggleStatus(record, 'active')} block>
+                      Mở Khoá
+                    </Button>
+                  ) : (
+                    <Button size="small" danger icon={<LockOutlined />} onClick={() => handleToggleStatus(record, 'locked')} block>
+                      Khoá
+                    </Button>
+                  )}
+                  {record.status === 'review' ? (
+                    <Button size="small" icon={<EyeInvisibleOutlined />} onClick={() => handleToggleStatus(record, 'active')} block>
+                      Bỏ Review
+                    </Button>
+                  ) : (
+                    <Button size="small" style={{ color: '#fa8c16', borderColor: '#fa8c16' }} icon={<EyeOutlined />} onClick={() => handleToggleStatus(record, 'review')} block disabled={record.status === 'locked'}>
+                      Review
+                    </Button>
+                  )}
+                </>
               )}
             </Space>
           }
@@ -397,8 +410,8 @@ export default function UserManagement() {
         open={isDrawerVisible}
         extra={
           <Space>
-            <Button onClick={handleCancel}>Huỷ</Button>
-            <Button type="primary" onClick={handleUpdate}>Lưu thay đổi</Button>
+            <Button onClick={handleCancel}>Đóng</Button>
+            {canUpdateUser && <Button type="primary" onClick={handleUpdate}>Lưu thay đổi</Button>}
           </Space>
         }
       >
@@ -408,7 +421,7 @@ export default function UserManagement() {
               <Row gutter={16}>
                 <Col span={12}>
                   <Form.Item name="name" label="Họ tên">
-                    <Input />
+                    <Input disabled={!canViewField('name') || !canUpdateUser} placeholder={!canViewField('name') ? '******' : 'Nhập họ tên'} />
                   </Form.Item>
                 </Col>
                 <Col span={12}>
@@ -418,12 +431,12 @@ export default function UserManagement() {
                 </Col>
                 <Col span={12}>
                   <Form.Item name="email" label="Email">
-                    <Input type="email" />
+                    <Input type="email" disabled={!canViewField('email') || !canUpdateUser} placeholder={!canViewField('email') ? '******' : 'Nhập email'} />
                   </Form.Item>
                 </Col>
                 <Col span={12}>
                   <Form.Item name="emailVerified" label="Đã xác thực Email?" valuePropName="checked">
-                    <Switch />
+                    <Switch disabled={!canUpdateUser} />
                   </Form.Item>
                 </Col>
                 <Col span={12}>
@@ -432,7 +445,7 @@ export default function UserManagement() {
                     label="Số dư (VNĐ)"
                     rules={[{ required: true, message: 'Vui lòng nhập số dư!' }]}
                   >
-                    <Input type="number" />
+                    <Input type={canViewField('balance') ? 'number' : 'text'} disabled={!canViewField('balance') || !canUpdateUser} placeholder={!canViewField('balance') ? '******' : 'Nhập số dư'} />
                   </Form.Item>
                 </Col>
                 <Col span={12}>
@@ -441,7 +454,7 @@ export default function UserManagement() {
                     label="Phân quyền"
                     rules={[{ required: true, message: 'Vui lòng chọn quyền!' }]}
                   >
-                    <Select>
+                    <Select disabled={!canUpdateUser}>
                       <Select.Option value="user">User</Select.Option>
                       <Select.Option value="admin">Admin</Select.Option>
                     </Select>
@@ -453,12 +466,12 @@ export default function UserManagement() {
               <Row gutter={16}>
                 <Col span={12}>
                   <Form.Item name="cccdNumber" label="Số CMND/CCCD">
-                    <Input placeholder="Nhập CMND/CCCD..." />
+                    <Input disabled={!canViewField('cccdNumber') || !canUpdateUser} placeholder={!canViewField('cccdNumber') ? '******' : 'Nhập CMND/CCCD...'} />
                   </Form.Item>
                 </Col>
                 <Col span={12}>
                   <Form.Item name="isInfoUpdated" label="Đã xác thực thông tin?" valuePropName="checked">
-                    <Switch />
+                    <Switch disabled={!canUpdateUser} />
                   </Form.Item>
                 </Col>
               </Row>
@@ -466,7 +479,11 @@ export default function UserManagement() {
                 <Input />
               </Form.Item>
               <div style={{ marginBottom: 8, fontWeight: 500 }}>Hình ảnh CCCD:</div>
-              {cccdImageVal && (
+              {!canViewField('cccdImage') ? (
+                <div style={{ color: '#999', fontStyle: 'italic', marginBottom: 20 }}>
+                  [Bạn không có quyền xem ảnh CCCD]
+                </div>
+              ) : cccdImageVal ? (
                 <div style={{ marginTop: 8, marginBottom: 24, textAlign: 'center' }}>
                   <Image
                     src={cccdImageVal.startsWith('http') ? cccdImageVal : `${api.defaults.baseURL?.replace(/\/api$/, '')}${cccdImageVal.startsWith('/') ? '' : '/'}${cccdImageVal}`}
@@ -474,133 +491,159 @@ export default function UserManagement() {
                     style={{ maxHeight: 200, objectFit: 'contain', borderRadius: 8, border: '1px solid #d9d9d9' }}
                   />
                 </div>
+              ) : (
+                <div style={{ color: '#999', fontStyle: 'italic', marginBottom: 20 }}>Chưa có hình ảnh CCCD</div>
               )}
 
               <Divider plain>Danh sách Tài khoản Ngân Hàng</Divider>
-              <Form.List name="banks">
-                {(fields, { add, remove }) => (
-                  <>
-                    {fields.map(({ key, name, ...restField }) => (
-                      <div key={key} style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 16, border: '1px solid #f0f0f0', padding: 12, borderRadius: 8 }}>
-                        <div style={{ display: 'flex', gap: 8, marginBottom: 8, alignItems: 'center' }}>
-                          <Form.Item {...restField} name={[name, 'bankName']} style={{ flex: 1, marginBottom: 0 }} rules={[{ required: true, message: 'Thiếu tên NH' }]}>
-                            <Input placeholder="Tên Ngân hàng" />
-                          </Form.Item>
-                          <Form.Item {...restField} name={[name, 'accountNumber']} style={{ flex: 1, marginBottom: 0 }} rules={[{ required: true, message: 'Thiếu STK' }]}>
-                            <Input placeholder="Số tài khoản" />
-                          </Form.Item>
-                          <Form.Item {...restField} name={[name, 'accountName']} style={{ flex: 1, marginBottom: 0 }} rules={[{ required: true, message: 'Thiếu Tên chủ thẻ' }]}>
-                            <Input placeholder="Tên chủ thẻ" />
-                          </Form.Item>
-                          <Button danger onClick={() => remove(name)}>Xoá</Button>
-                        </div>
-                        <Form.Item {...restField} name={[name, 'qrCode']} hidden>
-                          <Input />
-                        </Form.Item>
-                        {banksVal?.[name]?.qrCode ? (
-                          <div style={{ alignSelf: 'flex-start', marginBottom: 16 }}>
-                            <div style={{ fontSize: 12, color: '#888', marginBottom: 4 }}>Mã QR Code Ngân hàng:</div>
-                            <Image
-                              src={banksVal[name].qrCode.startsWith('http') ? banksVal[name].qrCode : `${api.defaults.baseURL?.replace(/\/api$/, '')}${banksVal[name].qrCode.startsWith('/') ? '' : '/'}${banksVal[name].qrCode}`}
-                              alt="QR Code"
-                              style={{ width: 100, height: 100, objectFit: 'cover', borderRadius: 8, border: '1px solid #d9d9d9' }}
-                            />
-                          </div>
-                        ) : (
-                          <div style={{ alignSelf: 'flex-start', marginBottom: 16 }}>
-                            <div style={{ fontSize: 12, color: '#888', marginBottom: 4 }}>Mã QR Code Ngân hàng:</div>
-                            <Form.Item {...restField} name={[name, 'qrCode']} style={{ marginBottom: 0 }}>
-                              <Input placeholder="Chưa có ảnh QR (Nhập Link ảnh)" style={{ width: 250 }} />
-                            </Form.Item>
-                          </div>
-                        )}
-                      </div>
-                    ))}
-                    <Form.Item>
-                      <Button type="dashed" onClick={() => add()} block>+ Thêm Tài khoản Ngân hàng</Button>
-                    </Form.Item>
-                  </>
-                )}
-              </Form.List>
-
-              <Divider plain>Danh sách Ví USDT</Divider>
-              <Form.List name="wallets">
-                {(fields, { add, remove }) => (
-                  <>
-                    {fields.map(({ key, name, ...restField }) => (
-                      <div key={key} style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 16, border: '1px solid #f0f0f0', padding: 12, borderRadius: 8 }}>
-                        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                          <Form.Item {...restField} name={[name, 'network']} style={{ width: 120, marginBottom: 0 }} rules={[{ required: true, message: 'Chọn mạng' }]}>
-                            <Select placeholder="Mạng lưới">
-                              <Select.Option value="BEP20">BEP20</Select.Option>
-                              <Select.Option value="TRC20">TRC20</Select.Option>
-                            </Select>
-                          </Form.Item>
-                          <Form.Item {...restField} name={[name, 'address']} style={{ flex: 1, marginBottom: 0 }} rules={[{ required: true, message: 'Thiếu địa chỉ ví' }]}>
-                            <Input placeholder="Địa chỉ ví USDT" />
-                          </Form.Item>
-                          <Button danger onClick={() => remove(name)}>Xoá</Button>
-                        </div>
-                        <Form.Item {...restField} name={[name, 'qrCode']} hidden>
-                          <Input />
-                        </Form.Item>
-                        {walletsVal?.[name]?.qrCode ? (
-                          <div style={{ alignSelf: 'flex-start' }}>
-                            <div style={{ fontSize: 12, color: '#888', marginBottom: 4 }}>Mã QR Code:</div>
-                            <Image
-                              src={walletsVal[name].qrCode.startsWith('http') ? walletsVal[name].qrCode : `${api.defaults.baseURL?.replace(/\/api$/, '')}${walletsVal[name].qrCode.startsWith('/') ? '' : '/'}${walletsVal[name].qrCode}`}
-                              alt="QR Code"
-                              style={{ width: 100, height: 100, objectFit: 'cover', borderRadius: 8, border: '1px solid #d9d9d9' }}
-                            />
-                          </div>
-                        ) : (
-                          <div style={{ alignSelf: 'flex-start' }}>
-                            <div style={{ fontSize: 12, color: '#888', marginBottom: 4 }}>Mã QR Code:</div>
-                            <Form.Item {...restField} name={[name, 'qrCode']} style={{ marginBottom: 0 }}>
-                              <Input placeholder="Chưa có ảnh QR (Nhập Link ảnh)" style={{ width: 250 }} />
-                            </Form.Item>
-                          </div>
-                        )}
-                      </div>
-                    ))}
-                    <Form.Item>
-                      <Button type="dashed" onClick={() => add()} block>+ Thêm Ví USDT</Button>
-                    </Form.Item>
-                  </>
-                )}
-              </Form.List>
-
-              <Divider plain>Lịch sử Ghi chú</Divider>
-              {userLogs.length > 0 ? (
-                <List
-                  dataSource={userLogs}
-                  pagination={{
-                    pageSize: 5,
-                    size: 'small',
-                    align: 'end',
-                  }}
-                  renderItem={log => (
-                    <List.Item>
-                      <div style={{ width: '100%' }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
-                          <Typography.Text strong>{log.adminName}</Typography.Text>
-                          <Typography.Text type="secondary" style={{ fontSize: 12 }}>{new Date(log.createdAt).toLocaleString('vi-VN')}</Typography.Text>
-                        </div>
-                        <Typography.Text>{log.details}</Typography.Text>
-                      </div>
-                    </List.Item>
-                  )}
-                  style={{ marginBottom: 20, padding: '0 10px', background: '#f5f5f5', borderRadius: 8 }}
-                />
+              {!canViewField('banks') ? (
+                <div style={{ color: '#999', fontStyle: 'italic', marginBottom: 20, textAlign: 'center' }}>
+                  [Bạn không có quyền xem thông tin tài khoản ngân hàng]
+                </div>
               ) : (
-                <Typography.Text type="secondary" style={{ display: 'block', textAlign: 'center', marginBottom: 20 }}>
-                  Chưa có lịch sử thao tác
-                </Typography.Text>
+                <Form.List name="banks">
+                  {(fields, { add, remove }) => (
+                    <>
+                      {fields.map(({ key, name, ...restField }) => (
+                        <div key={key} style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 16, border: '1px solid #f0f0f0', padding: 12, borderRadius: 8 }}>
+                          <div style={{ display: 'flex', gap: 8, marginBottom: 8, alignItems: 'center' }}>
+                            <Form.Item {...restField} name={[name, 'bankName']} style={{ flex: 1, marginBottom: 0 }} rules={[{ required: true, message: 'Thiếu tên NH' }]}>
+                              <Input disabled={!canUpdateUser} placeholder="Tên Ngân hàng" />
+                            </Form.Item>
+                            <Form.Item {...restField} name={[name, 'accountNumber']} style={{ flex: 1, marginBottom: 0 }} rules={[{ required: true, message: 'Thiếu STK' }]}>
+                              <Input disabled={!canUpdateUser} placeholder="Số tài khoản" />
+                            </Form.Item>
+                            <Form.Item {...restField} name={[name, 'accountName']} style={{ flex: 1, marginBottom: 0 }} rules={[{ required: true, message: 'Thiếu Tên chủ thẻ' }]}>
+                              <Input disabled={!canUpdateUser} placeholder="Tên chủ thẻ" />
+                            </Form.Item>
+                            {canUpdateUser && <Button danger onClick={() => remove(name)}>Xoá</Button>}
+                          </div>
+                          <Form.Item {...restField} name={[name, 'qrCode']} hidden>
+                            <Input />
+                          </Form.Item>
+                          {banksVal?.[name]?.qrCode ? (
+                            <div style={{ alignSelf: 'flex-start', marginBottom: 16 }}>
+                              <div style={{ fontSize: 12, color: '#888', marginBottom: 4 }}>Mã QR Code Ngân hàng:</div>
+                              <Image
+                                src={banksVal[name].qrCode.startsWith('http') ? banksVal[name].qrCode : `${api.defaults.baseURL?.replace(/\/api$/, '')}${banksVal[name].qrCode.startsWith('/') ? '' : '/'}${banksVal[name].qrCode}`}
+                                alt="QR Code"
+                                style={{ width: 100, height: 100, objectFit: 'cover', borderRadius: 8, border: '1px solid #d9d9d9' }}
+                              />
+                            </div>
+                          ) : (
+                            <div style={{ alignSelf: 'flex-start', marginBottom: 16 }}>
+                              <div style={{ fontSize: 12, color: '#888', marginBottom: 4 }}>Mã QR Code Ngân hàng:</div>
+                              <Form.Item {...restField} name={[name, 'qrCode']} style={{ marginBottom: 0 }}>
+                                <Input disabled={!canUpdateUser} placeholder="Chưa có ảnh QR (Nhập Link ảnh)" style={{ width: 250 }} />
+                              </Form.Item>
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                      {canUpdateUser && (
+                        <Form.Item>
+                          <Button type="dashed" onClick={() => add()} block>+ Thêm Tài khoản Ngân hàng</Button>
+                        </Form.Item>
+                      )}
+                    </>
+                  )}
+                </Form.List>
               )}
 
-              <Form.Item name="note" label="Thêm ghi chú mới">
-                <Input.TextArea rows={3} placeholder="Nhập nội dung ghi chú (sẽ được lưu lại lịch sử)..." />
-              </Form.Item>
+              <Divider plain>Danh sách Ví USDT</Divider>
+              {!canViewField('wallets') ? (
+                <div style={{ color: '#999', fontStyle: 'italic', marginBottom: 20, textAlign: 'center' }}>
+                  [Bạn không có quyền xem thông tin ví USDT]
+                </div>
+              ) : (
+                <Form.List name="wallets">
+                  {(fields, { add, remove }) => (
+                    <>
+                      {fields.map(({ key, name, ...restField }) => (
+                        <div key={key} style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 16, border: '1px solid #f0f0f0', padding: 12, borderRadius: 8 }}>
+                          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                            <Form.Item {...restField} name={[name, 'network']} style={{ width: 120, marginBottom: 0 }} rules={[{ required: true, message: 'Chọn mạng' }]}>
+                              <Select disabled={!canUpdateUser} placeholder="Mạng lưới">
+                                <Select.Option value="BEP20">BEP20</Select.Option>
+                                <Select.Option value="TRC20">TRC20</Select.Option>
+                              </Select>
+                            </Form.Item>
+                            <Form.Item {...restField} name={[name, 'address']} style={{ flex: 1, marginBottom: 0 }} rules={[{ required: true, message: 'Thiếu địa chỉ ví' }]}>
+                              <Input disabled={!canUpdateUser} placeholder="Địa chỉ ví USDT" />
+                            </Form.Item>
+                            {canUpdateUser && <Button danger onClick={() => remove(name)}>Xoá</Button>}
+                          </div>
+                          <Form.Item {...restField} name={[name, 'qrCode']} hidden>
+                            <Input />
+                          </Form.Item>
+                          {walletsVal?.[name]?.qrCode ? (
+                            <div style={{ alignSelf: 'flex-start' }}>
+                              <div style={{ fontSize: 12, color: '#888', marginBottom: 4 }}>Mã QR Code:</div>
+                              <Image
+                                src={walletsVal[name].qrCode.startsWith('http') ? walletsVal[name].qrCode : `${api.defaults.baseURL?.replace(/\/api$/, '')}${walletsVal[name].qrCode.startsWith('/') ? '' : '/'}${walletsVal[name].qrCode}`}
+                                alt="QR Code"
+                                style={{ width: 100, height: 100, objectFit: 'cover', borderRadius: 8, border: '1px solid #d9d9d9' }}
+                              />
+                            </div>
+                          ) : (
+                            <div style={{ alignSelf: 'flex-start' }}>
+                              <div style={{ fontSize: 12, color: '#888', marginBottom: 4 }}>Mã QR Code:</div>
+                              <Form.Item {...restField} name={[name, 'qrCode']} style={{ marginBottom: 0 }}>
+                                <Input disabled={!canUpdateUser} placeholder="Chưa có ảnh QR (Nhập Link ảnh)" style={{ width: 250 }} />
+                              </Form.Item>
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                      {canUpdateUser && (
+                        <Form.Item>
+                          <Button type="dashed" onClick={() => add()} block>+ Thêm Ví USDT</Button>
+                        </Form.Item>
+                      )}
+                    </>
+                  )}
+                </Form.List>
+              )}
+
+              {!canViewField('note') ? (
+                <div style={{ color: '#999', fontStyle: 'italic', margin: '20px 0', textAlign: 'center' }}>
+                  [Không có quyền xem/sửa ghi chú người dùng]
+                </div>
+              ) : (
+                <>
+                  <Divider plain>Lịch sử Ghi chú</Divider>
+                  {userLogs.length > 0 ? (
+                    <List
+                      dataSource={userLogs}
+                      pagination={{
+                        pageSize: 5,
+                        size: 'small',
+                        align: 'end',
+                      }}
+                      renderItem={log => (
+                        <List.Item>
+                          <div style={{ width: '100%' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+                              <Typography.Text strong>{log.adminName}</Typography.Text>
+                              <Typography.Text type="secondary" style={{ fontSize: 12 }}>{new Date(log.createdAt).toLocaleString('vi-VN')}</Typography.Text>
+                            </div>
+                            <Typography.Text>{log.details}</Typography.Text>
+                          </div>
+                        </List.Item>
+                      )}
+                      style={{ marginBottom: 20, padding: '0 10px', background: '#f5f5f5', borderRadius: 8 }}
+                    />
+                  ) : (
+                    <Typography.Text type="secondary" style={{ display: 'block', textAlign: 'center', marginBottom: 20 }}>
+                      Chưa có lịch sử thao tác
+                    </Typography.Text>
+                  )}
+
+                  <Form.Item name="note" label="Thêm ghi chú mới">
+                    <Input.TextArea rows={3} disabled={!canUpdateUser} placeholder="Nhập nội dung ghi chú (sẽ được lưu lại lịch sử)..." />
+                  </Form.Item>
+                </>
+              )}
             </Form>
           </Tabs.TabPane>
 
@@ -675,10 +718,10 @@ export default function UserManagement() {
             {editingUser ? (
               <Descriptions column={1} bordered>
                 <Descriptions.Item label="IP Đăng ký">
-                  {editingUser.registerIp || 'Không rõ'}
+                  {!canViewField('ipInfo') ? '******' : (editingUser.registerIp || 'Không rõ')}
                 </Descriptions.Item>
                 <Descriptions.Item label="IP Đăng nhập gần nhất">
-                  {editingUser.loginIp || 'Không rõ'}
+                  {!canViewField('ipInfo') ? '******' : (editingUser.loginIp || 'Không rõ')}
                 </Descriptions.Item>
                 <Descriptions.Item label="Thiết bị Đăng nhập">
                   {editingUser.loginDevice || 'Không rõ'}
@@ -697,11 +740,12 @@ export default function UserManagement() {
                 <Input.Password
                   placeholder="Nhập mật khẩu đăng nhập mới..."
                   value={newLoginPassword}
+                  disabled={!canUpdateUser}
                   onChange={(e) => setNewLoginPassword(e.target.value)}
                 />
               </Col>
               <Col span={8}>
-                <Button type="primary" danger onClick={handleResetLoginPassword}>
+                <Button type="primary" danger disabled={!canUpdateUser} onClick={handleResetLoginPassword}>
                   Đặt lại
                 </Button>
               </Col>
@@ -713,11 +757,12 @@ export default function UserManagement() {
                 <Input.Password
                   placeholder="Nhập mật khẩu rút tiền mới..."
                   value={newWithdrawPassword}
+                  disabled={!canUpdateUser}
                   onChange={(e) => setNewWithdrawPassword(e.target.value)}
                 />
               </Col>
               <Col span={8}>
-                <Button type="primary" danger onClick={handleResetWithdrawPassword}>
+                <Button type="primary" danger disabled={!canUpdateUser} onClick={handleResetWithdrawPassword}>
                   Đặt lại
                 </Button>
               </Col>

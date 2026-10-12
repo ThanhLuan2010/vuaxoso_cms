@@ -558,9 +558,16 @@ export default function OrderManagement() {
         let text = record.drawDate || record.drawId || '-';
         if (text && text.length === 10 && text.includes('/')) {
           // This is likely a DD/MM/YYYY string for Kien Thiet
-          if (record.gameType === 'xsmn') text = `16:15:00 ${text}`;
-          else if (record.gameType === 'xsmt') text = `17:15:00 ${text}`;
-          else if (record.gameType === 'xsmb') text = `18:15:00 ${text}`;
+          if (record.gameType === 'xsmn' || record.gameType === 'MN') text = `16:15:00 ${text}`;
+          else if (record.gameType === 'xsmt' || record.gameType === 'MT') text = `17:15:00 ${text}`;
+          else if (record.gameType === 'xsmb' || record.gameType === 'MB') text = `18:15:00 ${text}`;
+        } else if (text && typeof text === 'string') {
+          text = text.replace('15:40:00', '16:15:00')
+                     .replace('16:10:00', '16:15:00')
+                     .replace('16:40:00', '17:15:00')
+                     .replace('17:10:00', '17:15:00')
+                     .replace('17:30:00', '18:15:00')
+                     .replace('18:10:00', '18:15:00');
         }
         return text;
       },

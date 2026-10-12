@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import api from '../services/api';
 import { Table, Button, Space, Drawer, Form, Input, Select, Modal, Switch, message, InputNumber, Radio, Checkbox, Card, Tag, Typography, Popover } from 'antd';
-import { EditOutlined, MoreOutlined, PercentageOutlined, PlusOutlined, DeleteOutlined } from '@ant-design/icons';
+import { EditOutlined, MoreOutlined } from '@ant-design/icons';
 
 export default function GameManagement() {
   const [games, setGames] = useState<any[]>([]);
@@ -10,57 +10,6 @@ export default function GameManagement() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [scheduleMode, setScheduleMode] = useState('none');
-  const [ratesModalOpen, setRatesModalOpen] = useState(false);
-  const [selectedGameForRates, setSelectedGameForRates] = useState<any>(null);
-  const [editingRates, setEditingRates] = useState<{ key: string; value: number }[]>([]);
-  const [newRateKey, setNewRateKey] = useState('');
-  const [newRateVal, setNewRateVal] = useState<number | null>(null);
-  const [savingRates, setSavingRates] = useState(false);
-
-  const openRatesModal = (game: any) => {
-    setSelectedGameForRates(game);
-    const rates = game.payoutRates || {};
-    const list = Object.entries(rates).map(([k, v]) => ({ key: k, value: Number(v) }));
-    setEditingRates(list);
-    setNewRateKey('');
-    setNewRateVal(null);
-    setRatesModalOpen(true);
-  };
-
-  const handleSaveRates = async () => {
-    if (!selectedGameForRates) return;
-    setSavingRates(true);
-    try {
-      const ratesObj: Record<string, number> = {};
-      editingRates.forEach(item => {
-        if (item.key.trim()) {
-          ratesObj[item.key.trim()] = item.value;
-        }
-      });
-      await api.put(`/games/${selectedGameForRates._id}/rates`, { rates: ratesObj });
-      message.success('Cập nhật tỉ lệ cược thành công!');
-      setRatesModalOpen(false);
-      fetchGames();
-    } catch (err: any) {
-      message.error(err.response?.data?.message || 'Lỗi lưu tỉ lệ cược');
-    } finally {
-      setSavingRates(false);
-    }
-  };
-
-  const handleAddRateItem = () => {
-    if (!newRateKey.trim()) {
-      message.warning('Vui lòng nhập tên loại cược!');
-      return;
-    }
-    if (newRateVal === null || isNaN(newRateVal)) {
-      message.warning('Vui lòng nhập tỉ lệ hợp lệ!');
-      return;
-    }
-    setEditingRates([...editingRates, { key: newRateKey.trim(), value: newRateVal }]);
-    setNewRateKey('');
-    setNewRateVal(null);
-  };
 
   const [form] = Form.useForm();
 
@@ -145,6 +94,7 @@ export default function GameManagement() {
     setScheduleMode(mode);
     form.setFieldsValue({
       ...record,
+      badge: record.badge || '',
       scheduleMode: mode,
       intervalMins,
       hour,
@@ -189,6 +139,14 @@ export default function GameManagement() {
       render: (val: number, record: any) => (val && val > 0 && (record.code || '').toLowerCase().includes('keno')) ? `${val} phút` : <Tag color="orange">Theo lịch quay</Tag>
     },
     {
+      title: 'Huy hiệu (Nút xanh)',
+      dataIndex: 'badge',
+      key: 'badge',
+      render: (val: string) => val ? (
+        <Tag color="#00A859" style={{ borderRadius: 8, fontWeight: 'bold' }}>{val}</Tag>
+      ) : <span style={{ color: '#ccc' }}>-</span>
+    },
+    {
       title: 'Trạng thái',
       dataIndex: 'isActive',
       key: 'isActive',
@@ -206,8 +164,7 @@ export default function GameManagement() {
           trigger="click"
           content={
             <Space direction="vertical" size="small">
-              <Button size="small" icon={<EditOutlined />} onClick={() => openEdit(record)} block>Sửa cấu hình</Button>
-              <Button size="small" icon={<PercentageOutlined />} onClick={() => openRatesModal(record)} block style={{ color: '#0084FA' }}>Tỉ lệ cược</Button>
+              <Button size="small" icon={<EditOutlined />} onClick={() => openEdit(record)} block>Sửa</Button>
             </Space>
           }
         >
@@ -310,6 +267,27 @@ export default function GameManagement() {
           </Form.Item>
 
           <Form.Item
+            name="badge"
+            label="Huy hiệu nhỏ góc phải (Nút xanh)"
+            extra="Hiển thị nút xanh nhỏ góc trên bên phải thẻ Game trên app (VD: Mỗi ngày, Hôm nay xổ, 8p-1 kỳ, T4 & T7, 10p-1 kỳ...)"
+          >
+            <Input placeholder="Ví dụ: Mỗi ngày, Hôm nay xổ, T2-T7..." allowClear />
+          </Form.Item>
+          <div style={{ marginBottom: 16, marginTop: -8 }}>
+            <span style={{ fontSize: 12, color: '#888', marginRight: 8 }}>Gợi ý nhanh:</span>
+            {['Mỗi ngày', 'Hôm nay xổ', '8p-1 kỳ', '10p-1 kỳ', 'T4 & T7', 'T3, T5, T7', 'T2, T4, T6', 'T3 & T6'].map((tag) => (
+              <Tag
+                key={tag}
+                color="green"
+                style={{ cursor: 'pointer', marginBottom: 4 }}
+                onClick={() => form.setFieldsValue({ badge: tag })}
+              >
+                + {tag}
+              </Tag>
+            ))}
+          </div>
+
+          <Form.Item
             name="subtext"
             label="Dòng chữ nổi bật (Kéo khách)"
             extra="Hiển thị dưới cùng của thẻ Game (VD: 🏆 2.000.000.000đ hoặc Chọn nhanh - Trúng lớn)"
@@ -341,105 +319,6 @@ export default function GameManagement() {
             </Space>
           </Form.Item>
         </Form>
-      </Modal>
-
-      {/* Modal Cấu hình Tỉ lệ Cược */}
-      <Modal
-        title={
-          <div>
-            <span style={{ fontSize: 18, fontWeight: 'bold' }}>Cấu hình Tỉ lệ Cược: </span>
-            <Tag color="blue" style={{ fontSize: 14 }}>{selectedGameForRates?.name} ({selectedGameForRates?.code})</Tag>
-          </div>
-        }
-        open={ratesModalOpen}
-        onCancel={() => setRatesModalOpen(false)}
-        width={700}
-        footer={[
-          <Button key="cancel" onClick={() => setRatesModalOpen(false)}>Hủy</Button>,
-          <Button key="submit" type="primary" loading={savingRates} onClick={handleSaveRates}>
-            Lưu tỉ lệ cược
-          </Button>
-        ]}
-      >
-        <div style={{ maxHeight: 450, overflowY: 'auto', paddingRight: 8 }}>
-          {editingRates.length === 0 ? (
-            <div style={{ textAlign: 'center', padding: '30px 0', color: '#8c8c8c' }}>
-              Chưa có cấu hình tỉ lệ cho game này. Bạn có thể thêm bên dưới!
-            </div>
-          ) : (
-            <Table
-              pagination={false}
-              size="small"
-              dataSource={editingRates}
-              rowKey="key"
-              columns={[
-                {
-                  title: 'Loại cược / Cửa cược',
-                  dataIndex: 'key',
-                  key: 'key',
-                  render: (key: string) => <strong>{key}</strong>
-                },
-                {
-                  title: 'Tỉ lệ ăn (Hệ số nhân)',
-                  dataIndex: 'value',
-                  key: 'value',
-                  width: 200,
-                  render: (val: number, _: any, index: number) => (
-                    <InputNumber
-                      min={0}
-                      step={0.1}
-                      value={val}
-                      style={{ width: '100%' }}
-                      addonBefore="1 ăn"
-                      onChange={(newVal) => {
-                        const updated = [...editingRates];
-                        updated[index].value = Number(newVal) || 0;
-                        setEditingRates(updated);
-                      }}
-                    />
-                  )
-                },
-                {
-                  title: '',
-                  key: 'action',
-                  width: 50,
-                  render: (_: any, __: any, index: number) => (
-                    <Button
-                      type="text"
-                      danger
-                      icon={<DeleteOutlined />}
-                      onClick={() => {
-                        setEditingRates(editingRates.filter((_, idx) => idx !== index));
-                      }}
-                    />
-                  )
-                }
-              ]}
-            />
-          )}
-
-          <Card size="small" title="Thêm loại cược mới" style={{ marginTop: 16, backgroundColor: '#f9fafb' }}>
-            <div style={{ display: 'flex', gap: 12 }}>
-              <Input
-                placeholder="Tên loại cược (VD: Xiên ĐB, Đề giải 1)"
-                value={newRateKey}
-                onChange={(e) => setNewRateKey(e.target.value)}
-                style={{ flex: 2 }}
-              />
-              <InputNumber
-                placeholder="Tỉ lệ (VD: 4.8)"
-                value={newRateVal}
-                onChange={(v) => setNewRateVal(v)}
-                min={0}
-                step={0.1}
-                style={{ flex: 1 }}
-              />
-              <Button type="dashed" icon={<PlusOutlined />} onClick={handleAddRateItem}>
-                Thêm
-              </Button>
-            </div>
-          </Card>
-        </div>
       </Modal>
     </div>
   );
