@@ -144,25 +144,29 @@ export default function UserManagement() {
       const start = startDate ? startDate.startOf('day') : null;
       const end = endDate ? endDate.endOf('day') : null;
 
+      const todayStart = dayjs().startOf('day');
+      const todayEnd = dayjs().endOf('day');
+
       if (memberType === 'new') {
-        if (start && end) {
-          if (userCreated.isBefore(start) || userCreated.isAfter(end)) return false;
-        } else if (start) {
-          if (userCreated.isBefore(start)) return false;
-        } else if (end) {
-          if (userCreated.isAfter(end)) return false;
-        } else {
-          if (userCreated.isBefore(dayjs().subtract(30, 'day'))) return false;
+        // Mới đăng ký: chỉ lọc trong ngày hiện tại
+        if (userCreated.isBefore(todayStart) || userCreated.isAfter(todayEnd)) {
+          return false;
         }
       } else if (memberType === 'old') {
-        if (start) {
-          if (!userCreated.isBefore(start)) return false;
-        } else if (end) {
-          if (!userCreated.isBefore(end)) return false;
-        } else {
-          if (!userCreated.isBefore(dayjs().subtract(30, 'day'))) return false;
+        // Tài khoản cũ: từ ngày hôm trước hôm nay trở về trước (< todayStart)
+        if (!userCreated.isBefore(todayStart)) {
+          return false;
+        }
+        if (start && userCreated.isBefore(start)) {
+          return false;
+        }
+        if (end && userCreated.isAfter(end)) {
+          return false;
         }
       } else if (memberType === 'all') {
+        if (start && userCreated.isBefore(start)) {
+          return false;
+        }
         if (end && userCreated.isAfter(end)) {
           return false;
         }
