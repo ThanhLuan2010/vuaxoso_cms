@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback } from 'react';
 import { Table, Button, Typography, message, Modal, Form, Input, Select, InputNumber, Space, Tag, Dropdown } from 'antd';
-import { PlusOutlined, DeleteOutlined, SyncOutlined, ExportOutlined, MoreOutlined, EyeOutlined } from '@ant-design/icons';
+import { PlusOutlined, DeleteOutlined, SyncOutlined, ExportOutlined, MoreOutlined, EyeOutlined, ThunderboltOutlined } from '@ant-design/icons';
 import api from '../services/api';
 
 const { Title } = Typography;
@@ -36,6 +36,14 @@ export default function TicketManagement() {
   const [detailModalVisible, setDetailModalVisible] = useState(false);
   const [selectedTicket, setSelectedTicket] = useState<Ticket | null>(null);
   const [form] = Form.useForm();
+
+  const [bulkModalVisible, setBulkModalVisible] = useState(false);
+  const [bulkLoading, setBulkLoading] = useState(false);
+  const [bulkForm] = Form.useForm();
+
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(50);
+  const [totalTickets, setTotalTickets] = useState(0);
 
   const [provincesList, setProvincesList] = useState<ProvinceData[]>([]);
   const [selectedRegion, setSelectedRegion] = useState<string>('MB');
@@ -81,32 +89,39 @@ export default function TicketManagement() {
   useEffect(() => {
     const provsInRegion = provincesList.filter(p => p.region === selectedRegion);
     if (provsInRegion.length > 0) {
-      // Only change if the current selected is not in this region
       if (!provsInRegion.find(p => p.provinceId === selectedProvince)) {
         setSelectedProvince(provsInRegion[0].provinceId);
       }
     }
   }, [selectedRegion, provincesList]);
 
-  const fetchTickets = useCallback(async (search = '') => {
+  const fetchTickets = useCallback(async (search = searchText, pageNum = page, limitNum = pageSize) => {
     if (!selectedDate || !selectedProvince) return;
     try {
       setLoading(true);
       const res = await api.get('/tickets/admin', {
-        params: { provinceId: selectedProvince, drawDate: selectedDate, limit: 100, search }
+        params: { 
+          provinceId: selectedProvince, 
+          drawDate: selectedDate, 
+          page: pageNum, 
+          limit: limitNum, 
+          search 
+        }
       });
-      setTickets(res.data.data);
+      setTickets(res.data.data || []);
+      setTotalTickets(res.data.total || 0);
     } catch (error) {
       console.error('Error fetching tickets:', error);
       message.error('Lỗi khi tải danh sách vé');
     } finally {
       setLoading(false);
     }
-  }, [selectedProvince, selectedDate]);
+  }, [selectedProvince, selectedDate, searchText, page, pageSize]);
 
   useEffect(() => {
-    fetchTickets();
-  }, [fetchTickets]);
+    setPage(1);
+    fetchTickets(searchText, 1, pageSize);
+  }, [selectedProvince, selectedDate]);
 
   const handleDelete = async (id: string) => {
     try {
@@ -171,18 +186,31 @@ export default function TicketManagement() {
     }
   };
 
-  const handleBulkGenerate = async () => {
+  const handleBulkGenerate = async (values?: any) => {
+    if (!selectedProvince || !selectedDate) {
+      message.warning('Vui lòng chọn Tỉnh/Đài và Ngày xổ trước khi tạo vé');
+      return;
+    }
     try {
-      setLoading(true);
-      const res = await api.post('/tickets/admin/bulk', {
+      setBulkLoading(true);
+      const payload = {
         provinceId: selectedProvince,
-        drawDate: selectedDate
-      });
-      message.success(res.data.message);
-      fetchTickets();
+        drawDate: selectedDate,
+        specialCount: values?.specialCount !== undefined ? values.specialCount : 500,
+        normalCount: values?.normalCount !== undefined ? values.normalCount : 500,
+        specialMultiplier: values?.specialMultiplier || 1,
+        normalMultiplier: values?.normalMultiplier || (selectedRegion === 'MB' ? 10 : 14),
+      };
+
+      const res = await api.post('/tickets/admin/bulk', payload);
+      message.success(res.data.message || 'Tạo 1.000 vé thành công!');
+      setBulkModalVisible(false);
+      setPage(1);
+      fetchTickets(searchText, 1, pageSize);
     } catch (error: any) {
-      message.error(error.response?.data?.message || 'Lỗi khi tạo vé');
-      setLoading(false);
+      message.error(error.response?.data?.message || 'Lỗi khi tạo vé hàng loạt');
+    } finally {
+      setBulkLoading(false);
     }
   };
 
@@ -248,35 +276,55 @@ export default function TicketManagement() {
       render: (_: any, record: Ticket) => {
         const isSoldOut = record.isSold || (record.multiplier === 0);
         return <Tag color={isSoldOut ? 'red' : 'green'}>{isSoldOut ? 'Đã bán' : 'Còn'}</Tag>;
-      }
+      },
+    },
+    {
+      title: 'Khóa',
+      key: 'isLocked',
+      render: (_: any, record: Ticket) => (
+        <Tag color={record.isLocked ? 'default' : 'cyan'}>
+          {record.isLocked ? 'Đã khoá' : 'Đang mở'}
+        </Tag>
+      ),
     },
     {
       title: 'Thao tác',
+      fixed: 'right',
       key: 'action',
       render: (_: any, record: Ticket) => (
         <Dropdown
           menu={{
             items: [
               {
-                key: 'delete',
-                label: 'Xoá',
-                danger: true,
-                onClick: () => handleDelete(record._id)
-              },
-              {
-                key: 'lock',
-                label: record.isLocked ? 'Mở khoá' : 'Khoá',
-                onClick: () => handleLock(record)
+                key: 'detail',
+                label: 'Xem chi tiết',
+                icon: <EyeOutlined />,
+                onClick: () => {
+                  setSelectedTicket(record);
+                  setDetailModalVisible(true);
+                }
               },
               {
                 key: 'edit',
-                label: 'Sửa',
-                disabled: record.isLocked,
+                label: 'Sửa vé',
                 onClick: () => handleEdit(record)
+              },
+              {
+                key: 'lock',
+                label: record.isLocked ? 'Mở khoá vé' : 'Khoá vé',
+                onClick: () => handleLock(record)
+              },
+              {
+                type: 'divider',
+              },
+              {
+                key: 'delete',
+                label: 'Xoá vé',
+                danger: true,
+                onClick: () => handleDelete(record._id)
               }
             ]
           }}
-          trigger={['click']}
         >
           <Button icon={<MoreOutlined />} />
         </Dropdown>
@@ -286,34 +334,50 @@ export default function TicketManagement() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 110px)' }}>
-      <div style={{ flex: 'none', display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-        <Title style={{ marginTop: 0, marginBottom: 16 }} level={4}>Quản lý Vé Kiến Thiết</Title>
+      <div style={{ flex: 'none', display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+        <Title level={4} style={{ margin: 0 }}>Quản lý vé Kiến Thiết</Title>
         <Space>
-          <Input.Search
-            placeholder="Tìm theo dãy số..."
-            allowClear
-            value={searchText}
-            onChange={(e) => setSearchText(e.target.value)}
-            onSearch={(value) => fetchTickets(value)}
+          <Input.Search 
+            placeholder="Tìm theo dãy số..." 
+            value={searchText} 
+            onChange={e => setSearchText(e.target.value)}
+            onSearch={v => { setPage(1); fetchTickets(v, 1, pageSize); }}
             style={{ width: 200 }}
+            allowClear
           />
           <Button
-            type="dashed"
-            icon={<SyncOutlined />}
-            onClick={handleBulkGenerate}
+            type="primary"
+            icon={<ThunderboltOutlined />}
+            style={{ backgroundColor: '#fa8c16', borderColor: '#fa8c16' }}
+            onClick={() => {
+              bulkForm.setFieldsValue({
+                specialCount: 500,
+                normalCount: 500,
+                specialMultiplier: 1,
+                normalMultiplier: selectedRegion === 'MB' ? 10 : 14
+              });
+              setBulkModalVisible(true);
+            }}
             disabled={!selectedProvince || !selectedDate}
           >
-            Tự động tạo 10 vé
+            Tạo 1.000 vé (500 ĐB + 500 Thường)
           </Button>
-          <Button type="primary" icon={<PlusOutlined />} onClick={() => setModalVisible(true)}>
+          <Button 
+            icon={<PlusOutlined />} 
+            onClick={() => { 
+              setSelectedTicket(null); 
+              form.resetFields(); 
+              setModalVisible(true); 
+            }}
+          >
             Thêm vé thủ công
           </Button>
         </Space>
       </div>
 
-      <div style={{ marginBottom: 20, display: 'flex', gap: 16 }}>
+      <div style={{ marginBottom: 16, display: 'flex', gap: 16, flexWrap: 'wrap' }}>
         <div>
-          <div style={{ marginBottom: 4 }}>Khu vực:</div>
+          <div style={{ marginBottom: 4, fontWeight: 500 }}>Khu vực:</div>
           <Select
             value={selectedRegion}
             onChange={(val) => setSelectedRegion(val)}
@@ -325,7 +389,7 @@ export default function TicketManagement() {
           </Select>
         </div>
         <div>
-          <div style={{ marginBottom: 4 }}>Tỉnh/Đài:</div>
+          <div style={{ marginBottom: 4, fontWeight: 500 }}>Tỉnh/Đài:</div>
           <Select
             value={selectedProvince}
             onChange={(val) => setSelectedProvince(val)}
@@ -339,7 +403,7 @@ export default function TicketManagement() {
           </Select>
         </div>
         <div>
-          <div style={{ marginBottom: 4 }}>Ngày sổ:</div>
+          <div style={{ marginBottom: 4, fontWeight: 500 }}>Ngày xổ:</div>
           <Select
             value={selectedDate}
             onChange={(val) => setSelectedDate(val)}
@@ -354,14 +418,97 @@ export default function TicketManagement() {
 
       <Table 
         style={{ flex: 1 }}
-        scroll={{ y: 'calc(100vh - 260px)', x: 'max-content' }}
+        scroll={{ y: 'calc(100vh - 280px)', x: 'max-content' }}
         columns={columns}
         dataSource={tickets}
         rowKey="_id"
         loading={loading}
-        pagination={{ pageSize: 20 }}
+        pagination={{ 
+          current: page,
+          pageSize: pageSize,
+          total: totalTickets,
+          showSizeChanger: true,
+          pageSizeOptions: ['20', '50', '100', '200', '500', '1000'],
+          showTotal: (total) => `Tổng: ${total} vé trong kho (${selectedProvince} - ${selectedDate})`,
+          onChange: (newPage, newPageSize) => {
+            setPage(newPage);
+            setPageSize(newPageSize);
+            fetchTickets(searchText, newPage, newPageSize);
+          }
+        }}
       />
 
+      {/* MODAL TẠO 1000 VÉ HÀNG LOẠT */}
+      <Modal
+        title={<span><ThunderboltOutlined style={{ color: '#fa8c16', marginRight: 8 }} />Tạo 1.000 Vé Số Tự Động (500 ĐB + 500 Thường)</span>}
+        open={bulkModalVisible}
+        onOk={() => bulkForm.submit()}
+        onCancel={() => setBulkModalVisible(false)}
+        okText="Xác nhận tạo 1.000 vé"
+        cancelText="Hủy"
+        confirmLoading={bulkLoading}
+        width={560}
+      >
+        <div style={{ marginBottom: 16, padding: '10px 14px', background: '#f6ffed', border: '1px solid #b7eb8f', borderRadius: 8 }}>
+          <Space direction="vertical" size={3} style={{ width: '100%' }}>
+            <div>• <strong>Tỉnh/Đài:</strong> {provincesList.find(p => p.provinceId === selectedProvince)?.name || selectedProvince} ({selectedProvince})</div>
+            <div>• <strong>Kỳ mở thưởng:</strong> {selectedDate}</div>
+            <div style={{ marginTop: 4, fontSize: 13, color: '#389e0d' }}>
+              ✓ Hệ thống sẽ tự động sinh 1.000 vé ngẫu nhiên không trùng lặp, chia đều thành <strong>500 vé Đặc Biệt (x...)</strong> và <strong>500 vé Thường</strong>.
+            </div>
+          </Space>
+        </div>
+
+        <Form 
+          form={bulkForm} 
+          layout="vertical" 
+          onFinish={handleBulkGenerate}
+          initialValues={{
+            specialCount: 500,
+            normalCount: 500,
+            specialMultiplier: 1,
+            normalMultiplier: selectedRegion === 'MB' ? 10 : 14
+          }}
+        >
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+            <Form.Item
+              name="specialCount"
+              label="Số vé Đặc Biệt (Ký hiệu x...)"
+              rules={[{ required: true, message: 'Nhập số lượng vé' }]}
+            >
+              <InputNumber min={1} max={5000} style={{ width: '100%' }} />
+            </Form.Item>
+
+            <Form.Item
+              name="normalCount"
+              label="Số vé Thường"
+              rules={[{ required: true, message: 'Nhập số lượng vé' }]}
+            >
+              <InputNumber min={1} max={5000} style={{ width: '100%' }} />
+            </Form.Item>
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+            <Form.Item
+              name="specialMultiplier"
+              label="Số tờ mỗi vé ĐB (SL Kho)"
+              extra="Mặc định 1 vé"
+            >
+              <InputNumber min={1} max={500} style={{ width: '100%' }} />
+            </Form.Item>
+
+            <Form.Item
+              name="normalMultiplier"
+              label="Số tờ mỗi vé Thường (SL Kho)"
+              extra={`Mặc định ${selectedRegion === 'MB' ? 10 : 14} vé / lốc`}
+            >
+              <InputNumber min={1} max={500} style={{ width: '100%' }} />
+            </Form.Item>
+          </div>
+        </Form>
+      </Modal>
+
+      {/* MODAL THÊM / SỬA VÉ THỦ CÔNG */}
       <Modal
         title={selectedTicket && selectedTicket._id ? "Sửa vé số" : "Thêm vé thủ công"}
         open={modalVisible}
@@ -372,6 +519,33 @@ export default function TicketManagement() {
           form.resetFields();
         }}
       >
+        {!selectedTicket && (
+          <div style={{ marginBottom: 16, padding: '10px 14px', background: '#fffbe6', border: '1px solid #ffe58f', borderRadius: 8, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div>
+              <Typography.Text strong style={{ color: '#d48806' }}>Cần tạo nhanh số lượng lớn?</Typography.Text>
+              <div style={{ fontSize: 12, color: '#8c6b00' }}>Tạo ngay 1.000 vé (500 ĐB + 500 Thường) tự động</div>
+            </div>
+            <Button 
+              size="small" 
+              type="primary" 
+              icon={<ThunderboltOutlined />} 
+              style={{ backgroundColor: '#fa8c16', borderColor: '#fa8c16' }}
+              onClick={() => {
+                setModalVisible(false);
+                bulkForm.setFieldsValue({
+                  specialCount: 500,
+                  normalCount: 500,
+                  specialMultiplier: 1,
+                  normalMultiplier: selectedRegion === 'MB' ? 10 : 14
+                });
+                setBulkModalVisible(true);
+              }}
+            >
+              Tạo 1.000 vé
+            </Button>
+          </div>
+        )}
+
         <Form form={form} layout="vertical">
           <Form.Item
             name="number"
@@ -379,7 +553,7 @@ export default function TicketManagement() {
             rules={[{ required: true, message: 'Vui lòng nhập dãy số' }]}
           >
             <Input 
-              placeholder="Ví dụ: x12345" 
+              placeholder="Ví dụ: x12345 (cho ĐB) hoặc 123456 (cho Thường)" 
               onChange={(e) => {
                 if (e.target.value.toLowerCase().includes('x')) {
                   form.setFieldsValue({ ticketType: 'special' });
@@ -406,7 +580,7 @@ export default function TicketManagement() {
               <Option value="special">Đặc biệt</Option>
             </Select>
           </Form.Item>
-          <Form.Item name="multiplier" label="Số Lượng Vé">
+          <Form.Item name="multiplier" label="Số Lượng Vé (SL Kho)">
             <InputNumber style={{ width: '100%' }} min={1} />
           </Form.Item>
           <Form.Item label="Ký hiệu (tối đa 10 ô)">
@@ -424,6 +598,7 @@ export default function TicketManagement() {
         </Form>
       </Modal>
 
+      {/* MODAL CHI TIẾT VÉ */}
       <Modal
         title="Chi tiết vé số"
         open={detailModalVisible}
