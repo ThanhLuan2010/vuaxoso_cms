@@ -387,9 +387,25 @@ export default function OrderManagement() {
       title: 'Khách hàng',
       key: 'user',
       render: (_: any, record: Order) => (
-        <div>
-          <div style={{ fontWeight: 'bold' }}>{record.user?.name}</div>
-          <div style={{ color: 'gray', fontSize: 12 }}>{record.user?.phone}</div>
+        <div 
+          style={{ 
+            cursor: record.user?.phone ? 'pointer' : 'default', 
+            padding: '4px 8px', 
+            borderRadius: '4px', 
+            backgroundColor: '#f0f5ff',
+            display: 'inline-block'
+          }} 
+          onClick={() => {
+            if (record.user?.phone) {
+              localStorage.setItem('userSearchPhone', record.user.phone);
+              window.dispatchEvent(new CustomEvent('changeTab', { detail: 'users' }));
+              window.dispatchEvent(new CustomEvent('openUserDetail', { detail: { phone: record.user.phone } }));
+            }
+          }}
+          title="Bấm để xem chi tiết tài khoản khách hàng này"
+        >
+          <div style={{ fontWeight: 'bold', color: '#1890ff' }}>{record.user?.name || '-'}</div>
+          <div style={{ color: '#888', fontSize: 12 }}>{record.user?.phone || '-'}</div>
         </div>
       ),
     },

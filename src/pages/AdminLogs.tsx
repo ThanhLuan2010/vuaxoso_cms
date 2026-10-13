@@ -76,10 +76,26 @@ export default function AdminLogs() {
       render: (_: any, record: any) => {
         if (!record.targetUserId) return '-';
         return (
-          <Space direction="vertical" size={0}>
-            <Text strong>{record.targetUserId.name}</Text>
-            <Text type="secondary" style={{ fontSize: 12 }}>{record.targetUserId.phone}</Text>
-          </Space>
+          <div
+            style={{
+              cursor: record.targetUserId.phone ? 'pointer' : 'default',
+              padding: '4px 8px',
+              borderRadius: '4px',
+              backgroundColor: '#f0f5ff',
+              display: 'inline-block'
+            }}
+            onClick={() => {
+              if (record.targetUserId?.phone) {
+                localStorage.setItem('userSearchPhone', record.targetUserId.phone);
+                window.dispatchEvent(new CustomEvent('changeTab', { detail: 'users' }));
+                window.dispatchEvent(new CustomEvent('openUserDetail', { detail: { phone: record.targetUserId.phone } }));
+              }
+            }}
+            title="Bấm để xem chi tiết người dùng này"
+          >
+            <div style={{ fontWeight: 'bold', color: '#1890ff' }}>{record.targetUserId.name || '-'}</div>
+            <div style={{ color: '#888', fontSize: 12 }}>{record.targetUserId.phone || '-'}</div>
+          </div>
         );
       },
       width: 180,

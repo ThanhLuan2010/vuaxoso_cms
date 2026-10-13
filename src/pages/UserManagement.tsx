@@ -86,21 +86,34 @@ export default function UserManagement() {
   };
 
   useEffect(() => {
-    const searchPhone = localStorage.getItem('userSearchPhone');
-    if (searchPhone) {
-      setSearchText(searchPhone);
-      fetchUsers(searchPhone).then((data) => {
+    const handleOpenUser = (phone: string) => {
+      setSearchText(phone);
+      fetchUsers(phone).then((data) => {
         if (data && data.length > 0) {
-          const exactUser = data.find((u: any) => u.phone === searchPhone) || data[0];
+          const exactUser = data.find((u: any) => u.phone === phone) || data[0];
           if (exactUser) {
             showEditDrawer(exactUser);
           }
         }
       });
+    };
+
+    const searchPhone = localStorage.getItem('userSearchPhone');
+    if (searchPhone) {
+      handleOpenUser(searchPhone);
       localStorage.removeItem('userSearchPhone');
     } else {
       fetchUsers();
     }
+
+    const handleOpenUserDetail = (e: any) => {
+      const phone = e.detail?.phone;
+      if (phone) {
+        handleOpenUser(phone);
+      }
+    };
+    window.addEventListener('openUserDetail', handleOpenUserDetail);
+    return () => window.removeEventListener('openUserDetail', handleOpenUserDetail);
   }, []);
 
   const handleResetFilters = () => {
