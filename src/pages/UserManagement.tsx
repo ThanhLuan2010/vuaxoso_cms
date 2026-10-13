@@ -1,6 +1,7 @@
-import { useState, useEffect } from 'react';
-import { Table, Tag, Button, Space, Typography, Drawer, Tabs, Form, Input, Select, message, Spin, Descriptions, Row, Col, Switch, Divider, Image, Modal, List, Popover } from 'antd';
-import { EditOutlined, LockOutlined, UnlockOutlined, EyeOutlined, EyeInvisibleOutlined, MessageOutlined, MoreOutlined } from '@ant-design/icons';
+import { useState, useEffect, useMemo } from 'react';
+import { Table, Tag, Button, Space, Typography, Drawer, Tabs, Form, Input, Select, message, Spin, Descriptions, Row, Col, Switch, Divider, Image, Modal, List, Popover, DatePicker } from 'antd';
+import { EditOutlined, LockOutlined, UnlockOutlined, EyeOutlined, EyeInvisibleOutlined, MessageOutlined, MoreOutlined, ReloadOutlined } from '@ant-design/icons';
+import dayjs from 'dayjs';
 import api from '../services/api';
 import useAuthStore from '../store/useAuthStore';
 
@@ -10,6 +11,10 @@ export default function UserManagement() {
   const { hasPermission, canViewField } = useAuthStore();
   const canUpdateUser = hasPermission('users', 'update');
   const [searchText, setSearchText] = useState('');
+  const [startDate, setStartDate] = useState<dayjs.Dayjs | null>(null);
+  const [endDate, setEndDate] = useState<dayjs.Dayjs | null>(null);
+  const [memberType, setMemberType] = useState<string>('all');
+  const [statusFilter, setStatusFilter] = useState<string>('all');
   const [users, setUsers] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [isDrawerVisible, setIsDrawerVisible] = useState(false);
@@ -60,10 +65,17 @@ export default function UserManagement() {
   const [newLoginPassword, setNewLoginPassword] = useState('');
   const [newWithdrawPassword, setNewWithdrawPassword] = useState('');
 
-  const fetchUsers = async (search: string = '') => {
+  const fetchUsers = async (search: string = searchText) => {
     setLoading(true);
     try {
-      const res = await api.get('/users', { params: { search } });
+      const params: any = {};
+      if (search) params.search = search;
+      if (startDate) params.startDate = startDate.format('YYYY-MM-DD');
+      if (endDate) params.endDate = endDate.format('YYYY-MM-DD');
+      if (memberType && memberType !== 'all') params.memberType = memberType;
+      if (statusFilter && statusFilter !== 'all') params.status = statusFilter;
+
+      const res = await api.get('/users', { params });
       setUsers(res.data);
       return res.data;
     } catch (err) {
@@ -90,6 +102,75 @@ export default function UserManagement() {
       fetchUsers();
     }
   }, []);
+
+  const handleResetFilters = () => {
+    setStartDate(null);
+    setEndDate(null);
+    setMemberType('all');
+    setStatusFilter('all');
+    setSearchText('');
+  };
+
+  const filteredUsers = useMemo(() => {
+    return users.filter((u: any) => {
+      // 1. Text search
+      if (searchText.trim()) {
+        const query = searchText.toLowerCase().trim();
+        const matchesName = (u.name || '').toLowerCase().includes(query);
+        const matchesPhone = (u.phone || '').toLowerCase().includes(query);
+        const matchesEmail = (u.email || '').toLowerCase().includes(query);
+        const matchesCccd = (u.cccdNumber || '').toLowerCase().includes(query);
+        const matchesRegIp = (u.registerIp || '').toLowerCase().includes(query);
+        const matchesLogIp = (u.loginIp || '').toLowerCase().includes(query);
+        const matchesDevice = (u.loginDevice || '').toLowerCase().includes(query);
+        const matchesBank = (u.bankInfo?.accountNumber || '').toLowerCase().includes(query) ||
+          (u.banks || []).some((b: any) => (b.accountNumber || '').toLowerCase().includes(query));
+        if (!matchesName && !matchesPhone && !matchesEmail && !matchesCccd && !matchesRegIp && !matchesLogIp && !matchesDevice && !matchesBank) {
+          return false;
+        }
+      }
+
+      // 2. Status filter
+      if (statusFilter !== 'all') {
+        const curStatus = u.status || 'active';
+        if (curStatus !== statusFilter) return false;
+      }
+
+      // 3. Date & Member type filter
+      if (!u.createdAt) return true;
+      const userCreated = dayjs(u.createdAt);
+      if (!userCreated.isValid()) return true;
+
+      const start = startDate ? startDate.startOf('day') : null;
+      const end = endDate ? endDate.endOf('day') : null;
+
+      if (memberType === 'new') {
+        if (start && end) {
+          if (userCreated.isBefore(start) || userCreated.isAfter(end)) return false;
+        } else if (start) {
+          if (userCreated.isBefore(start)) return false;
+        } else if (end) {
+          if (userCreated.isAfter(end)) return false;
+        } else {
+          if (userCreated.isBefore(dayjs().subtract(30, 'day'))) return false;
+        }
+      } else if (memberType === 'old') {
+        if (start) {
+          if (!userCreated.isBefore(start)) return false;
+        } else if (end) {
+          if (!userCreated.isBefore(end)) return false;
+        } else {
+          if (!userCreated.isBefore(dayjs().subtract(30, 'day'))) return false;
+        }
+      } else if (memberType === 'all') {
+        if (end && userCreated.isAfter(end)) {
+          return false;
+        }
+      }
+
+      return true;
+    });
+  }, [users, searchText, statusFilter, memberType, startDate, endDate]);
 
   const showEditDrawer = async (user: any) => {
     setEditingUser(user);
@@ -282,6 +363,17 @@ export default function UserManagement() {
       ),
     },
     {
+      title: 'Trạng thái',
+      dataIndex: 'status',
+      key: 'status',
+      width: 125,
+      render: (status: string) => {
+        if (status === 'locked') return <Tag color="error">Đã khoá</Tag>;
+        if (status === 'review') return <Tag color="warning">Review</Tag>;
+        return <Tag color="success">Hoạt động</Tag>;
+      },
+    },
+    {
       title: 'Tổng nạp',
       dataIndex: 'totalDeposit',
       key: 'totalDeposit',
@@ -310,16 +402,18 @@ export default function UserManagement() {
       render: (val: string) => (!canViewField('ipInfo') ? '******' : (val ? val.split(',')[0].trim() : '-')),
     },
     {
+      title: 'Ngày ĐK',
+      dataIndex: 'createdAt',
+      key: 'createdAt',
+      width: 155,
+      render: (date: string) => date ? dayjs(date).format('DD/MM/YYYY HH:mm') : '-',
+    },
+    {
       title: 'Ngày ĐN cuối',
       dataIndex: 'lastLoginAt',
       key: 'lastLoginAt',
-      render: (date: string) => date ? new Date(date).toLocaleString('vi-VN') : '-',
-    },
-    {
-      title: 'Ngày tạo',
-      dataIndex: 'createdAt',
-      key: 'createdAt',
-      render: (date: string) => new Date(date).toLocaleString('vi-VN'),
+      width: 155,
+      render: (date: string) => date ? dayjs(date).format('DD/MM/YYYY HH:mm') : '-',
     },
     {
       title: 'Hành động',
@@ -382,25 +476,109 @@ export default function UserManagement() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 110px)' }}>
-      <div style={{ flex: 'none', display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-        <Title style={{ margin: 0 }} level={3} >Quản lý User</Title>
+      <div style={{ flex: 'none', display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+        <Title style={{ margin: 0 }} level={3}>Quản lý User</Title>
+        <Space wrap>
+          <Tag color="blue" style={{ fontSize: 13, padding: '4px 10px', borderRadius: 4 }}>
+            Tổng thành viên: <strong>{users.length}</strong>
+          </Tag>
+          <Tag color="green" style={{ fontSize: 13, padding: '4px 10px', borderRadius: 4 }}>
+            Hoạt động: <strong>{users.filter(u => (u.status || 'active') === 'active').length}</strong>
+          </Tag>
+          <Tag color="error" style={{ fontSize: 13, padding: '4px 10px', borderRadius: 4 }}>
+            Đã khoá: <strong>{users.filter(u => u.status === 'locked').length}</strong>
+          </Tag>
+          <Tag color="warning" style={{ fontSize: 13, padding: '4px 10px', borderRadius: 4 }}>
+            Review: <strong>{users.filter(u => u.status === 'review').length}</strong>
+          </Tag>
+        </Space>
+      </div>
+
+      <div style={{ flex: 'none', display: 'flex', flexWrap: 'wrap', gap: 12, alignItems: 'center', marginBottom: 16, background: '#fff', padding: '12px 16px', borderRadius: 8, border: '1px solid #f0f0f0' }}>
+        <Space align="center" size="small">
+          <span style={{ fontWeight: 600, color: '#333' }}>Từ:</span>
+          <DatePicker
+            format="DD/MM/YYYY"
+            placeholder="01/10/2026"
+            value={startDate}
+            onChange={(d) => setStartDate(d)}
+            allowClear
+            style={{ width: 140 }}
+          />
+          <span style={{ fontWeight: 600, color: '#333' }}>Đến:</span>
+          <DatePicker
+            format="DD/MM/YYYY"
+            placeholder="10/10/2026"
+            value={endDate}
+            onChange={(d) => setEndDate(d)}
+            allowClear
+            style={{ width: 140 }}
+          />
+        </Space>
+
+        <Space align="center" size="small">
+          <span style={{ fontWeight: 600, color: '#333' }}>Thành viên:</span>
+          <Select
+            value={memberType}
+            onChange={(val) => setMemberType(val)}
+            style={{ width: 155 }}
+            options={[
+              { value: 'all', label: 'Tất cả' },
+              { value: 'new', label: 'Tk mới đăng ký' },
+              { value: 'old', label: 'TK cũ' },
+            ]}
+          />
+        </Space>
+
+        <Space align="center" size="small">
+          <span style={{ fontWeight: 600, color: '#333' }}>Trạng thái:</span>
+          <Select
+            value={statusFilter}
+            onChange={(val) => setStatusFilter(val)}
+            style={{ width: 155 }}
+            options={[
+              { value: 'all', label: 'Tất cả' },
+              { value: 'active', label: 'Đang hoạt động' },
+              { value: 'locked', label: 'Đã khoá' },
+              { value: 'review', label: 'Review' },
+            ]}
+          />
+        </Space>
+
         <Input.Search
-          placeholder="Tìm theo IP, thiết bị, họ tên, TKNH, CCCD..."
+          placeholder="Tìm IP, thiết bị, họ tên, TKNH, CCCD, SĐT..."
           allowClear
           value={searchText}
           onChange={(e) => setSearchText(e.target.value)}
           onSearch={(value) => fetchUsers(value)}
-          style={{ width: 400 }}
+          style={{ width: 280 }}
         />
+
+        {(startDate || endDate || memberType !== 'all' || statusFilter !== 'all' || searchText) && (
+          <Button onClick={handleResetFilters} icon={<ReloadOutlined />}>
+            Đặt lại
+          </Button>
+        )}
       </div>
+
       <Table 
         style={{ flex: 1 }}
-        scroll={{ y: 'calc(100vh - 260px)', x: 'max-content' }}
+        scroll={{ y: 'calc(100vh - 300px)', x: 'max-content' }}
         columns={columns}
-        dataSource={users}
+        dataSource={filteredUsers}
         rowKey="_id"
         loading={loading}
-
+        pagination={{
+          showTotal: (total, range) => (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, fontWeight: 500 }}>
+              <span>Tổng số thành viên đã đăng ký: <strong style={{ color: '#1677ff', fontSize: 14 }}>{total}</strong></span>
+              <span style={{ color: '#888' }}>(Hiển thị {range[0]}-{range[1]})</span>
+            </div>
+          ),
+          pageSize: 10,
+          showSizeChanger: true,
+          pageSizeOptions: ['10', '20', '50', '100'],
+        }}
       />
 
       <Drawer
