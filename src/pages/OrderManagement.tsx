@@ -99,7 +99,7 @@ export default function OrderManagement() {
       const { orderId, date } = e.detail;
       setSearchText(orderId);
       if (date) {
-        setSelectedDate(dayjs(date));
+        setDateRange([dayjs(date).startOf('day'), dayjs(date).endOf('day')]);
       }
       setAutoOpenOrderId(orderId);
     };
@@ -112,8 +112,10 @@ export default function OrderManagement() {
   const [minBet, setMinBet] = useState('');
   const [minWin, setMinWin] = useState('');
 
-  const [selectedDate, setSelectedDate] = useState<dayjs.Dayjs | null>(dayjs());
-  const [exportDateRange, setExportDateRange] = useState<any>([dayjs().startOf('day'), dayjs().endOf('day')]);
+  const [dateRange, setDateRange] = useState<[dayjs.Dayjs, dayjs.Dayjs] | null>([
+    dayjs().startOf('day'),
+    dayjs().endOf('day'),
+  ]);
   const [summaryData, setSummaryData] = useState({
     totalTickets: 0,
     totalSales: 0,
@@ -121,26 +123,28 @@ export default function OrderManagement() {
     totalLoss: 0
   });
 
-  useEffect(() => {
-    fetchOrders();
-    fetchSummary();
-  }, [selectedDate]);
-
-  const fetchSummary = async () => {
+  const fetchSummary = async (range = dateRange) => {
     try {
-      const dateParam = selectedDate ? selectedDate.format('YYYY-MM-DD') : '';
-      const res = await api.get('/orders/admin/summary', { params: { date: dateParam } });
+      const params: any = {};
+      if (range && range[0] && range[1]) {
+        params.startDate = range[0].format('YYYY-MM-DD');
+        params.endDate = range[1].format('YYYY-MM-DD');
+      }
+      const res = await api.get('/orders/admin/summary', { params });
       setSummaryData(res.data);
     } catch (error) {
       console.error('Error fetching summary:', error);
     }
   };
 
-  const fetchOrders = async (searchValue: string = searchText) => {
+  const fetchOrders = async (searchValue: string = searchText, range = dateRange) => {
     try {
       setLoading(true);
-      const dateParam = selectedDate ? selectedDate.format('YYYY-MM-DD') : '';
-      const params: any = { date: dateParam };
+      const params: any = {};
+      if (range && range[0] && range[1]) {
+        params.startDate = range[0].format('YYYY-MM-DD');
+        params.endDate = range[1].format('YYYY-MM-DD');
+      }
       if (searchValue) params.search = searchValue;
       const res = await api.get('/orders/admin', { params });
       setOrders(res.data);
@@ -151,6 +155,11 @@ export default function OrderManagement() {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    fetchOrders(searchText, dateRange);
+    fetchSummary(dateRange);
+  }, [dateRange]);
 
   const handleOpenUpload = (record: Order) => {
     setSelectedOrder(record);
@@ -269,19 +278,24 @@ export default function OrderManagement() {
   const handleExportExcel = async () => {
     try {
       setLoading(true);
-      if (!exportDateRange || exportDateRange.length < 2 || !exportDateRange[0] || !exportDateRange[1]) {
+      if (!dateRange || dateRange.length < 2 || !dateRange[0] || !dateRange[1]) {
         message.warning('Vui lòng chọn khoảng thời gian cần xuất dữ liệu');
         setLoading(false);
         return;
       }
 
-      const res = await api.get('/orders/admin'); 
-      const startDate = exportDateRange[0].startOf('day');
-      const endDate = exportDateRange[1].endOf('day');
+      const params: any = {
+        startDate: dateRange[0].format('YYYY-MM-DD'),
+        endDate: dateRange[1].format('YYYY-MM-DD'),
+      };
+      const res = await api.get('/orders/admin', { params }); 
+      const startDate = dateRange[0].startOf('day');
+      const endDate = dateRange[1].endOf('day');
       
-      const allOrders = res.data.filter((o: Order) => {
+      const allOrders = (res.data || []).filter((o: Order) => {
         const orderDate = dayjs(o.createdAt);
-        return orderDate.isAfter(startDate) && orderDate.isBefore(endDate);
+        return (orderDate.isSame(startDate) || orderDate.isAfter(startDate)) &&
+               (orderDate.isSame(endDate) || orderDate.isBefore(endDate));
       });
 
       if (allOrders.length === 0) {
@@ -675,17 +689,8 @@ export default function OrderManagement() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 110px)' }}>
-      <div style={{ flex: 'none', display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-        <Title style={{ marginTop: 0, marginBottom: 16 }} level={4} >Quản lý Đặt vé (Orders)</Title>
-        <Space>
-          <span>Lọc theo ngày:</span>
-          <DatePicker
-            value={selectedDate}
-            onChange={(date) => setSelectedDate(date)}
-            format="DD/MM/YYYY"
-            allowClear
-          />
-        </Space>
+      <div style={{ flex: 'none', marginBottom: 16 }}>
+        <Title style={{ marginTop: 0, marginBottom: 16 }} level={4}>Quản lý Đặt vé (Orders)</Title>
       </div>
 
       <Row gutter={16} style={{ marginBottom: 24 }}>
@@ -762,10 +767,19 @@ export default function OrderManagement() {
         </Space>
 
         <DatePicker.RangePicker
-          style={{ width: 260 }}
-          value={exportDateRange}
-          onChange={(dates) => setExportDateRange(dates)}
+          style={{ width: 270 }}
+          value={dateRange}
+          onChange={(dates) => setDateRange(dates as any)}
           format="DD/MM/YYYY"
+          placeholder={['Từ ngày', 'Đến ngày']}
+          allowClear
+          presets={[
+            { label: 'Hôm nay', value: [dayjs().startOf('day'), dayjs().endOf('day')] },
+            { label: 'Hôm qua', value: [dayjs().subtract(1, 'day').startOf('day'), dayjs().subtract(1, 'day').endOf('day')] },
+            { label: '7 ngày qua', value: [dayjs().subtract(7, 'day').startOf('day'), dayjs().endOf('day')] },
+            { label: '30 ngày qua', value: [dayjs().subtract(30, 'day').startOf('day'), dayjs().endOf('day')] },
+            { label: 'Tháng này', value: [dayjs().startOf('month'), dayjs().endOf('month')] },
+          ]}
         />
         <Button 
           type="primary" 
