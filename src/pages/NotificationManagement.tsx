@@ -14,11 +14,11 @@ export default function NotificationManagement() {
   const [submitting, setSubmitting] = useState(false);
   const [form] = Form.useForm();
 
-  const fetchNotifications = async (search = '') => {
+  const fetchNotifications = async (search = searchText) => {
     try {
       setLoading(true);
-      const { data } = await api.get('/notifications/admin', { params: { search } });
-      setNotifications(data);
+      const { data } = await api.get('/notifications/admin', { params: { search: search.trim() } });
+      setNotifications(data || []);
     } catch (error) {
       console.error(error);
       message.error('Lỗi khi tải danh sách thông báo');
@@ -28,8 +28,27 @@ export default function NotificationManagement() {
   };
 
   useEffect(() => {
-    fetchNotifications();
+    fetchNotifications('');
   }, []);
+
+  const filteredNotifications = notifications.filter((item) => {
+    if (!searchText.trim()) return true;
+    const q = searchText.trim().toLowerCase();
+    const title = (item.title || '').toLowerCase();
+    const body = (item.body || '').toLowerCase();
+    const type = (item.type || '').toLowerCase();
+    const userName = (item.user?.name || '').toLowerCase();
+    const userPhone = (item.user?.phone || '').toLowerCase();
+    const senderName = (item.sender?.name || '').toLowerCase();
+    return (
+      title.includes(q) ||
+      body.includes(q) ||
+      type.includes(q) ||
+      userName.includes(q) ||
+      userPhone.includes(q) ||
+      senderName.includes(q)
+    );
+  });
 
   const handleCreate = async (values: any) => {
     try {
@@ -187,10 +206,15 @@ export default function NotificationManagement() {
         style={{ flex: 1 }}
         scroll={{ y: 'calc(100vh - 260px)', x: 'max-content' }}
         columns={columns}
-        dataSource={notifications}
+        dataSource={filteredNotifications}
         rowKey="_id"
         loading={loading}
-        pagination={{ pageSize: 10 }}
+        pagination={{ 
+          pageSize: 10,
+          showSizeChanger: true,
+          pageSizeOptions: ['10', '20', '50', '100'],
+          showTotal: (total) => `Tổng: ${total} thông báo` 
+        }}
       />
 
       <Modal
