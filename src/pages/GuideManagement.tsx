@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Table, Button, Typography, message, Space, Popconfirm, Modal, Form, Input, Image, Upload, Popover, Switch, InputNumber, Select } from 'antd';
-import { PlusOutlined, EditOutlined, DeleteOutlined, UploadOutlined, MoreOutlined } from '@ant-design/icons';
+import { PlusOutlined, EditOutlined, DeleteOutlined, UploadOutlined, MoreOutlined, ReloadOutlined } from '@ant-design/icons';
 import api from '../services/api';
 
 import JoditEditor from 'jodit-react';
@@ -8,10 +8,12 @@ import JoditEditor from 'jodit-react';
 const { Title } = Typography;
 
 export default function GuideManagement() {
-  const [guides, setGuides] = useState([]);
+  const [guides, setGuides] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [isModalVisible, setIsModalVisible] = useState(false);
   const [editingGuide, setEditingGuide] = useState<any>(null);
+  const [searchText, setSearchText] = useState('');
+  const [statusFilter, setStatusFilter] = useState<string>('all');
   const [form] = Form.useForm();
 
 
@@ -103,6 +105,25 @@ export default function GuideManagement() {
     }
   };
 
+  const handleResetFilters = () => {
+    setSearchText('');
+    setStatusFilter('all');
+  };
+
+  const filteredGuides = useMemo(() => {
+    return guides.filter((g: any) => {
+      if (statusFilter === 'active' && !g.isActive) return false;
+      if (statusFilter === 'inactive' && g.isActive) return false;
+      if (searchText.trim()) {
+        const query = searchText.toLowerCase().trim();
+        const matchesTitle = (g.title || '').toLowerCase().includes(query);
+        const matchesIcon = (g.iconType || '').toLowerCase().includes(query);
+        if (!matchesTitle && !matchesIcon) return false;
+      }
+      return true;
+    });
+  }, [guides, statusFilter, searchText]);
+
   const columns: any = [
     {
       fixed: 'left',
@@ -110,6 +131,7 @@ export default function GuideManagement() {
       dataIndex: 'order',
       key: 'order',
       width: 80,
+      sorter: (a: any, b: any) => (a.order || 0) - (b.order || 0),
     },
     {
       title: 'Icon',
@@ -125,7 +147,12 @@ export default function GuideManagement() {
     {
       title: 'Trạng thái',
       key: 'isActive',
-      width: 120,
+      width: 130,
+      filters: [
+        { text: 'Đang bật', value: true },
+        { text: 'Đã tắt', value: false },
+      ],
+      onFilter: (value: any, record: any) => record.isActive === value,
       render: (_: any, record: any) => (
         <Switch
           checked={record.isActive}
@@ -163,18 +190,49 @@ export default function GuideManagement() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 110px)' }}>
-      <div style={{ flex: 'none', display: 'flex', justifyContent: 'space-between', marginBottom: 16 }}>
-        <Title style={{ marginTop: 0, marginBottom: 16 }} level={2}>Quản Lý Hướng Dẫn</Title>
+      <div style={{ flex: 'none', display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+        <Title style={{ margin: 0 }} level={2}>Quản Lý Hướng Dẫn</Title>
         <Button type="primary" icon={<PlusOutlined />} onClick={handleAdd}>
           Thêm Hướng Dẫn
         </Button>
+      </div>
+
+      {/* Filter Bar */}
+      <div style={{ flex: 'none', display: 'flex', flexWrap: 'wrap', gap: 12, alignItems: 'center', marginBottom: 16, background: '#fff', padding: '12px 16px', borderRadius: 8, border: '1px solid #f0f0f0' }}>
+        <Input.Search
+          placeholder="Tìm tiêu đề hướng dẫn..."
+          allowClear
+          value={searchText}
+          onChange={(e) => setSearchText(e.target.value)}
+          style={{ width: 280 }}
+        />
+
+        <Space align="center" size="small">
+          <span style={{ fontWeight: 600, color: '#333' }}>Trạng thái:</span>
+          <Select
+            value={statusFilter}
+            onChange={(val) => setStatusFilter(val)}
+            style={{ width: 150 }}
+            options={[
+              { value: 'all', label: 'Tất cả trạng thái' },
+              { value: 'active', label: 'Đang bật' },
+              { value: 'inactive', label: 'Đã tắt' },
+            ]}
+          />
+        </Space>
+
+        {(statusFilter !== 'all' || searchText) && (
+          <Button onClick={handleResetFilters} icon={<ReloadOutlined />}>
+            Xoá bộ lọc
+          </Button>
+        )}
       </div>
 
       <Table 
         style={{ flex: 1 }}
         scroll={{ y: 'calc(100vh - 260px)', x: 'max-content' }}
         columns={columns}
-        dataSource={guides}
+        dataSource={filteredGuides}
         rowKey="_id"
         loading={loading}
       />

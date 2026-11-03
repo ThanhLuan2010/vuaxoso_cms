@@ -1,11 +1,13 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import api from '../services/api';
 import { Table, Button, Space, Form, Input, Select, Modal, Switch, message, InputNumber, Radio, Checkbox, Card, Tag, Typography, Popover } from 'antd';
-import { EditOutlined, MoreOutlined } from '@ant-design/icons';
+import { EditOutlined, MoreOutlined, ReloadOutlined } from '@ant-design/icons';
 
 export default function GameManagement() {
   const [games, setGames] = useState<any[]>([]);
   const [searchText, setSearchText] = useState('');
+  const [typeFilter, setTypeFilter] = useState<string>('all');
+  const [statusFilter, setStatusFilter] = useState<string>('all');
   const [loading, setLoading] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -148,6 +150,13 @@ export default function GameManagement() {
       title: 'Phân loại',
       dataIndex: 'type',
       key: 'type',
+      filters: [
+        { text: 'VIETLOTT', value: 'vietlott' },
+        { text: 'DIENTOAN', value: 'dientoan' },
+        { text: 'KIENTHIET', value: 'kienthiet' },
+        { text: 'LÔ ĐỀ', value: 'lode' },
+      ],
+      onFilter: (value: any, record: any) => record.type === value,
       render: (type: string) => {
         const colors: any = { vietlott: 'red', dientoan: 'blue', kienthiet: 'green', lode: 'purple' };
         const labels: any = { vietlott: 'VIETLOTT', dientoan: 'DIENTOAN', kienthiet: 'KIENTHIET', lode: 'LÔ ĐỀ' };
@@ -188,6 +197,11 @@ export default function GameManagement() {
       title: 'Trạng thái',
       dataIndex: 'isActive',
       key: 'isActive',
+      filters: [
+        { text: 'Đang bật', value: true },
+        { text: 'Đã tắt', value: false },
+      ],
+      onFilter: (value: any, record: any) => !!record.isActive === value,
       render: (isActive: boolean) => (
         <Tag color={isActive ? 'green' : 'default'}>{isActive ? 'Đang bật' : 'Đã tắt'}</Tag>
       )
@@ -214,25 +228,84 @@ export default function GameManagement() {
 
   const isLodeEditing = editingGame?.type === 'lode' || editingGame?.code === 'xoso_3mien';
 
+  const filteredGames = useMemo(() => {
+    return games.filter(g => {
+      if (typeFilter !== 'all' && g.type !== typeFilter) return false;
+      if (statusFilter !== 'all') {
+        if (statusFilter === 'active' && !g.isActive) return false;
+        if (statusFilter === 'inactive' && g.isActive) return false;
+      }
+      return true;
+    });
+  }, [games, typeFilter, statusFilter]);
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 110px)' }}>
-      <div style={{ flex: 'none', display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
+      <div style={{ flex: 'none', display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
         <h2 style={{ fontSize: 24, margin: 0 }}>Quản lý Danh sách Game</h2>
+      </div>
+
+      <div style={{ marginBottom: 16, display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'center', background: '#fff', padding: 12, borderRadius: 8 }}>
         <Input.Search
           placeholder="Tìm theo Tên game, Mã game..."
           allowClear
           value={searchText}
           onChange={(e) => setSearchText(e.target.value)}
           onSearch={(value) => fetchGames(value)}
-          style={{ width: 300 }}
+          style={{ width: 260 }}
         />
+
+        <Space size="small">
+          <span style={{ fontWeight: 500, fontSize: 13 }}>Phân loại:</span>
+          <Select
+            value={typeFilter}
+            onChange={(val) => setTypeFilter(val)}
+            style={{ width: 140 }}
+            options={[
+              { label: 'Tất cả loại', value: 'all' },
+              { label: 'VIETLOTT', value: 'vietlott' },
+              { label: 'DIENTOAN', value: 'dientoan' },
+              { label: 'KIENTHIET', value: 'kienthiet' },
+              { label: 'LÔ ĐỀ', value: 'lode' },
+            ]}
+          />
+        </Space>
+
+        <Space size="small">
+          <span style={{ fontWeight: 500, fontSize: 13 }}>Trạng thái:</span>
+          <Select
+            value={statusFilter}
+            onChange={(val) => setStatusFilter(val)}
+            style={{ width: 130 }}
+            options={[
+              { label: 'Tất cả', value: 'all' },
+              { label: 'Đang bật', value: 'active' },
+              { label: 'Đã tắt', value: 'inactive' },
+            ]}
+          />
+        </Space>
+
+        {(searchText || typeFilter !== 'all' || statusFilter !== 'all') && (
+          <Button
+            icon={<ReloadOutlined />}
+            onClick={() => {
+              setSearchText('');
+              setTypeFilter('all');
+              setStatusFilter('all');
+              fetchGames('');
+            }}
+            style={{ color: '#ff4d4f', borderColor: '#ff4d4f' }}
+          >
+            Xoá bộ lọc
+          </Button>
+        )}
       </div>
 
       <Table 
         style={{ flex: 1 }}
         scroll={{ y: 'calc(100vh - 260px)', x: 'max-content' }}
         columns={columns}
-        dataSource={games}
+        dataSource={filteredGames}
         rowKey="_id"
         loading={loading}
       />

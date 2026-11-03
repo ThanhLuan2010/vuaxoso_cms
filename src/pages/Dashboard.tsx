@@ -13,11 +13,12 @@ import {
   UserOutlined,
   WalletOutlined,
   MoreOutlined,
-  CrownOutlined
+  CrownOutlined,
+  ReloadOutlined
 } from '@ant-design/icons';
-import { Button, DatePicker, Image, Input, Layout, Menu, message, Modal, Popover, Select, Space, Table, Tag, theme, Typography } from 'antd';
+import { Button, DatePicker, Image, Input, Layout, Menu, message, Modal, Popover, Select, Space, Table, Tag, theme, Typography, Radio } from 'antd';
 import dayjs from 'dayjs';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import api from '../services/api';
 import { useAuthStore } from '../store/useAuthStore';
 import AdminLogs from './AdminLogs';
@@ -45,6 +46,13 @@ export default function Dashboard() {
   const [dateRange, setDateRange] = useState<[dayjs.Dayjs, dayjs.Dayjs] | null>(null);
   const [depositStatus, setDepositStatus] = useState<string | undefined>(undefined);
   const [withdrawStatus, setWithdrawStatus] = useState<string | undefined>(undefined);
+  const [typeFilter, setTypeFilter] = useState<'all' | 'deposit' | 'withdraw'>('all');
+  const [paymentMethodFilter, setPaymentMethodFilter] = useState<string>('all');
+
+  const [currentPage, setCurrentPage] = useState<number>(1);
+  const [pageSize, setPageSize] = useState<number>(20);
+  const [totalTransactions, setTotalTransactions] = useState<number>(0);
+  const [isServerPaginated, setIsServerPaginated] = useState<boolean>(false);
 
   useEffect(() => {
     fetchProfile();
@@ -63,10 +71,14 @@ export default function Dashboard() {
   } = theme.useToken();
 
   const fetchTransactions = async (
+    pageIndex: number = currentPage,
+    limitCount: number = pageSize,
     customSearch?: string,
     customRange?: [dayjs.Dayjs, dayjs.Dayjs] | null,
     customDStatus?: string,
-    customWStatus?: string
+    customWStatus?: string,
+    customType?: string,
+    customMethod?: string
   ) => {
     try {
       setLoading(true);
@@ -74,8 +86,13 @@ export default function Dashboard() {
       const range = customRange !== undefined ? customRange : dateRange;
       const dStatus = customDStatus !== undefined ? customDStatus : depositStatus;
       const wStatus = customWStatus !== undefined ? customWStatus : withdrawStatus;
+      const tType = customType !== undefined ? customType : typeFilter;
+      const method = customMethod !== undefined ? customMethod : paymentMethodFilter;
 
-      const params: any = {};
+      const params: any = {
+        page: pageIndex,
+        limit: limitCount,
+      };
       if (search) params.search = search;
       if (range && range[0] && range[1]) {
         params.startDate = range[0].format('YYYY-MM-DD');
@@ -83,9 +100,20 @@ export default function Dashboard() {
       }
       if (dStatus) params.depositStatus = dStatus;
       if (wStatus) params.withdrawStatus = wStatus;
+      if (tType && tType !== 'all') params.type = tType;
+      if (method && method !== 'all') params.paymentMethod = method;
 
-      const { data } = await api.get('/wallet/admin/transactions', { params });
-      setTransactions(data);
+      const res = await api.get('/wallet/admin/transactions', { params });
+      const data = res.data;
+      if (data && Array.isArray(data.transactions)) {
+        setTransactions(data.transactions);
+        setTotalTransactions(data.total ?? data.transactions.length);
+        setIsServerPaginated(true);
+      } else if (Array.isArray(data)) {
+        setTransactions(data);
+        setTotalTransactions(data.length);
+        setIsServerPaginated(false);
+      }
     } catch (error) {
       console.error(error);
     } finally {
@@ -95,9 +123,68 @@ export default function Dashboard() {
 
   useEffect(() => {
     if (activeTab === 'wallet') {
-      fetchTransactions(searchText, dateRange, depositStatus, withdrawStatus);
+      setCurrentPage(1);
+      fetchTransactions(1, pageSize, searchText, dateRange, depositStatus, withdrawStatus, typeFilter, paymentMethodFilter);
     }
   }, [activeTab, dateRange, depositStatus, withdrawStatus]);
+
+  const filteredTransactions = useMemo(() => {
+    if (isServerPaginated) return transactions;
+    return transactions.filter(t => {
+      if (typeFilter !== 'all' && t.type !== typeFilter) return false;
+      if (paymentMethodFilter !== 'all') {
+        if (paymentMethodFilter === 'crypto') {
+          if (t.paymentMethod !== 'binance' && !(t.type === 'withdraw' && t.destinationInfo?.network)) return false;
+        } else if (paymentMethodFilter === 'scratch') {
+          if (t.paymentMethod !== 'scratch') return false;
+        } else if (paymentMethodFilter === 'bank') {
+          if (t.paymentMethod === 'binance' || t.paymentMethod === 'scratch') return false;
+        }
+      }
+      return true;
+    });
+  }, [transactions, typeFilter, paymentMethodFilter, isServerPaginated]);
+
+  const handleTypeFilterChange = (val: 'all' | 'deposit' | 'withdraw') => {
+    setTypeFilter(val);
+    setCurrentPage(1);
+    fetchTransactions(1, pageSize, searchText, dateRange, depositStatus, withdrawStatus, val, paymentMethodFilter);
+  };
+
+  const handlePaymentMethodFilterChange = (val: string) => {
+    setPaymentMethodFilter(val);
+    setCurrentPage(1);
+    fetchTransactions(1, pageSize, searchText, dateRange, depositStatus, withdrawStatus, typeFilter, val);
+  };
+
+  const handleDepositStatusChange = (val?: string) => {
+    setDepositStatus(val);
+    setCurrentPage(1);
+    fetchTransactions(1, pageSize, searchText, dateRange, val, withdrawStatus, typeFilter, paymentMethodFilter);
+  };
+
+  const handleWithdrawStatusChange = (val?: string) => {
+    setWithdrawStatus(val);
+    setCurrentPage(1);
+    fetchTransactions(1, pageSize, searchText, dateRange, depositStatus, val, typeFilter, paymentMethodFilter);
+  };
+
+  const handleSearch = (value: string) => {
+    setSearchText(value);
+    setCurrentPage(1);
+    fetchTransactions(1, pageSize, value, dateRange, depositStatus, withdrawStatus, typeFilter, paymentMethodFilter);
+  };
+
+  const handleResetWalletFilters = () => {
+    setSearchText('');
+    setDateRange(null);
+    setDepositStatus(undefined);
+    setWithdrawStatus(undefined);
+    setTypeFilter('all');
+    setPaymentMethodFilter('all');
+    setCurrentPage(1);
+    fetchTransactions(1, pageSize, '', null, undefined, undefined, 'all', 'all');
+  };
 
   const [actionModalVisible, setActionModalVisible] = useState(false);
   const [currentRecord, setCurrentRecord] = useState<any>(null);
@@ -147,11 +234,18 @@ export default function Dashboard() {
       title: 'Loại',
       dataIndex: 'type',
       key: 'type',
-      render: (type: string) => (
-        <Tag color={type === 'deposit' ? 'blue' : 'orange'}>
-          {type === 'deposit' ? 'NẠP TIỀN' : 'RÚT TIỀN'}
-        </Tag>
-      )
+      filters: [
+        { text: 'Nạp tiền', value: 'deposit' },
+        { text: 'Rút tiền', value: 'withdraw' },
+        { text: 'Thắng cược', value: 'win' },
+      ],
+      onFilter: (value: any, record: any) => record.type === value,
+      render: (type: string) => {
+        if (type === 'deposit') return <Tag color="blue">NẠP TIỀN</Tag>;
+        if (type === 'withdraw') return <Tag color="orange">RÚT TIỀN</Tag>;
+        if (type === 'win') return <Tag color="gold">THẮNG CƯỢC</Tag>;
+        return <Tag>{type?.toUpperCase()}</Tag>;
+      }
     },
     {
       title: 'Số tiền',
@@ -282,6 +376,12 @@ export default function Dashboard() {
       title: 'Trạng thái',
       dataIndex: 'status',
       key: 'status',
+      filters: [
+        { text: 'Chờ duyệt', value: 'pending' },
+        { text: 'Đã duyệt', value: 'approved' },
+        { text: 'Từ chối', value: 'rejected' },
+      ],
+      onFilter: (value: any, record: any) => record.status === value,
       render: (status: string) => {
         let color = 'default';
         let text = 'Không rõ';
@@ -488,16 +588,55 @@ export default function Dashboard() {
           >
             {activeTab === 'wallet' && (
               <>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12, marginBottom: 16 }}>
-                  <Title level={3} style={{ margin: 0, whiteSpace: 'nowrap' }}>Quản lý Nạp / Rút</Title>
-                  <Space wrap size="middle">
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 16 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
+                    <Title level={3} style={{ margin: 0, whiteSpace: 'nowrap' }}>Quản lý Nạp / Rút</Title>
+                    
+                    <Space wrap size="middle">
+                      <Space size="small">
+                        <span style={{ fontWeight: 600, fontSize: '13px' }}>Loại GD:</span>
+                        <Radio.Group
+                          value={typeFilter}
+                          onChange={(e) => handleTypeFilterChange(e.target.value)}
+                          buttonStyle="solid"
+                          size="small"
+                        >
+                          <Radio.Button value="all">Tất cả ({totalTransactions || transactions.length})</Radio.Button>
+                          <Radio.Button value="deposit" style={typeFilter === 'deposit' ? { backgroundColor: '#1890ff', borderColor: '#1890ff' } : { color: '#1890ff' }}>
+                            Nạp tiền
+                          </Radio.Button>
+                          <Radio.Button value="withdraw" style={typeFilter === 'withdraw' ? { backgroundColor: '#fa8c16', borderColor: '#fa8c16' } : { color: '#fa8c16' }}>
+                            Rút tiền
+                          </Radio.Button>
+                        </Radio.Group>
+                      </Space>
+
+                      <Space size="small">
+                        <span style={{ fontWeight: 500, fontSize: '13px' }}>Cổng thanh toán:</span>
+                        <Select
+                          placeholder="Tất cả cổng"
+                          style={{ width: 140 }}
+                          value={paymentMethodFilter}
+                          onChange={handlePaymentMethodFilterChange}
+                          options={[
+                            { label: 'Tất cả cổng', value: 'all' },
+                            { label: 'Ngân hàng', value: 'bank' },
+                            { label: 'Binance / Crypto', value: 'crypto' },
+                            { label: 'Thẻ cào', value: 'scratch' },
+                          ]}
+                        />
+                      </Space>
+                    </Space>
+                  </div>
+
+                  <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 12 }}>
                     <Space size="small">
                       <span style={{ fontWeight: 500, fontSize: '13px' }}>Nạp tiền:</span>
                       <Select
                         placeholder="Trạng thái"
                         allowClear
                         value={depositStatus}
-                        onChange={(val) => setDepositStatus(val)}
+                        onChange={handleDepositStatusChange}
                         style={{ width: 130 }}
                         options={[
                           { label: 'Tất cả nạp', value: 'all' },
@@ -514,7 +653,7 @@ export default function Dashboard() {
                         placeholder="Trạng thái"
                         allowClear
                         value={withdrawStatus}
-                        onChange={(val) => setWithdrawStatus(val)}
+                        onChange={handleWithdrawStatusChange}
                         style={{ width: 130 }}
                         options={[
                           { label: 'Tất cả rút', value: 'all' },
@@ -531,7 +670,12 @@ export default function Dashboard() {
                         format="DD/MM/YYYY"
                         allowClear
                         value={dateRange}
-                        onChange={(dates) => setDateRange(dates as any)}
+                        onChange={(dates) => {
+                          const range = dates as any;
+                          setDateRange(range);
+                          setCurrentPage(1);
+                          fetchTransactions(1, pageSize, searchText, range, depositStatus, withdrawStatus, typeFilter, paymentMethodFilter);
+                        }}
                         placeholder={['Từ ngày', 'Đến ngày']}
                         style={{ width: 240 }}
                         presets={[
@@ -551,20 +695,50 @@ export default function Dashboard() {
                       onChange={(e) => {
                         setSearchText(e.target.value);
                         if (!e.target.value) {
-                          fetchTransactions('', dateRange, depositStatus, withdrawStatus);
+                          setCurrentPage(1);
+                          fetchTransactions(1, pageSize, '', dateRange, depositStatus, withdrawStatus, typeFilter, paymentMethodFilter);
                         }
                       }}
-                      onSearch={(value) => fetchTransactions(value)}
+                      onSearch={handleSearch}
                       style={{ width: 250 }}
                     />
-                  </Space>
+
+                    {(searchText || dateRange || depositStatus || withdrawStatus || typeFilter !== 'all' || paymentMethodFilter !== 'all') && (
+                      <Button
+                        icon={<ReloadOutlined />}
+                        onClick={handleResetWalletFilters}
+                        style={{ color: '#ff4d4f', borderColor: '#ff4d4f' }}
+                      >
+                        Xoá bộ lọc
+                      </Button>
+                    )}
+                  </div>
                 </div>
                 <Table
                   columns={columns}
-                  dataSource={transactions}
+                  dataSource={isServerPaginated ? transactions : filteredTransactions.slice((currentPage - 1) * pageSize, currentPage * pageSize)}
                   rowKey="_id"
                   loading={loading}
-                  pagination={{ pageSize: 20 }}
+                  pagination={{
+                    current: currentPage,
+                    pageSize: pageSize,
+                    total: isServerPaginated ? totalTransactions : filteredTransactions.length,
+                    showSizeChanger: true,
+                    pageSizeOptions: ['10', '20', '50', '100'],
+                    onChange: (page, size) => {
+                      setCurrentPage(page);
+                      setPageSize(size);
+                      if (isServerPaginated) {
+                        fetchTransactions(page, size, searchText, dateRange, depositStatus, withdrawStatus, typeFilter, paymentMethodFilter);
+                      }
+                    },
+                    showTotal: (total, range) => (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, fontWeight: 500 }}>
+                        <span>Tổng: <strong style={{ color: '#1677ff', fontSize: 14 }}>{total}</strong> giao dịch</span>
+                        <span style={{ color: '#888' }}>(Hiển thị {range[0]}-{range[1]})</span>
+                      </div>
+                    )
+                  }}
                   scroll={{ y: 'calc(100vh - 200px)', x: 'max-content' }}
                 />
 

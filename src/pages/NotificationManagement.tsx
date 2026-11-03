@@ -1,6 +1,6 @@
-import { useEffect, useState } from 'react';
-import { Table, Button, Space, Typography, Form, Input, message, Modal, Popconfirm, Popover } from 'antd';
-import { DeleteOutlined, PlusOutlined, MoreOutlined, EyeOutlined, EyeInvisibleOutlined } from '@ant-design/icons';
+import { useEffect, useState, useMemo } from 'react';
+import { Table, Button, Space, Typography, Form, Input, message, Modal, Popconfirm, Popover, Select, Tag } from 'antd';
+import { DeleteOutlined, PlusOutlined, MoreOutlined, EyeOutlined, EyeInvisibleOutlined, ReloadOutlined } from '@ant-design/icons';
 import api from '../services/api';
 import dayjs from 'dayjs';
 
@@ -9,6 +9,8 @@ const { Title } = Typography;
 export default function NotificationManagement() {
   const [notifications, setNotifications] = useState<any[]>([]);
   const [searchText, setSearchText] = useState('');
+  const [typeFilter, setTypeFilter] = useState<string>('all');
+  const [recipientFilter, setRecipientFilter] = useState<string>('all');
   const [loading, setLoading] = useState(false);
   const [modalVisible, setModalVisible] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -50,7 +52,7 @@ export default function NotificationManagement() {
     }
   };
 
-  
+
   const handleToggleVisibility = async (id: string) => {
     try {
       await api.put(`/notifications/admin/${id}/toggle-visibility`);
@@ -91,12 +93,24 @@ export default function NotificationManagement() {
       dataIndex: 'type',
       key: 'type',
       width: 100,
+      filters: [
+        { text: 'promo', value: 'promo' },
+        { text: 'system', value: 'system' },
+        { text: 'transaction', value: 'transaction' },
+      ],
+      onFilter: (value: any, record: any) => record.type === value,
+      render: (type: string) => <Tag color={type === 'promo' ? 'blue' : type === 'system' ? 'purple' : 'orange'}>{type}</Tag>
     },
     {
       title: 'Người nhận',
       dataIndex: 'user',
       key: 'user',
       width: 150,
+      filters: [
+        { text: 'Tất cả (Promo)', value: 'all' },
+        { text: 'Cá nhân', value: 'personal' },
+      ],
+      onFilter: (value: any, record: any) => value === 'all' ? !record.user : !!record.user,
       render: (val: any) => val ? (val.name || val.phone || 'Cá nhân') : 'Tất cả (Promo)',
     },
 
@@ -160,45 +174,100 @@ export default function NotificationManagement() {
     },
   ];
 
+  const filteredNotifications = useMemo(() => {
+    return notifications.filter(n => {
+      if (typeFilter !== 'all' && n.type !== typeFilter) return false;
+      if (recipientFilter !== 'all') {
+        if (recipientFilter === 'all_users' && n.user) return false;
+        if (recipientFilter === 'personal' && !n.user) return false;
+      }
+      return true;
+    });
+  }, [notifications, typeFilter, recipientFilter]);
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 110px)' }}>
       <div style={{ flex: 'none', display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-        <Title style={{ marginTop: 0, marginBottom: 16 }} level={4} >Quản lý Thông báo</Title>
-        <Space>
-          <Input.Search
-            placeholder="Tìm theo Tiêu đề, Nội dung..."
-            allowClear
-            enterButton
-            value={searchText}
-            onChange={(e) => setSearchText(e.target.value)}
-            onSearch={(value) => fetchNotifications(value)}
-            style={{ width: 300 }}
-          />
-          <Button
-            type="primary"
-            icon={<PlusOutlined />}
-            onClick={() => {
-              form.resetFields();
-              setModalVisible(true);
-            }}
-          >
-            Thêm thông báo (Promo)
-          </Button>
-        </Space>
+        <Title style={{ marginTop: 0, marginBottom: 0 }} level={4} >Quản lý Thông báo</Title>
+        <Button
+          type="primary"
+          icon={<PlusOutlined />}
+          onClick={() => {
+            form.resetFields();
+            setModalVisible(true);
+          }}
+        >
+          Thêm thông báo (Promo)
+        </Button>
       </div>
 
-      <Table 
+      <div style={{ marginBottom: 16, display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'center', background: '#fff', padding: 12, borderRadius: 8 }}>
+        <Input.Search
+          placeholder="Tìm theo Tiêu đề, Nội dung..."
+          allowClear
+          value={searchText}
+          onChange={(e) => setSearchText(e.target.value)}
+          onSearch={(value) => fetchNotifications(value)}
+          style={{ width: 280 }}
+        />
+
+        <Space size="small">
+          <span style={{ fontWeight: 500, fontSize: 13 }}>Loại:</span>
+          <Select
+            value={typeFilter}
+            onChange={(val) => setTypeFilter(val)}
+            style={{ width: 140 }}
+            options={[
+              { label: 'Tất cả loại', value: 'all' },
+              { label: 'Promo', value: 'promo' },
+              { label: 'Hệ thống', value: 'system' },
+              { label: 'Giao dịch', value: 'transaction' },
+            ]}
+          />
+        </Space>
+
+        <Space size="small">
+          <span style={{ fontWeight: 500, fontSize: 13 }}>Người nhận:</span>
+          <Select
+            value={recipientFilter}
+            onChange={(val) => setRecipientFilter(val)}
+            style={{ width: 160 }}
+            options={[
+              { label: 'Tất cả người nhận', value: 'all' },
+              { label: 'Tất cả (Promo)', value: 'all_users' },
+              { label: 'Cá nhân', value: 'personal' },
+            ]}
+          />
+        </Space>
+
+        {(searchText || typeFilter !== 'all' || recipientFilter !== 'all') && (
+          <Button
+            icon={<ReloadOutlined />}
+            onClick={() => {
+              setSearchText('');
+              setTypeFilter('all');
+              setRecipientFilter('all');
+              fetchNotifications('');
+            }}
+            style={{ color: '#ff4d4f', borderColor: '#ff4d4f' }}
+          >
+            Xoá bộ lọc
+          </Button>
+        )}
+      </div>
+
+      <Table
         style={{ flex: 1 }}
-        scroll={{ y: 'calc(100vh - 260px)', x: 'max-content' }}
+        scroll={{ y: 'calc(100vh - 280px)', x: 'max-content' }}
         columns={columns}
-        dataSource={notifications}
+        dataSource={filteredNotifications}
         rowKey="_id"
         loading={loading}
-        pagination={{ 
+        pagination={{
           pageSize: 10,
           showSizeChanger: true,
           pageSizeOptions: ['10', '20', '50', '100'],
-          showTotal: (total) => `Tổng: ${total} thông báo` 
+          showTotal: (total) => `Tổng: ${total} thông báo`
         }}
       />
 

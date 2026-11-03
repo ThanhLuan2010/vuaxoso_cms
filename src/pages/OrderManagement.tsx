@@ -1,11 +1,12 @@
-import { CameraOutlined, CheckCircleOutlined, MoreOutlined, UploadOutlined, DownloadOutlined, WarningOutlined , EyeOutlined } from '@ant-design/icons';
-import { Button, Card, Col, DatePicker, Divider, Input, message, Modal, Popover, Row, Space, Statistic, Table, Tag, Typography, Upload } from 'antd';
+import { CameraOutlined, CheckCircleOutlined, MoreOutlined, UploadOutlined, DownloadOutlined, WarningOutlined, EyeOutlined, ReloadOutlined, FilterOutlined, EditOutlined, DollarCircleOutlined } from '@ant-design/icons';
+import { Button, Card, Col, DatePicker, Divider, Input, message, Modal, Popover, Row, Space, Statistic, Table, Tag, Typography, Upload, Radio, Select, InputNumber, Checkbox, Alert } from 'antd';
 import dayjs from 'dayjs';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import * as XLSX from 'xlsx';
 import api from '../services/api';
+import useAuthStore from '../store/useAuthStore';
 
-const { Title } = Typography;
+const { Title, Text } = Typography;
 
 interface Order {
   _id: string;
@@ -30,6 +31,7 @@ interface Order {
   isWinner?: boolean;
   prizeAmount?: number;
   winningNumbers?: string[];
+  adminNote?: string;
 }
 
 
@@ -70,12 +72,56 @@ const calculateCostPerNum = (record: any): number | undefined => {
   return baseCost;
 };
 
+const getOrderProvinceName = (record: Order): string => {
+  const gameNames: Record<string, string> = {
+    loto_235: 'LÔ TÔ 2,3,5',
+    loto_cap: 'LÔ TÔ CẶP',
+    dientoan_636: 'ĐIỆN TOÁN 6X36',
+    truot_loto: 'TRƯỢT LÔ TÔ',
+    than_tai_4: 'THẦN TÀI 4',
+    power_655: 'POWER 6/55',
+    mega_645: 'MEGA 6/45',
+    max_3d: 'MAX 3D',
+    max_4d: 'MAX 4D',
+    keno: 'KENO',
+    bao_keno: 'BAO KENO',
+    bingo18: 'BINGO18',
+  };
+  return record.provinceName || gameNames[record.gameType] || (record.gameType ? record.gameType.toUpperCase() : '-');
+};
+
+const getOrderResult = (record: Order): 'win' | 'lose' | 'pending' | 'cancelled' => {
+  if (record.status === 'cancelled') return 'cancelled';
+  if (!record.winningNumbers || record.winningNumbers.length === 0) {
+    if (record.status === 'completed') {
+      if (record.isWinner || (record.prizeAmount && record.prizeAmount > 0)) return 'win';
+      return 'lose';
+    }
+    return 'pending';
+  }
+  if (record.isWinner || (record.prizeAmount && record.prizeAmount > 0)) {
+    return 'win';
+  }
+  return 'lose';
+};
+
 export default function OrderManagement() {
+  const { isMasterAdmin } = useAuthStore();
+  const isMaster = isMasterAdmin();
+
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
 
   const [uploadModalVisible, setUploadModalVisible] = useState(false);
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
+
+  const [editResultModalVisible, setEditResultModalVisible] = useState(false);
+  const [editingOrder, setEditingOrder] = useState<Order | null>(null);
+  const [editResultStatus, setEditResultStatus] = useState<'win' | 'lose' | 'pending' | 'cancelled'>('pending');
+  const [editPrizeAmount, setEditPrizeAmount] = useState<number>(0);
+  const [editReason, setEditReason] = useState<string>('');
+  const [editAdjustBalance, setEditAdjustBalance] = useState<boolean>(true);
+  const [submittingEdit, setSubmittingEdit] = useState<boolean>(false);
 
   const [resultModalVisible, setResultModalVisible] = useState(false);
   const [selectedResultOrder, setSelectedResultOrder] = useState<Order | null>(null);
@@ -93,35 +139,50 @@ export default function OrderManagement() {
   const [ticketModalVisible, setTicketModalVisible] = useState(false);
   const [autoOpenOrderId, setAutoOpenOrderId] = useState<string | null>(null);
 
-
-  useEffect(() => {
-    const handleOpenOrder = (e: any) => {
-      const { orderId, date } = e.detail;
-      setSearchText(orderId);
-      if (date) {
-        setDateRange([dayjs(date).startOf('day'), dayjs(date).endOf('day')]);
-      }
-      setAutoOpenOrderId(orderId);
-    };
-    window.addEventListener('openOrder', handleOpenOrder);
-    return () => window.removeEventListener('openOrder', handleOpenOrder);
-  }, []);
-
-
+  const [resultFilter, setResultFilter] = useState<string>('all');
+  const [provinceFilter, setProvinceFilter] = useState<string>('all');
 
   const [minBet, setMinBet] = useState('');
   const [minWin, setMinWin] = useState('');
 
-  const [dateRange, setDateRange] = useState<[dayjs.Dayjs, dayjs.Dayjs] | null>([
-    dayjs().startOf('day'),
-    dayjs().endOf('day'),
-  ]);
+  const [currentPage, setCurrentPage] = useState<number>(1);
+  const [pageSize, setPageSize] = useState<number>(10);
+  const [totalOrders, setTotalOrders] = useState<number>(0);
+  const [isServerPaginated, setIsServerPaginated] = useState<boolean>(false);
+  const [provincesList, setProvincesList] = useState<string[]>([]);
+
+  useEffect(() => {
+    api.get('/provinces/admin').then(res => {
+      if (Array.isArray(res.data)) {
+        setProvincesList(res.data.map((p: any) => p.name).filter(Boolean));
+      }
+    }).catch(() => {});
+  }, []);
+
+  const [dateRange, setDateRange] = useState<[dayjs.Dayjs, dayjs.Dayjs] | null>(null);
   const [summaryData, setSummaryData] = useState({
     totalTickets: 0,
     totalSales: 0,
     totalPrize: 0,
-    totalLoss: 0
+    totalLoss: 0,
+    winCount: 0,
+    loseCount: 0,
+    pendingCount: 0,
+    cancelledCount: 0
   });
+
+  const [userSummaryData, setUserSummaryData] = useState<{
+    totalTickets: number;
+    totalSales: number;
+    totalPrize: number;
+    totalLoss: number;
+    winCount: number;
+    loseCount: number;
+    pendingCount: number;
+    cancelledCount: number;
+  } | null>(null);
+  const [searchedKeyword, setSearchedKeyword] = useState<string>('');
+  const [loadingUserSummary, setLoadingUserSummary] = useState<boolean>(false);
 
   const fetchSummary = async (range = dateRange) => {
     try {
@@ -137,17 +198,119 @@ export default function OrderManagement() {
     }
   };
 
-  const fetchOrders = async (searchValue: string = searchText, range = dateRange) => {
+  const fetchUserSummary = async (
+    searchVal: string, 
+    range = dateRange, 
+    resFilter = resultFilter, 
+    provFilter = provinceFilter,
+    betMin = minBet,
+    winMin = minWin
+  ) => {
+    const trimmed = (searchVal || '').trim();
+    if (!trimmed) {
+      setUserSummaryData(null);
+      setSearchedKeyword('');
+      return;
+    }
+    try {
+      setLoadingUserSummary(true);
+      const params: any = { search: trimmed };
+      if (range && range[0] && range[1]) {
+        params.startDate = range[0].format('YYYY-MM-DD');
+        params.endDate = range[1].format('YYYY-MM-DD');
+      }
+      if (resFilter && resFilter !== 'all') params.result = resFilter;
+      if (provFilter && provFilter !== 'all') params.province = provFilter;
+      if (betMin) params.minBet = betMin;
+      if (winMin) params.minWin = winMin;
+
+      const res = await api.get('/orders/admin/summary', { params });
+      let data = res.data;
+
+      // Safety check: if remote backend returned global data ignoring search
+      if (summaryData.totalTickets > 0 && data.totalTickets === summaryData.totalTickets && orders.length > 0) {
+        let uTickets = 0;
+        let uSales = 0;
+        let uPrize = 0;
+        let uWin = 0;
+        let uLose = 0;
+        let uPending = 0;
+        let uCancelled = 0;
+
+        orders.forEach((o: any) => {
+          if (o.status === 'cancelled') {
+            uCancelled++;
+            return;
+          }
+          uTickets++;
+          uSales += o.totalCost || 0;
+          if (o.isWinner || (o.prizeAmount && o.prizeAmount > 0)) {
+            uPrize += o.prizeAmount || 0;
+            uWin++;
+          } else if (!o.winningNumbers || o.winningNumbers.length === 0) {
+            uPending++;
+          } else {
+            uLose++;
+          }
+        });
+
+        data = {
+          totalTickets: totalOrders > 0 ? totalOrders : uTickets,
+          totalSales: uSales,
+          totalPrize: uPrize,
+          totalLoss: uSales - uPrize,
+          winCount: uWin,
+          loseCount: uLose,
+          pendingCount: uPending,
+          cancelledCount: uCancelled
+        };
+      }
+
+      setUserSummaryData(data);
+      setSearchedKeyword(trimmed);
+    } catch (err) {
+      console.error('Error fetching user summary:', err);
+    } finally {
+      setLoadingUserSummary(false);
+    }
+  };
+
+  const fetchOrders = async (
+    pageIndex: number = currentPage,
+    limitCount: number = pageSize,
+    searchValue: string = searchText,
+    range = dateRange,
+    resFilter: string = resultFilter,
+    provFilter: string = provinceFilter,
+    betMin: string = minBet,
+    winMin: string = minWin
+  ) => {
     try {
       setLoading(true);
-      const params: any = {};
+      const params: any = {
+        page: pageIndex,
+        limit: limitCount,
+      };
       if (range && range[0] && range[1]) {
         params.startDate = range[0].format('YYYY-MM-DD');
         params.endDate = range[1].format('YYYY-MM-DD');
       }
       if (searchValue) params.search = searchValue;
+      if (resFilter && resFilter !== 'all') params.result = resFilter;
+      if (provFilter && provFilter !== 'all') params.province = provFilter;
+      if (betMin) params.minBet = betMin;
+      if (winMin) params.minWin = winMin;
+
       const res = await api.get('/orders/admin', { params });
-      setOrders(res.data);
+      if (res.data && Array.isArray(res.data.orders)) {
+        setOrders(res.data.orders);
+        setTotalOrders(res.data.total ?? res.data.orders.length);
+        setIsServerPaginated(true);
+      } else if (Array.isArray(res.data)) {
+        setOrders(res.data);
+        setTotalOrders(res.data.length);
+        setIsServerPaginated(false);
+      }
     } catch (error) {
       console.error('Error fetching orders:', error);
       message.error('Lỗi khi tải danh sách vé');
@@ -157,7 +320,8 @@ export default function OrderManagement() {
   };
 
   useEffect(() => {
-    fetchOrders(searchText, dateRange);
+    setCurrentPage(1);
+    fetchOrders(1, pageSize, searchText, dateRange, resultFilter, provinceFilter, minBet, minWin);
     fetchSummary(dateRange);
   }, [dateRange]);
 
@@ -207,6 +371,65 @@ export default function OrderManagement() {
       message.error(error.response?.data?.message || 'Có lỗi xảy ra khi upload vé');
     } finally {
       setUploading(false);
+    }
+  };
+
+  const handleOpenEditResult = (record: Order) => {
+    setEditingOrder(record);
+    const res = getOrderResult(record);
+    setEditResultStatus(res);
+    setEditPrizeAmount(record.prizeAmount || 0);
+    setEditReason(record.adminNote || '');
+    setEditAdjustBalance(true);
+    setEditResultModalVisible(true);
+  };
+
+  const handleSubmitEditResult = async () => {
+    if (!editingOrder) return;
+    if (!editReason || !editReason.trim()) {
+      message.error('Vui lòng nhập lý do/ghi chú sửa kết quả để lưu vào Nhật ký hoạt động');
+      return;
+    }
+
+    if (editResultStatus === 'win' && (!editPrizeAmount || editPrizeAmount <= 0)) {
+      message.error('Vui lòng nhập số tiền thắng lớn hơn 0 khi chọn trạng thái Thắng');
+      return;
+    }
+
+    try {
+      setSubmittingEdit(true);
+      const isWin = editResultStatus === 'win';
+      const prize = isWin ? Number(editPrizeAmount) || 0 : 0;
+      let targetStatus = editingOrder.status;
+      if (editResultStatus === 'win' || editResultStatus === 'lose') {
+        targetStatus = 'completed';
+      } else if (editResultStatus === 'pending') {
+        targetStatus = 'pending';
+      } else if (editResultStatus === 'cancelled') {
+        targetStatus = 'cancelled';
+      }
+
+      await api.put(`/orders/admin/${editingOrder._id}`, {
+        isWinner: isWin,
+        prizeAmount: prize,
+        status: targetStatus,
+        note: editReason.trim(),
+        adjustBalance: editAdjustBalance
+      });
+
+      message.success('Đã cập nhật vé cược và ghi nhận vào Lịch sử hoạt động thành công!');
+      setEditResultModalVisible(false);
+      setEditingOrder(null);
+      fetchOrders();
+      fetchSummary();
+      if (searchedKeyword) {
+        fetchUserSummary(searchedKeyword);
+      }
+    } catch (error: any) {
+      console.error('Update order result error:', error);
+      message.error(error.response?.data?.message || 'Có lỗi xảy ra khi cập nhật vé cược');
+    } finally {
+      setSubmittingEdit(false);
     }
   };
 
@@ -374,16 +597,95 @@ export default function OrderManagement() {
     }
   };
 
-  const filteredOrders = orders.filter(o => {
-    let match = true;
-    if (minBet) {
-      if (o.totalCost < Number(minBet)) match = false;
+
+  const provinceOptions = useMemo(() => {
+    const set = new Set<string>(provincesList);
+    orders.forEach(o => {
+      const prov = getOrderProvinceName(o);
+      if (prov && prov !== '-') set.add(prov);
+    });
+    return Array.from(set).sort().map(p => ({
+      label: p,
+      value: p
+    }));
+  }, [provincesList, orders]);
+
+  const filteredOrders = useMemo(() => {
+    return orders.filter(o => {
+      if (minBet && o.totalCost < Number(minBet)) return false;
+      if (minWin && (o.prizeAmount || 0) < Number(minWin)) return false;
+      if (resultFilter !== 'all') {
+        const res = getOrderResult(o);
+        if (res !== resultFilter) return false;
+      }
+      if (provinceFilter !== 'all') {
+        const prov = getOrderProvinceName(o);
+        if (prov !== provinceFilter) return false;
+      }
+      return true;
+    });
+  }, [orders, minBet, minWin, resultFilter, provinceFilter]);
+
+  const handleResultFilterChange = (val: string) => {
+    setResultFilter(val);
+    setCurrentPage(1);
+    fetchOrders(1, pageSize, searchText, dateRange, val, provinceFilter, minBet, minWin);
+    if (searchText.trim()) {
+      fetchUserSummary(searchText, dateRange, val, provinceFilter, minBet, minWin);
     }
-    if (minWin) {
-      if ((o.prizeAmount || 0) < Number(minWin)) match = false;
+  };
+
+  const handleProvinceFilterChange = (val: string) => {
+    const nextVal = val || 'all';
+    setProvinceFilter(nextVal);
+    setCurrentPage(1);
+    fetchOrders(1, pageSize, searchText, dateRange, resultFilter, nextVal, minBet, minWin);
+    if (searchText.trim()) {
+      fetchUserSummary(searchText, dateRange, resultFilter, nextVal, minBet, minWin);
     }
-    return match;
-  });
+  };
+
+  const handleSearch = (value: string) => {
+    setSearchText(value);
+    setCurrentPage(1);
+    fetchOrders(1, pageSize, value, dateRange, resultFilter, provinceFilter, minBet, minWin);
+    fetchUserSummary(value, dateRange, resultFilter, provinceFilter, minBet, minWin);
+  };
+
+  const handleMinFilterApply = () => {
+    setCurrentPage(1);
+    fetchOrders(1, pageSize, searchText, dateRange, resultFilter, provinceFilter, minBet, minWin);
+    if (searchText.trim()) {
+      fetchUserSummary(searchText, dateRange, resultFilter, provinceFilter, minBet, minWin);
+    }
+  };
+
+  const handleResetFilters = () => {
+    setMinBet('');
+    setMinWin('');
+    setResultFilter('all');
+    setProvinceFilter('all');
+    setSearchText('');
+    setSearchedKeyword('');
+    setUserSummaryData(null);
+    setDateRange(null);
+    setCurrentPage(1);
+    fetchOrders(1, pageSize, '', null, 'all', 'all', '', '');
+    fetchSummary(null);
+  };
+
+  useEffect(() => {
+    const handleOpenOrder = (e: any) => {
+      const { orderId, date } = e.detail;
+      setSearchText(orderId);
+      if (date) {
+        setDateRange([dayjs(date).startOf('day'), dayjs(date).endOf('day')]);
+      }
+      setAutoOpenOrderId(orderId);
+    };
+    window.addEventListener('openOrder', handleOpenOrder);
+    return () => window.removeEventListener('openOrder', handleOpenOrder);
+  }, []);
 
   useEffect(() => {
     if (autoOpenOrderId && filteredOrders.length > 0) {
@@ -401,47 +703,52 @@ export default function OrderManagement() {
       title: 'Khách hàng',
       key: 'user',
       render: (_: any, record: Order) => (
-        <div 
-          style={{ 
-            cursor: record.user?.phone ? 'pointer' : 'default', 
-            padding: '4px 8px', 
-            borderRadius: '4px', 
-            backgroundColor: '#f0f5ff',
-            display: 'inline-block'
-          }} 
-          onClick={() => {
-            if (record.user?.phone) {
-              localStorage.setItem('userSearchPhone', record.user.phone);
-              window.dispatchEvent(new CustomEvent('changeTab', { detail: 'users' }));
-              window.dispatchEvent(new CustomEvent('openUserDetail', { detail: { phone: record.user.phone } }));
-            }
-          }}
-          title="Bấm để xem chi tiết tài khoản khách hàng này"
-        >
-          <div style={{ fontWeight: 'bold', color: '#1890ff' }}>{record.user?.name || '-'}</div>
-          <div style={{ color: '#888', fontSize: 12 }}>{record.user?.phone || '-'}</div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+          <div 
+            style={{ 
+              cursor: record.user?.phone ? 'pointer' : 'default', 
+              padding: '4px 8px', 
+              borderRadius: '4px', 
+              backgroundColor: '#f0f5ff',
+              display: 'inline-block'
+            }} 
+            onClick={() => {
+              if (record.user?.phone) {
+                localStorage.setItem('userSearchPhone', record.user.phone);
+                window.dispatchEvent(new CustomEvent('changeTab', { detail: 'users' }));
+                window.dispatchEvent(new CustomEvent('openUserDetail', { detail: { phone: record.user.phone } }));
+              }
+            }}
+            title="Bấm để xem chi tiết tài khoản khách hàng này"
+          >
+            <div style={{ fontWeight: 'bold', color: '#1890ff' }}>{record.user?.name || '-'}</div>
+            <div style={{ color: '#888', fontSize: 12 }}>{record.user?.phone || '-'}</div>
+          </div>
+          {(record.user?.name || record.user?.phone) && (
+            <Button
+              type="text"
+              size="small"
+              icon={<FilterOutlined style={{ color: '#1890ff', fontSize: 12 }} />}
+              title="Lọc vé và xem thống kê của khách này"
+              onClick={(e) => {
+                e.stopPropagation();
+                const uName = record.user?.name || record.user?.phone;
+                setSearchText(uName);
+                handleSearch(uName);
+              }}
+            />
+          )}
         </div>
       ),
     },
     {
       title: 'Tỉnh/Đài',
       key: 'province',
+      filters: provinceOptions.map(p => ({ text: p.value, value: p.value })),
+      filterSearch: true,
+      onFilter: (value: any, record: Order) => getOrderProvinceName(record) === value,
       render: (_: any, record: Order) => {
-        const gameNames: Record<string, string> = {
-          loto_235: 'LÔ TÔ 2,3,5',
-          loto_cap: 'LÔ TÔ CẶP',
-          dientoan_636: 'ĐIỆN TOÁN 6X36',
-          truot_loto: 'TRƯỢT LÔ TÔ',
-          than_tai_4: 'THẦN TÀI 4',
-          power_655: 'POWER 6/55',
-          mega_645: 'MEGA 6/45',
-          max_3d: 'MAX 3D',
-          max_4d: 'MAX 4D',
-          keno: 'KENO',
-          bao_keno: 'BAO KENO',
-          bingo18: 'BINGO18',
-        };
-        const name = record.provinceName || gameNames[record.gameType] || record.gameType.toUpperCase();
+        const name = getOrderProvinceName(record);
         return <strong>{name}</strong>;
       },
     },
@@ -556,14 +863,37 @@ export default function OrderManagement() {
       title: 'Tiền thắng',
       key: 'prizeAmount',
       render: (_: any, record: Order) => (
-        <span style={{ color: record.isWinner ? '#52c41a' : 'gray', fontWeight: 'bold' }}>
-          {record.isWinner && record.prizeAmount ? `${record.prizeAmount.toLocaleString('vi-VN')}đ` : (record.isWinner === false ? '0đ' : '-')}
-        </span>
+        <Space size={4} align="center">
+          <span style={{ color: record.isWinner ? '#52c41a' : 'gray', fontWeight: 'bold' }}>
+            {record.isWinner && record.prizeAmount ? `${record.prizeAmount.toLocaleString('vi-VN')}đ` : (record.isWinner === false ? '0đ' : '-')}
+          </span>
+          {isMaster && (
+            <Button
+              type="text"
+              size="small"
+              icon={<EditOutlined style={{ color: '#1890ff', fontSize: 13 }} />}
+              onClick={() => handleOpenEditResult(record)}
+              title="Sửa tiền thắng & trạng thái (TK Master)"
+            />
+          )}
+        </Space>
       ),
     },
     {
       title: 'Trạng thái',
       key: 'status',
+      filters: [
+        { text: 'Chờ kết quả', value: 'pending' },
+        { text: 'Thắng', value: 'win' },
+        { text: 'Thua', value: 'lose' },
+        { text: 'Đã in', value: 'completed' },
+        { text: 'Đã huỷ', value: 'cancelled' },
+      ],
+      onFilter: (value: any, record: Order) => {
+        if (value === 'win') return record.isWinner === true;
+        if (value === 'lose') return record.isWinner === false;
+        return record.status === value;
+      },
       render: (_: any, record: Order) => {
         if (record.status === 'cancelled') return <Tag color="default">Đã huỷ</Tag>;
         if (record.status === 'pending') return <Tag color="orange">Chờ kết quả</Tag>;
@@ -603,7 +933,7 @@ export default function OrderManagement() {
       },
     },
     {
-      title: 'Kết quả',
+      title: 'Bảng KQ',
       key: 'checkResult',
       render: (_: any, record: Order) => {
         if (record.status === 'completed') {
@@ -663,6 +993,18 @@ export default function OrderManagement() {
                   Xem vé
                 </Button>
               )}
+
+              {isMaster && (
+                <Button
+                  type="default"
+                  danger
+                  icon={<EditOutlined />}
+                  onClick={() => handleOpenEditResult(record)}
+                  block
+                >
+                  Ghi chú / Sửa kết quả
+                </Button>
+              )}
             </Space>
           }
         >
@@ -676,13 +1018,29 @@ export default function OrderManagement() {
       fixed: 'right' as const,
       width: 120,
       render: (_: any, record: Order) => {
-        if (!record.winningNumbers || record.winningNumbers.length === 0) {
-          return <span style={{ color: '#aaa' }}>Chưa có KQ</span>;
+        const res = getOrderResult(record);
+        let tag = <span style={{ color: '#aaa' }}>Chưa có KQ</span>;
+        if (res === 'win') {
+          tag = <span style={{ color: 'green', fontWeight: 'bold' }}>Thắng</span>;
+        } else if (res === 'lose') {
+          tag = <span style={{ color: 'red', fontWeight: 'bold' }}>Thua</span>;
+        } else if (res === 'cancelled') {
+          tag = <Tag color="default">Đã huỷ</Tag>;
         }
-        if (record.isWinner) {
-          return <span style={{ color: 'green', fontWeight: 'bold' }}>Thắng</span>;
-        }
-        return <span style={{ color: 'red', fontWeight: 'bold' }}>Thua</span>;
+        return (
+          <Space size={4} align="center">
+            {tag}
+            {isMaster && (
+              <Button
+                type="text"
+                size="small"
+                icon={<EditOutlined style={{ color: '#fa8c16', fontSize: 12 }} />}
+                onClick={() => handleOpenEditResult(record)}
+                title="Sửa kết quả vé (TK Master)"
+              />
+            )}
+          </Space>
+        );
       }
     }
   ];
@@ -735,86 +1093,286 @@ export default function OrderManagement() {
         </Col>
       </Row>
 
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 16, marginBottom: 16, background: '#fff', padding: 16, borderRadius: 8 }}>
-        <Input.Search 
-          placeholder="Tìm tên, SĐT, Mã vé..." 
-          style={{ width: 250 }} 
-          value={searchText} 
-          onChange={e => setSearchText(e.target.value)} 
-          onSearch={(value) => fetchOrders(value)}
-          enterButton
-          allowClear
-        />
-        
-        <Space>
-          <span>Cược tối thiểu:</span>
-          <Input 
-            placeholder="Số tiền..." 
-            style={{ width: 120 }} 
-            value={minBet} 
-            onChange={e => setMinBet(e.target.value)} 
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 16, background: '#fff', padding: 16, borderRadius: 8, boxShadow: '0 1px 2px rgba(0,0,0,0.03)' }}>
+        {/* Hàng 1: Tìm kiếm & Lọc Kết quả & Tỉnh/Đài */}
+        <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 12 }}>
+          <Input.Search 
+            placeholder="Tìm tên, SĐT, Mã vé..." 
+            style={{ width: 220 }} 
+            value={searchText} 
+            onChange={e => setSearchText(e.target.value)} 
+            onSearch={handleSearch}
+            enterButton
+            allowClear
           />
-        </Space>
+          
+          <Space size="small">
+            <span style={{ fontSize: 13, color: '#555' }}>Cược tối thiểu:</span>
+            <Input 
+              placeholder="Số tiền..." 
+              style={{ width: 105 }} 
+              value={minBet} 
+              onChange={e => setMinBet(e.target.value)} 
+              onPressEnter={handleMinFilterApply}
+              onBlur={handleMinFilterApply}
+              allowClear
+            />
+          </Space>
 
-        <Space>
-          <span>Thắng tối thiểu:</span>
-          <Input 
-            placeholder="Số tiền..." 
-            style={{ width: 120 }} 
-            value={minWin} 
-            onChange={e => setMinWin(e.target.value)} 
-          />
-        </Space>
+          <Space size="small">
+            <span style={{ fontSize: 13, color: '#555' }}>Thắng tối thiểu:</span>
+            <Input 
+              placeholder="Số tiền..." 
+              style={{ width: 105 }} 
+              value={minWin} 
+              onChange={e => setMinWin(e.target.value)} 
+              onPressEnter={handleMinFilterApply}
+              onBlur={handleMinFilterApply}
+              allowClear
+            />
+          </Space>
 
-        <DatePicker.RangePicker
-          style={{ width: 270 }}
-          value={dateRange}
-          onChange={(dates) => setDateRange(dates as any)}
-          format="DD/MM/YYYY"
-          placeholder={['Từ ngày', 'Đến ngày']}
-          allowClear
-          presets={[
-            { label: 'Hôm nay', value: [dayjs().startOf('day'), dayjs().endOf('day')] },
-            { label: 'Hôm qua', value: [dayjs().subtract(1, 'day').startOf('day'), dayjs().subtract(1, 'day').endOf('day')] },
-            { label: '7 ngày qua', value: [dayjs().subtract(7, 'day').startOf('day'), dayjs().endOf('day')] },
-            { label: '30 ngày qua', value: [dayjs().subtract(30, 'day').startOf('day'), dayjs().endOf('day')] },
-            { label: 'Tháng này', value: [dayjs().startOf('month'), dayjs().endOf('month')] },
-          ]}
-        />
-        <Button 
-          type="primary" 
-          icon={<DownloadOutlined />} 
-          style={{ backgroundColor: '#52c41a' }}
-          onClick={handleExportExcel}
-          loading={loading}
-        >
-          Xuất dữ liệu
-        </Button>
+          <Space size="small">
+            <span style={{ fontWeight: 600, fontSize: 13, color: '#1f1f1f' }}>Lọc kết quả:</span>
+            <Radio.Group 
+              value={resultFilter} 
+              onChange={e => handleResultFilterChange(e.target.value)}
+              buttonStyle="solid"
+              size="middle"
+            >
+              <Radio.Button value="all">
+                Tất cả
+              </Radio.Button>
+              <Radio.Button 
+                value="win" 
+                style={resultFilter === 'win' ? { backgroundColor: '#52c41a', borderColor: '#52c41a', color: '#fff' } : { color: '#52c41a', fontWeight: 600 }}
+              >
+                🏆 Thắng
+              </Radio.Button>
+              <Radio.Button 
+                value="lose" 
+                style={resultFilter === 'lose' ? { backgroundColor: '#ff4d4f', borderColor: '#ff4d4f', color: '#fff' } : { color: '#ff4d4f', fontWeight: 600 }}
+              >
+                ❌ Thua
+              </Radio.Button>
+              <Radio.Button 
+                value="pending" 
+                style={resultFilter === 'pending' ? { backgroundColor: '#fa8c16', borderColor: '#fa8c16', color: '#fff' } : { color: '#fa8c16', fontWeight: 600 }}
+              >
+                ⏳ Chưa có KQ
+              </Radio.Button>
+              <Radio.Button 
+                value="cancelled" 
+                style={resultFilter === 'cancelled' ? { backgroundColor: '#8c8c8c', borderColor: '#8c8c8c', color: '#fff' } : { color: '#8c8c8c' }}
+              >
+                🚫 Đã huỷ
+              </Radio.Button>
+            </Radio.Group>
+          </Space>
 
-        <Input 
-          placeholder="Nhập tên KH để check đối nghịch..." 
-          value={arbitrageUsername} 
-          onChange={e => setArbitrageUsername(e.target.value)} 
-          style={{ width: 250, marginRight: 10 }} 
-          allowClear
-        />
-        <Button 
-          type="primary" 
-          danger
-          icon={<WarningOutlined />} 
-          onClick={handleCheckArbitrage}
-        >
-          Check đối nghịch
-        </Button>
+          <Space size="small">
+            <span style={{ fontWeight: 600, fontSize: 13, color: '#1f1f1f' }}>Tỉnh/Đài:</span>
+            <Select
+              showSearch
+              allowClear
+              placeholder="Chọn Tỉnh/Đài..."
+              style={{ minWidth: 170 }}
+              value={provinceFilter === 'all' ? undefined : provinceFilter}
+              onChange={handleProvinceFilterChange}
+              options={[
+                { label: 'Tất cả Tỉnh/Đài', value: 'all' },
+                ...provinceOptions
+              ]}
+              filterOption={(input, option) =>
+                (option?.label ?? '').toLowerCase().includes(input.toLowerCase())
+              }
+            />
+          </Space>
+
+          {(resultFilter !== 'all' || provinceFilter !== 'all' || minBet || minWin || searchText || dateRange) && (
+            <Button
+              icon={<ReloadOutlined />}
+              onClick={handleResetFilters}
+              style={{ color: '#ff4d4f', borderColor: '#ff4d4f' }}
+            >
+              Xoá bộ lọc
+            </Button>
+          )}
+        </div>
+
+        {/* Hàng 2: Thời gian & Tiện ích xuất dữ liệu, Check đối nghịch */}
+        <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 12 }}>
+          <Space size="small">
+            <span style={{ fontSize: 13, color: '#555' }}>Ngày đặt:</span>
+            <DatePicker.RangePicker
+              style={{ width: 260 }}
+              value={dateRange}
+              onChange={(dates) => {
+                setDateRange(dates as any);
+                setCurrentPage(1);
+                fetchOrders(1, pageSize, searchText, dates as any, resultFilter, provinceFilter, minBet, minWin);
+                fetchSummary(dates as any);
+              }}
+              format="DD/MM/YYYY"
+              placeholder={['Từ ngày', 'Đến ngày']}
+              allowClear
+              presets={[
+                { label: 'Hôm nay', value: [dayjs().startOf('day'), dayjs().endOf('day')] },
+                { label: 'Hôm qua', value: [dayjs().subtract(1, 'day').startOf('day'), dayjs().subtract(1, 'day').endOf('day')] },
+                { label: '7 ngày qua', value: [dayjs().subtract(7, 'day').startOf('day'), dayjs().endOf('day')] },
+                { label: '30 ngày qua', value: [dayjs().subtract(30, 'day').startOf('day'), dayjs().endOf('day')] },
+                { label: 'Tháng này', value: [dayjs().startOf('month'), dayjs().endOf('month')] },
+              ]}
+            />
+          </Space>
+
+          <Button 
+            type="primary" 
+            icon={<DownloadOutlined />} 
+            style={{ backgroundColor: '#52c41a' }}
+            onClick={handleExportExcel}
+            loading={loading}
+          >
+            Xuất dữ liệu
+          </Button>
+
+          <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8 }}>
+            <Input 
+              placeholder="Nhập tên KH để check đối nghịch..." 
+              value={arbitrageUsername} 
+              onChange={e => setArbitrageUsername(e.target.value)} 
+              style={{ width: 230 }} 
+              allowClear
+            />
+            <Button 
+              type="primary" 
+              danger
+              icon={<WarningOutlined />} 
+              onClick={handleCheckArbitrage}
+            >
+              Check đối nghịch
+            </Button>
+          </div>
+        </div>
       </div>
+
+      {searchedKeyword && (
+        <div style={{ marginBottom: 16 }}>
+          <Card 
+            bordered={false}
+            style={{ 
+              borderRadius: 8, 
+              background: '#f8fafc',
+              border: '1px solid #91caff',
+              boxShadow: '0 2px 8px rgba(24, 144, 255, 0.08)'
+            }}
+            bodyStyle={{ padding: '14px 18px' }}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                <span style={{ fontSize: 14, fontWeight: 700, color: '#0958d9' }}>
+                  👤 Thống kê cược của khách:
+                </span>
+                <Tag color="blue" style={{ fontSize: 14, fontWeight: 700, padding: '2px 10px', borderRadius: 4 }}>
+                  {searchedKeyword}
+                </Tag>
+                {userSummaryData && (
+                  <span style={{ fontSize: 13, color: '#64748b' }}>
+                    (Thắng: <strong style={{ color: '#52c41a' }}>{userSummaryData.winCount}</strong> | Thua: <strong style={{ color: '#ff4d4f' }}>{userSummaryData.loseCount}</strong> | Chờ KQ: <strong style={{ color: '#fa8c16' }}>{userSummaryData.pendingCount}</strong>)
+                  </span>
+                )}
+              </div>
+              <Button 
+                type="link" 
+                size="small" 
+                danger 
+                onClick={() => {
+                  setSearchText('');
+                  setSearchedKeyword('');
+                  setUserSummaryData(null);
+                  setCurrentPage(1);
+                  fetchOrders(1, pageSize, '', dateRange, resultFilter, provinceFilter, minBet, minWin);
+                }}
+              >
+                Xóa tìm kiếm (Xem tất cả)
+              </Button>
+            </div>
+
+            <Row gutter={16}>
+              <Col span={6}>
+                <Card bordered={false} style={{ background: '#fff', borderRadius: 6, boxShadow: '0 1px 2px rgba(0,0,0,0.04)' }}>
+                  <Statistic
+                    title={<span style={{ fontWeight: 600, color: '#475569' }}>Số vé bán ra</span>}
+                    value={userSummaryData ? userSummaryData.totalTickets : (loadingUserSummary ? '...' : 0)}
+                    valueStyle={{ color: '#1890ff', fontWeight: 700 }}
+                  />
+                </Card>
+              </Col>
+              <Col span={6}>
+                <Card bordered={false} style={{ background: '#fff', borderRadius: 6, boxShadow: '0 1px 2px rgba(0,0,0,0.04)' }}>
+                  <Statistic
+                    title={<span style={{ fontWeight: 600, color: '#475569' }}>Tổng tiền bán ra</span>}
+                    value={userSummaryData ? userSummaryData.totalSales : 0}
+                    suffix="đ"
+                    valueStyle={{ color: '#3f8600', fontWeight: 700 }}
+                  />
+                </Card>
+              </Col>
+              <Col span={6}>
+                <Card bordered={false} style={{ background: '#fff', borderRadius: 6, boxShadow: '0 1px 2px rgba(0,0,0,0.04)' }}>
+                  <Statistic
+                    title={<span style={{ fontWeight: 600, color: '#475569' }}>Tổng tiền khách thắng</span>}
+                    value={userSummaryData ? userSummaryData.totalPrize : 0}
+                    suffix="đ"
+                    valueStyle={{ color: '#cf1322', fontWeight: 700 }}
+                  />
+                </Card>
+              </Col>
+              <Col span={6}>
+                <Card bordered={false} style={{ background: '#fff', borderRadius: 6, boxShadow: '0 1px 2px rgba(0,0,0,0.04)' }}>
+                  <Statistic
+                    title={<span style={{ fontWeight: 600, color: '#475569' }}>Tổng tiền khách thua</span>}
+                    value={userSummaryData ? userSummaryData.totalLoss : 0}
+                    suffix="đ"
+                    valueStyle={{ 
+                      color: (userSummaryData?.totalLoss ?? 0) >= 0 ? '#d48806' : '#cf1322', 
+                      fontWeight: 700 
+                    }}
+                  />
+                </Card>
+              </Col>
+            </Row>
+          </Card>
+        </div>
+      )}
 
       <Table 
         style={{ flex: 1 }}
         scroll={{ y: 'calc(100vh - 380px)', x: 'max-content' }}
         columns={columns}
-        dataSource={filteredOrders}
+        dataSource={isServerPaginated ? orders : filteredOrders.slice((currentPage - 1) * pageSize, currentPage * pageSize)}
         rowKey="_id"
         loading={loading}
+        pagination={{
+          current: currentPage,
+          pageSize: pageSize,
+          total: isServerPaginated ? totalOrders : filteredOrders.length,
+          showSizeChanger: true,
+          pageSizeOptions: ['10', '20', '50', '100'],
+          onChange: (page, size) => {
+            setCurrentPage(page);
+            setPageSize(size);
+            if (isServerPaginated) {
+              fetchOrders(page, size, searchText, dateRange, resultFilter, provinceFilter, minBet, minWin);
+            }
+          },
+          showTotal: (totalCount, range) => (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, fontWeight: 500 }}>
+              <span>Tổng số vé: <strong style={{ color: '#1677ff', fontSize: 14 }}>{totalCount}</strong></span>
+              <span style={{ color: '#888' }}>(Hiển thị {range[0]}-{range[1]})</span>
+            </div>
+          ),
+        }}
       />
 
       <Modal
@@ -944,6 +1502,11 @@ export default function OrderManagement() {
             <p><strong>Tỉnh/Đài:</strong> {selectedTicketOrder.provinceName || selectedTicketOrder.gameType?.toUpperCase()}</p>
             <p><strong>Loại cược:</strong> <Tag color="geekblue">{selectedTicketOrder.playType || 'Vé cơ bản'}</Tag></p>
             <p><strong>Số tiền cược:</strong> <strong style={{color: 'red'}}>{selectedTicketOrder.totalCost?.toLocaleString('vi-VN')} đ</strong></p>
+            {selectedTicketOrder.adminNote && (
+              <div style={{ margin: '8px 0', padding: '8px 12px', background: '#fffbe6', border: '1px solid #ffe58f', borderRadius: 6 }}>
+                <strong>Ghi chú / Lý do điều chỉnh:</strong> <span style={{ color: '#d48806', fontWeight: 600 }}>{selectedTicketOrder.adminNote}</span>
+              </div>
+            )}
             <div><strong>Chi tiết các dãy số ({selectedTicketOrder.items?.length || 1} dãy):</strong></div>
             <div style={{ padding: 12, backgroundColor: '#f9f9f9', borderRadius: 8, marginTop: 8, maxHeight: '450px', overflowY: 'auto' }}>
               {selectedTicketOrder.items && selectedTicketOrder.items.length > 0 ? (
@@ -970,6 +1533,202 @@ export default function OrderManagement() {
                   {selectedTicketOrder.numbers?.map((n: string, i: number) => <Tag key={i} color="blue">{n}</Tag>)}
                 </div>
               )}
+            </div>
+          </div>
+        )}
+      </Modal>
+
+      {/* Modal Sửa Tiền Thắng & Trạng Thái (Tài Khoản Master) */}
+      <Modal
+        title={
+          <Space>
+            <EditOutlined style={{ color: '#ff4d4f' }} />
+            <span style={{ color: '#cf1322', fontWeight: 600 }}>Sửa Tiền Thắng & Kết Quả (TK Master)</span>
+          </Space>
+        }
+        open={editResultModalVisible}
+        onCancel={() => {
+          if (!submittingEdit) {
+            setEditResultModalVisible(false);
+            setEditingOrder(null);
+          }
+        }}
+        footer={[
+          <Button key="cancel" onClick={() => setEditResultModalVisible(false)} disabled={submittingEdit}>
+            Hủy
+          </Button>,
+          <Button
+            key="submit"
+            type="primary"
+            danger={(() => {
+              const oldWon = (editingOrder?.isWinner && editingOrder?.status === 'completed') ? (editingOrder?.prizeAmount || 0) : 0;
+              const newWon = editResultStatus === 'win' ? (Number(editPrizeAmount) || 0) : 0;
+              return newWon < oldWon;
+            })()}
+            loading={submittingEdit}
+            onClick={handleSubmitEditResult}
+          >
+            Lưu thay đổi & Báo cáo Lịch sử hoạt động
+          </Button>
+        ]}
+        width={650}
+        destroyOnClose
+      >
+        {editingOrder && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+            {/* Thông tin vé cược */}
+            <Card size="small" style={{ backgroundColor: '#fafafa' }}>
+              <Row gutter={[16, 8]}>
+                <Col span={12}>
+                  <strong>Mã vé:</strong> <Tag color="blue">{editingOrder.orderId}</Tag>
+                </Col>
+                <Col span={12}>
+                  <strong>Khách hàng:</strong> <Text strong>{editingOrder.user?.name || '-'}</Text> ({editingOrder.user?.phone || '-'})
+                </Col>
+                <Col span={12}>
+                  <strong>Đài/Kỳ:</strong> {getOrderProvinceName(editingOrder)} ({editingOrder.playType || editingOrder.gameType})
+                </Col>
+                <Col span={12}>
+                  <strong>Tiền cược:</strong> <Text strong type="danger">{editingOrder.totalCost?.toLocaleString('vi-VN')} đ</Text>
+                </Col>
+                <Col span={12}>
+                  <strong>KQ Hiện tại:</strong>{' '}
+                  {editingOrder.status === 'cancelled' ? (
+                    <Tag>Đã huỷ</Tag>
+                  ) : editingOrder.status === 'pending' ? (
+                    <Tag color="orange">Chờ KQ</Tag>
+                  ) : editingOrder.isWinner ? (
+                    <Tag color="green">Thắng</Tag>
+                  ) : (
+                    <Tag color="red">Thua</Tag>
+                  )}
+                </Col>
+                <Col span={12}>
+                  <strong>Tiền thắng hiện tại:</strong>{' '}
+                  <Text strong style={{ color: editingOrder.isWinner ? '#52c41a' : 'gray' }}>
+                    {editingOrder.isWinner && editingOrder.prizeAmount ? `${editingOrder.prizeAmount.toLocaleString('vi-VN')} đ` : '0 đ'}
+                  </Text>
+                </Col>
+              </Row>
+            </Card>
+
+            {/* Trạng thái mới */}
+            <div>
+              <div style={{ fontWeight: 600, marginBottom: 8 }}>1. Trạng thái kết quả mới:</div>
+              <Radio.Group
+                value={editResultStatus}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  setEditResultStatus(val);
+                  if (val === 'lose' || val === 'pending' || val === 'cancelled') {
+                    setEditPrizeAmount(0);
+                  } else if (val === 'win' && (!editPrizeAmount || editPrizeAmount <= 0)) {
+                    setEditPrizeAmount(editingOrder.prizeAmount || 0);
+                  }
+                }}
+                buttonStyle="solid"
+                style={{ width: '100%', display: 'flex' }}
+              >
+                <Radio.Button value="win" style={{ flex: 1, textAlign: 'center' }}>
+                  <span style={{ color: '#52c41a', fontWeight: 'bold' }}>✓ Thắng</span>
+                </Radio.Button>
+                <Radio.Button value="lose" style={{ flex: 1, textAlign: 'center' }}>
+                  <span style={{ color: '#ff4d4f', fontWeight: 'bold' }}>✕ Thua</span>
+                </Radio.Button>
+                <Radio.Button value="pending" style={{ flex: 1, textAlign: 'center' }}>
+                  <span style={{ color: '#fa8c16' }}>⏳ Chờ KQ</span>
+                </Radio.Button>
+                <Radio.Button value="cancelled" style={{ flex: 1, textAlign: 'center' }}>
+                  <span style={{ color: '#888' }}>🚫 Đã huỷ</span>
+                </Radio.Button>
+              </Radio.Group>
+            </div>
+
+            {/* Tiền thắng mới */}
+            {editResultStatus === 'win' && (
+              <div>
+                <div style={{ fontWeight: 600, marginBottom: 8 }}>
+                  2. Tiền thắng mới (VNĐ): <span style={{ color: 'red' }}>*</span>
+                </div>
+                <InputNumber
+                  style={{ width: '100%' }}
+                  size="large"
+                  min={0}
+                  step={1000}
+                  value={editPrizeAmount}
+                  onChange={(val) => setEditPrizeAmount(Number(val) || 0)}
+                  formatter={(value) => `${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',') + ' đ'}
+                  parser={(value) => Number(value?.replace(/đ|\s|,/g, '') || 0)}
+                  placeholder="Nhập số tiền thắng thực tế..."
+                />
+              </div>
+            )}
+
+            {/* Tính toán biến động số dư */}
+            {(() => {
+              const oldWon = (editingOrder.isWinner && editingOrder.status === 'completed') ? (editingOrder.prizeAmount || 0) : 0;
+              const newWon = editResultStatus === 'win' ? (Number(editPrizeAmount) || 0) : 0;
+              const delta = newWon - oldWon;
+
+              return (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  {delta > 0 && (
+                    <Alert
+                      type="success"
+                      showIcon
+                      message={
+                        <span>
+                          <strong>Dự kiến:</strong> Khách hàng sẽ được <strong>CỘNG THÊM +{delta.toLocaleString('vi-VN')} đ</strong> vào số dư tài khoản.
+                        </span>
+                      }
+                    />
+                  )}
+                  {delta < 0 && (
+                    <Alert
+                      type="warning"
+                      showIcon
+                      message={
+                        <span>
+                          <strong>Cảnh báo:</strong> Khách hàng sẽ bị <strong>TRỪ THU HỒI {delta.toLocaleString('vi-VN')} đ</strong> khỏi số dư tài khoản.
+                        </span>
+                      }
+                    />
+                  )}
+                  {delta === 0 && (
+                    <Alert
+                      type="info"
+                      showIcon
+                      message="Số dư tài khoản khách hàng sẽ không thay đổi (chênh lệch = 0 đ)."
+                    />
+                  )}
+
+                  {delta !== 0 && (
+                    <Checkbox
+                      checked={editAdjustBalance}
+                      onChange={(e) => setEditAdjustBalance(e.target.checked)}
+                      style={{ marginTop: 4 }}
+                    >
+                      <strong>Tự động điều chỉnh số dư của người chơi</strong> ({delta > 0 ? `Cộng +${delta.toLocaleString('vi-VN')} đ` : `Trừ ${delta.toLocaleString('vi-VN')} đ`})
+                    </Checkbox>
+                  )}
+                </div>
+              );
+            })()}
+
+            {/* Lý do / Ghi chú sửa */}
+            <div>
+              <div style={{ fontWeight: 600, marginBottom: 8 }}>
+                3. Ghi chú lý do sửa: <span style={{ color: 'red' }}>*</span>
+              </div>
+              <Input.TextArea
+                rows={3}
+                placeholder="Nhập lý do điều chỉnh kết quả (bắt buộc) để báo cáo vào Lịch sử hoạt động (VD: Hệ thống dò nhầm đài xổ, vé trúng giải 8 nhưng trả thiếu, cộng thưởng bổ sung...)"
+                value={editReason}
+                onChange={(e) => setEditReason(e.target.value)}
+              />
+              <div style={{ fontSize: 12, color: '#888', marginTop: 4 }}>
+                ℹ️ Thao tác này sẽ tự động được ghi lại vào <strong>Nhật ký hoạt động (AdminLogs)</strong> kèm thời gian, tên Admin Master và chi tiết các trường thay đổi để đối soát.
+              </div>
             </div>
           </div>
         )}

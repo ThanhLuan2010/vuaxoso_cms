@@ -1,7 +1,7 @@
-import { PlusOutlined, SaveOutlined, SyncOutlined, EditOutlined, DeleteOutlined } from '@ant-design/icons';
+import { PlusOutlined, SaveOutlined, SyncOutlined, EditOutlined, DeleteOutlined, ReloadOutlined } from '@ant-design/icons';
 import { Button, DatePicker, Form, Input, Modal, Popconfirm, Select, Space, Table, Tag, Typography, message } from 'antd';
 import useAuthStore from '../store/useAuthStore';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import api from '../services/api';
 import dayjs from 'dayjs';
 
@@ -16,6 +16,10 @@ export default function DrawManagement() {
   const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);
   const [filterGameId, setFilterGameId] = useState<string | null>(null);
+  const [filterProvinceId, setFilterProvinceId] = useState<string | null>('all');
+  const [filterDate, setFilterDate] = useState<dayjs.Dayjs | null>(null);
+  const [filterStatus, setFilterStatus] = useState<string>('all');
+  const [searchCode, setSearchCode] = useState<string>('');
 
   const [form] = Form.useForm();
   const [ktForm] = Form.useForm();
@@ -38,20 +42,31 @@ export default function DrawManagement() {
   const fetchData = async () => {
     try {
       setLoading(true);
+      const params: any = {
+        page,
+        limit: 10,
+      };
+      if (filterGameId) params.gameId = filterGameId;
+      if (filterProvinceId && filterProvinceId !== 'all') params.provinceId = filterProvinceId;
+      if (filterDate) params.date = filterDate.format('YYYY-MM-DD');
+      if (filterStatus && filterStatus !== 'all') params.status = filterStatus;
+      if (searchCode.trim()) params.search = searchCode.trim();
+
       const [drawsRes, gamesRes, provsRes] = await Promise.all([
-        api.get('/draws/admin', { params: { page, limit: 10, gameId: filterGameId } }),
-        api.get('/games'),
-        api.get('/provinces')
+        api.get('/draws/admin', { params }),
+        games.length > 0 ? Promise.resolve({ data: games }) : api.get('/games'),
+        provinces.length > 0 ? Promise.resolve({ data: provinces }) : api.get('/provinces')
       ]);
+
       if (drawsRes.data.data) {
         setDraws(drawsRes.data.data);
         setTotal(drawsRes.data.total);
-      } else {
+      } else if (Array.isArray(drawsRes.data)) {
         setDraws(drawsRes.data);
         setTotal(drawsRes.data.length);
       }
-      setGames(gamesRes.data);
-      setProvinces(provsRes.data);
+      if (games.length === 0 && gamesRes.data) setGames(gamesRes.data);
+      if (provinces.length === 0 && provsRes.data) setProvinces(provsRes.data);
     } catch (error) {
       message.error('Lỗi lấy dữ liệu kỳ quay');
     } finally {
@@ -61,7 +76,7 @@ export default function DrawManagement() {
 
   useEffect(() => {
     fetchData();
-  }, [page, filterGameId]);
+  }, [page, filterGameId, filterProvinceId, filterDate, filterStatus]);
 
   const handleCreateDraw = async (values: any) => {
     try {
@@ -220,7 +235,7 @@ export default function DrawManagement() {
 
       await api.put(`/draws/admin/${currentKienThietDraw._id}/results`, {
         winningNumbers: numbers,
-        provinceId: values.provinceId
+        provinceId: values.provinceId || currentKienThietDraw.provinceId
       });
       message.success('Lưu kết quả thành công');
       setIsKienThietModalOpen(false);
@@ -233,32 +248,55 @@ export default function DrawManagement() {
 
   const columns: any = [
     {
-      fixed: 'left',
+      title: 'Ngày quay',
+      key: 'drawDate',
+      width: 110,
+      render: (_: any, record: any) => {
+        const d = record.closeTime || record.drawTime || record.openTime;
+        return (
+          <span style={{ fontWeight: 600, color: '#1e293b' }}>
+            {d ? dayjs(d).format('DD/MM/YYYY') : '-'}
+          </span>
+        );
+      }
+    },
+    {
       title: 'Mã Kỳ',
       dataIndex: 'drawCode',
       key: 'drawCode',
+      width: 100,
       render: (text: string) => <strong style={{ color: '#dc2626' }}>{text}</strong>
     },
     {
       title: 'Game',
       key: 'game',
+      width: 180,
+      render: (_: any, record: any) => (
+        <span style={{ fontWeight: 600, color: '#0f172a' }}>{record.game?.name || '-'}</span>
+      )
+    },
+    {
+      title: 'Tỉnh/Đài',
+      key: 'province',
+      width: 160,
       render: (_: any, record: any) => {
+        if (!record.provinceId) return <span style={{ color: '#94a3b8' }}>-</span>;
         const prov = provinces.find(p => p.provinceId === record.provinceId);
         return (
-          <div>
-            <div>{record.game?.name}</div>
-            {prov && <div style={{ fontSize: 12, color: '#888' }}>{prov.name}</div>}
-          </div>
+          <Tag color="geekblue" style={{ fontWeight: 600, fontSize: 13, padding: '2px 8px', borderRadius: 4 }}>
+            {prov ? prov.name : record.provinceId}
+          </Tag>
         );
       }
     },
     {
       title: 'Thời gian',
       key: 'time',
+      width: 230,
       render: (_: any, record: any) => (
         <div style={{ fontSize: '13px', color: '#666' }}>
-          <div><strong>Mở:</strong> {new Date(record.openTime).toLocaleString()}</div>
-          <div><strong>Đóng:</strong> {new Date(record.closeTime).toLocaleString()}</div>
+          <div><strong>Mở:</strong> {new Date(record.openTime).toLocaleString('vi-VN')}</div>
+          <div><strong>Đóng:</strong> {new Date(record.closeTime).toLocaleString('vi-VN')}</div>
         </div>
       )
     },
@@ -266,21 +304,23 @@ export default function DrawManagement() {
       title: 'Trạng thái',
       dataIndex: 'status',
       key: 'status',
+      width: 130,
       render: (status: string) => {
         let color = 'default';
         if (status === 'open') color = 'green';
         if (status === 'closed') color = 'red';
         if (status === 'completed') color = 'default';
-        return <Tag color={color}>{status.toUpperCase()}</Tag>;
+        return <Tag color={color}>{status ? status.toUpperCase() : 'OPEN'}</Tag>;
       }
     },
     {
       title: 'Kết quả (Cập nhật)',
       key: 'result',
+      width: 220,
       render: (_: any, record: any) => {
         if (record.status === 'completed') {
           return (
-            <div style={{ fontWeight: 'bold', color: '#dc2626', letterSpacing: 2, fontSize: 16 }}>
+            <div style={{ fontWeight: 'bold', color: '#dc2626', letterSpacing: 1, fontSize: 15 }}>
               {record.winningNumbers?.join(' ')}
             </div>
           );
@@ -306,6 +346,7 @@ export default function DrawManagement() {
         return (
           <Button
             type="link"
+            style={{ fontWeight: 500 }}
             onClick={() => {
               if (['MB', 'MT', 'MN'].includes(record.game?.code)) {
                 setCurrentKienThietDraw(record);
@@ -363,24 +404,27 @@ export default function DrawManagement() {
     }] : [])
   ];
 
+  const displayDraws = useMemo(() => {
+    return draws.filter(d => {
+      if (filterStatus && filterStatus !== 'all' && d.status !== filterStatus) return false;
+      if (filterProvinceId && filterProvinceId !== 'all' && d.provinceId !== filterProvinceId) return false;
+      if (filterDate) {
+        const dDate = dayjs(d.closeTime || d.drawTime || d.openTime).format('YYYY-MM-DD');
+        if (dDate !== filterDate.format('YYYY-MM-DD')) return false;
+      }
+      if (searchCode.trim()) {
+        const q = searchCode.toLowerCase().trim();
+        if (!(d.drawCode || '').toLowerCase().includes(q)) return false;
+      }
+      return true;
+    });
+  }, [draws, filterStatus, filterProvinceId, filterDate, searchCode]);
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 110px)' }}>
-      <div style={{ flex: 'none', display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
-        <Title style={{ marginTop: 0, marginBottom: 16 }} level={3} >Quản lý Kỳ quay (Draws)</Title>
-        <div style={{ display: 'flex', gap: 16 }}>
-          <Select
-            placeholder="Lọc theo game..."
-            style={{ width: 200 }}
-            allowClear
-            onChange={(val) => {
-              setFilterGameId(val);
-              setPage(1);
-            }}
-          >
-            {games.map(g => (
-              <Select.Option key={g._id} value={g._id}>{g.name}</Select.Option>
-            ))}
-          </Select>
+      <div style={{ flex: 'none', display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+        <Title style={{ marginTop: 0, marginBottom: 0 }} level={3} >Quản lý Kỳ quay (Draws)</Title>
+        <Space>
           {canDeleteDraw && selectedRowKeys.length > 0 && (
             <Popconfirm
               title={`Xóa ${selectedRowKeys.length} kỳ quay đã chọn?`}
@@ -398,14 +442,118 @@ export default function DrawManagement() {
           <Button type="primary" icon={<PlusOutlined />} onClick={() => setIsModalOpen(true)}>
             Mở kỳ quay mới
           </Button>
-        </div>
+        </Space>
+      </div>
+
+      <div style={{ marginBottom: 16, display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'center', background: '#fff', padding: 12, borderRadius: 8 }}>
+        <Input.Search
+          placeholder="Tìm theo Mã kỳ quay..."
+          value={searchCode}
+          onChange={(e) => setSearchCode(e.target.value)}
+          onSearch={() => {
+            setPage(1);
+            fetchData();
+          }}
+          style={{ width: 190 }}
+          allowClear
+        />
+
+        <Space size="small">
+          <span style={{ fontWeight: 500, fontSize: 13 }}>Ngày quay:</span>
+          <DatePicker
+            placeholder="Chọn ngày quay"
+            format="DD/MM/YYYY"
+            value={filterDate}
+            onChange={(val) => {
+              setFilterDate(val);
+              setPage(1);
+            }}
+            allowClear
+            style={{ width: 145 }}
+          />
+        </Space>
+
+        <Space size="small">
+          <span style={{ fontWeight: 500, fontSize: 13 }}>Game:</span>
+          <Select
+            placeholder="Tất cả game"
+            style={{ width: 170 }}
+            allowClear
+            value={filterGameId || undefined}
+            onChange={(val) => {
+              setFilterGameId(val || null);
+              setPage(1);
+            }}
+          >
+            {games.map(g => (
+              <Select.Option key={g._id} value={g._id}>{g.name}</Select.Option>
+            ))}
+          </Select>
+        </Space>
+
+        <Space size="small">
+          <span style={{ fontWeight: 500, fontSize: 13 }}>Tỉnh/Đài:</span>
+          <Select
+            placeholder="Tất cả Tỉnh/Đài"
+            style={{ width: 180 }}
+            showSearch
+            optionFilterProp="children"
+            allowClear
+            value={filterProvinceId === 'all' || !filterProvinceId ? undefined : filterProvinceId}
+            onChange={(val) => {
+              setFilterProvinceId(val || 'all');
+              setPage(1);
+            }}
+          >
+            <Select.Option value="all">Tất cả Tỉnh/Đài</Select.Option>
+            {provinces.map(p => (
+              <Select.Option key={p.provinceId} value={p.provinceId}>{p.name} ({p.region})</Select.Option>
+            ))}
+          </Select>
+        </Space>
+
+        <Space size="small">
+          <span style={{ fontWeight: 500, fontSize: 13 }}>Trạng thái:</span>
+          <Select
+            placeholder="Tất cả"
+            style={{ width: 140 }}
+            value={filterStatus}
+            onChange={(val) => {
+              setFilterStatus(val);
+              setPage(1);
+            }}
+            options={[
+              { label: 'Tất cả trạng thái', value: 'all' },
+              { label: 'Đang mở (OPEN)', value: 'open' },
+              { label: 'Chờ quay (CLOSED)', value: 'closed' },
+              { label: 'Đã có KQ (COMPLETED)', value: 'completed' },
+            ]}
+          />
+        </Space>
+
+        {(searchCode || filterGameId || (filterProvinceId && filterProvinceId !== 'all') || filterDate || filterStatus !== 'all') && (
+          <Button
+            icon={<ReloadOutlined />}
+            onClick={() => {
+              setSearchCode('');
+              setFilterGameId(null);
+              setFilterProvinceId('all');
+              setFilterDate(null);
+              setFilterStatus('all');
+              setPage(1);
+            }}
+            style={{ color: '#ff4d4f', borderColor: '#ff4d4f' }}
+          >
+            Xoá bộ lọc
+          </Button>
+        )}
       </div>
 
       <Table 
         style={{ flex: 1 }}
-        scroll={{ y: 'calc(100vh - 260px)', x: 'max-content' }}
+        scroll={{ y: 'calc(100vh - 260px)', x: 1350 }}
         columns={columns}
-        dataSource={draws}
+        dataSource={displayDraws}
         rowKey="_id"
         loading={loading}
         rowSelection={canDeleteDraw ? {
@@ -660,6 +808,17 @@ export default function DrawManagement() {
               <Select.Option value="open">Đang mở cược (OPEN)</Select.Option>
               <Select.Option value="closed">Đã chốt vé / Chờ xổ (CLOSED)</Select.Option>
               <Select.Option value="completed">Đã hoàn thành / Đã có KQ (COMPLETED)</Select.Option>
+            </Select>
+          </Form.Item>
+
+          <Form.Item
+            name="provinceId"
+            label="Tỉnh/Đài"
+          >
+            <Select placeholder="Chọn đài (nếu có)" allowClear showSearch optionFilterProp="children">
+              {provinces.map(p => (
+                <Select.Option key={p.provinceId} value={p.provinceId}>{p.name} ({p.region})</Select.Option>
+              ))}
             </Select>
           </Form.Item>
 

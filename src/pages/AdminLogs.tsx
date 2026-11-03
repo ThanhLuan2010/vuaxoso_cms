@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { Table, Card, Typography, message, Tag, Space, Button, Popconfirm, Modal, Input } from 'antd';
+import React, { useState, useEffect, useMemo } from 'react';
+import { Table, Card, Typography, message, Tag, Space, Button, Popconfirm, Modal, Input, DatePicker, Select } from 'antd';
 import { HistoryOutlined, ReloadOutlined } from '@ant-design/icons';
 import api from '../services/api';
 import moment from 'moment';
@@ -8,24 +8,61 @@ const { Title, Text } = Typography;
 
 export default function AdminLogs() {
   const [logs, setLogs] = useState<any[]>([]);
+  const [total, setTotal] = useState(0);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(20);
+  const [adminOptions, setAdminOptions] = useState<{ label: string; value: string }[]>([]);
   const [searchText, setSearchText] = useState('');
+  const [actionFilter, setActionFilter] = useState<string>('all');
+  const [adminFilter, setAdminFilter] = useState<string>('all');
+  const [dateRange, setDateRange] = useState<any>(null);
   const [loading, setLoading] = useState(false);
 
-  useEffect(() => {
-    fetchLogs();
-  }, []);
-
-  const fetchLogs = async (search = '') => {
+  const fetchLogs = async (
+    page = currentPage,
+    limit = pageSize,
+    search = searchText,
+    action = actionFilter,
+    admin = adminFilter,
+    dates = dateRange
+  ) => {
     try {
       setLoading(true);
-      const res = await api.get('/logs', { params: { search } });
-      setLogs(res.data);
+      const params: any = {
+        page,
+        limit,
+      };
+      if (search && search.trim()) params.search = search.trim();
+      if (action && action !== 'all') params.action = action;
+      if (admin && admin !== 'all') params.adminName = admin;
+      if (dates && dates[0] && dates[1]) {
+        params.startDate = dates[0].format('YYYY-MM-DD');
+        params.endDate = dates[1].format('YYYY-MM-DD');
+      }
+
+      const res = await api.get('/logs', { params });
+      if (res.data.logs) {
+        setLogs(res.data.logs);
+        setTotal(res.data.total || 0);
+        setCurrentPage(res.data.page || page);
+        setPageSize(res.data.limit || limit);
+        if (res.data.adminNames) {
+          setAdminOptions(res.data.adminNames.map((name: string) => ({ label: name, value: name })));
+        }
+      } else if (Array.isArray(res.data)) {
+        setLogs(res.data);
+        setTotal(res.data.length);
+      }
     } catch (error: any) {
       message.error(error.response?.data?.message || 'Lỗi khi tải lịch sử hoạt động');
     } finally {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    fetchLogs(1, pageSize, searchText, actionFilter, adminFilter, dateRange);
+  }, []);
 
 
 
@@ -39,11 +76,15 @@ export default function AdminLogs() {
       width: 160,
     },
     {
-      title: 'Admin',
+      title: 'Người thao tác',
       dataIndex: 'adminName',
       key: 'adminName',
-      render: (val: string) => <Text strong>{val}</Text>,
-      width: 150,
+      render: (val: string) => {
+        if (!val || val === 'Hệ thống') return <Tag color="blue">Hệ thống</Tag>;
+        if (val === 'Khách hàng') return <Tag color="green">Khách hàng</Tag>;
+        return <Text strong>{val}</Text>;
+      },
+      width: 160,
     },
     {
       title: 'Thao tác',
@@ -53,6 +94,49 @@ export default function AdminLogs() {
         let color = 'blue';
         let text = val;
         switch (val) {
+          case 'THẮNG CƯỢC':
+          case 'WIN_ORDER':
+            color = 'green';
+            text = 'Thắng cược';
+            break;
+          case 'THUA CƯỢC':
+          case 'LOSE_ORDER':
+            color = 'default';
+            text = 'Thua cược';
+            break;
+          case 'NẠP TIỀN':
+            color = 'blue';
+            text = 'Khách nạp tiền';
+            break;
+          case 'NẠP TIỀN TỰ ĐỘNG (BINANCE)':
+            color = 'cyan';
+            text = 'Nạp tự động (Binance)';
+            break;
+          case 'DUYỆT NẠP TIỀN':
+            color = 'geekblue';
+            text = 'Duyệt nạp tiền';
+            break;
+          case 'TỪ CHỐI NẠP TIỀN':
+            color = 'red';
+            text = 'Từ chối nạp tiền';
+            break;
+          case 'RÚT TIỀN':
+            color = 'volcano';
+            text = 'Khách rút tiền';
+            break;
+          case 'DUYỆT RÚT TIỀN':
+            color = 'gold';
+            text = 'Duyệt rút tiền';
+            break;
+          case 'TỪ CHỐI RÚT TIỀN':
+            color = 'magenta';
+            text = 'Từ chối rút tiền';
+            break;
+          case 'UPDATE_ORDER_RESULT':
+          case 'Sửa kết quả vé':
+            color = 'purple';
+            text = 'Sửa kết quả vé';
+            break;
           case 'UPDATE_USER':
             color = 'cyan';
             text = 'Cập nhật User';
@@ -68,7 +152,7 @@ export default function AdminLogs() {
         }
         return <Tag color={color}>{text}</Tag>;
       },
-      width: 180,
+      width: 190,
     },
     {
       title: 'Khách hàng',
@@ -204,23 +288,125 @@ export default function AdminLogs() {
     <>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
         <Title style={{ margin: 0 }} level={3} >Nhật ký Hoạt động</Title>
+      </div>
+
+      <div style={{ marginBottom: 16, display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'center', background: '#fff', padding: 12, borderRadius: 8 }}>
         <Input.Search
           placeholder="Tìm theo Admin, Hành động, Khách hàng..."
           allowClear
           value={searchText}
           onChange={(e) => setSearchText(e.target.value)}
-          onSearch={(value) => fetchLogs(value)}
-          style={{ width: 350 }}
+          onSearch={(value) => {
+            setCurrentPage(1);
+            fetchLogs(1, pageSize, value, actionFilter, adminFilter, dateRange);
+          }}
+          style={{ width: 280 }}
         />
+
+        <Space size="small">
+          <span style={{ fontWeight: 500, fontSize: 13 }}>Thao tác:</span>
+          <Select
+            value={actionFilter}
+            onChange={(val) => {
+              setActionFilter(val);
+              setCurrentPage(1);
+              fetchLogs(1, pageSize, searchText, val, adminFilter, dateRange);
+            }}
+            style={{ width: 180 }}
+            options={[
+              { label: 'Tất cả thao tác', value: 'all' },
+              { label: 'Khách nạp tiền', value: 'NẠP TIỀN' },
+              { label: 'Nạp tự động (Binance)', value: 'NẠP TIỀN TỰ ĐỘNG (BINANCE)' },
+              { label: 'Duyệt nạp tiền', value: 'DUYỆT NẠP TIỀN' },
+              { label: 'Từ chối nạp tiền', value: 'TỪ CHỐI NẠP TIỀN' },
+              { label: 'Khách rút tiền', value: 'RÚT TIỀN' },
+              { label: 'Duyệt rút tiền', value: 'DUYỆT RÚT TIỀN' },
+              { label: 'Từ chối rút tiền', value: 'TỪ CHỐI RÚT TIỀN' },
+              { label: 'Thắng cược', value: 'THẮNG CƯỢC' },
+              { label: 'Thua cược', value: 'THUA CƯỢC' },
+              { label: 'Sửa kết quả vé', value: 'UPDATE_ORDER_RESULT' },
+              { label: 'Cập nhật User', value: 'UPDATE_USER' },
+              { label: 'Reset MK Đăng nhập', value: 'RESET_PASSWORD' },
+              { label: 'Reset MK Rút tiền', value: 'RESET_WITHDRAW_PASSWORD' },
+            ]}
+          />
+        </Space>
+
+        <Space size="small">
+          <span style={{ fontWeight: 500, fontSize: 13 }}>Admin:</span>
+          <Select
+            value={adminFilter}
+            onChange={(val) => {
+              setAdminFilter(val);
+              setCurrentPage(1);
+              fetchLogs(1, pageSize, searchText, actionFilter, val, dateRange);
+            }}
+            style={{ width: 140 }}
+            options={[
+              { label: 'Tất cả Admin', value: 'all' },
+              ...adminOptions
+            ]}
+          />
+        </Space>
+
+        <Space size="small">
+          <span style={{ fontWeight: 500, fontSize: 13 }}>Thời gian:</span>
+          <DatePicker.RangePicker
+            format="DD/MM/YYYY"
+            value={dateRange}
+            onChange={(val) => {
+              setDateRange(val);
+              setCurrentPage(1);
+              fetchLogs(1, pageSize, searchText, actionFilter, adminFilter, val);
+            }}
+            allowClear
+            style={{ width: 240 }}
+            placeholder={['Từ ngày', 'Đến ngày']}
+          />
+        </Space>
+
+        {(searchText || actionFilter !== 'all' || adminFilter !== 'all' || dateRange) && (
+          <Button
+            icon={<ReloadOutlined />}
+            onClick={() => {
+              setSearchText('');
+              setActionFilter('all');
+              setAdminFilter('all');
+              setDateRange(null);
+              setCurrentPage(1);
+              fetchLogs(1, pageSize, '', 'all', 'all', null);
+            }}
+            style={{ color: '#ff4d4f', borderColor: '#ff4d4f' }}
+          >
+            Xoá bộ lọc
+          </Button>
+        )}
       </div>
+
       <Table 
         style={{ flex: 1 }}
-        scroll={{ y: 'calc(100vh - 260px)', x: 'max-content' }}
+        scroll={{ y: 'calc(100vh - 280px)', x: 'max-content' }}
         columns={columns}
         dataSource={logs}
         rowKey="_id"
         loading={loading}
-        pagination={{ pageSize: 20 }}
+        pagination={{
+          current: currentPage,
+          pageSize: pageSize,
+          total: total,
+          showSizeChanger: true,
+          pageSizeOptions: ['10', '20', '50', '100'],
+          onChange: (page, size) => {
+            setCurrentPage(page);
+            setPageSize(size);
+            fetchLogs(page, size, searchText, actionFilter, adminFilter, dateRange);
+          },
+          showTotal: (totalCount, range) => (
+            <span style={{ fontSize: 13, color: '#666' }}>
+              Hiển thị {range[0]}-{range[1]} / <strong>{totalCount}</strong> hoạt động
+            </span>
+          )
+        }}
       />
     </>
   );

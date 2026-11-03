@@ -1,6 +1,6 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useMemo } from 'react';
 import { Table, Button, Typography, message, Modal, Form, Input, Select, InputNumber, Space, Tag, Dropdown } from 'antd';
-import { PlusOutlined, DeleteOutlined, SyncOutlined, ExportOutlined, MoreOutlined, EyeOutlined, ThunderboltOutlined } from '@ant-design/icons';
+import { PlusOutlined, DeleteOutlined, SyncOutlined, ExportOutlined, MoreOutlined, EyeOutlined, ThunderboltOutlined, ReloadOutlined } from '@ant-design/icons';
 import api from '../services/api';
 
 const { Title } = Typography;
@@ -44,6 +44,10 @@ export default function TicketManagement() {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(50);
   const [totalTickets, setTotalTickets] = useState(0);
+
+  const [ticketTypeFilter, setTicketTypeFilter] = useState<string>('all');
+  const [stockFilter, setStockFilter] = useState<string>('all');
+  const [lockFilter, setLockFilter] = useState<string>('all');
 
   const [provincesList, setProvincesList] = useState<ProvinceData[]>([]);
   const [selectedRegion, setSelectedRegion] = useState<string>('MB');
@@ -214,6 +218,22 @@ export default function TicketManagement() {
     }
   };
 
+  const filteredTickets = useMemo(() => {
+    return tickets.filter(t => {
+      if (ticketTypeFilter !== 'all' && t.ticketType !== ticketTypeFilter) return false;
+      if (stockFilter !== 'all') {
+        const isSoldOut = t.isSold || (t.multiplier === 0);
+        if (stockFilter === 'available' && isSoldOut) return false;
+        if (stockFilter === 'sold' && !isSoldOut) return false;
+      }
+      if (lockFilter !== 'all') {
+        if (lockFilter === 'locked' && !t.isLocked) return false;
+        if (lockFilter === 'unlocked' && t.isLocked) return false;
+      }
+      return true;
+    });
+  }, [tickets, ticketTypeFilter, stockFilter, lockFilter]);
+
   const columns: any = [
     {
       fixed: 'left',
@@ -230,6 +250,11 @@ export default function TicketManagement() {
       title: 'Loại',
       dataIndex: 'ticketType',
       key: 'ticketType',
+      filters: [
+        { text: 'Đặc biệt', value: 'special' },
+        { text: 'Thường', value: 'normal' },
+      ],
+      onFilter: (value: any, record: Ticket) => record.ticketType === value,
       render: (text: string) => (
         <Tag color={text === 'special' ? 'orange' : 'blue'}>
           {text === 'special' ? 'Đặc biệt' : 'Thường'}
@@ -273,6 +298,11 @@ export default function TicketManagement() {
     {
       title: 'Trạng thái',
       key: 'status',
+      filters: [
+        { text: 'Còn', value: 'available' },
+        { text: 'Đã bán', value: 'sold' },
+      ],
+      onFilter: (value: any, record: Ticket) => value === 'sold' ? (record.isSold || record.multiplier === 0) : (!record.isSold && (record.multiplier || 0) > 0),
       render: (_: any, record: Ticket) => {
         const isSoldOut = record.isSold || (record.multiplier === 0);
         return <Tag color={isSoldOut ? 'red' : 'green'}>{isSoldOut ? 'Đã bán' : 'Còn'}</Tag>;
@@ -281,6 +311,11 @@ export default function TicketManagement() {
     {
       title: 'Khóa',
       key: 'isLocked',
+      filters: [
+        { text: 'Đang mở', value: false },
+        { text: 'Đã khoá', value: true },
+      ],
+      onFilter: (value: any, record: Ticket) => !!record.isLocked === value,
       render: (_: any, record: Ticket) => (
         <Tag color={record.isLocked ? 'default' : 'cyan'}>
           {record.isLocked ? 'Đã khoá' : 'Đang mở'}
@@ -375,13 +410,13 @@ export default function TicketManagement() {
         </Space>
       </div>
 
-      <div style={{ marginBottom: 16, display: 'flex', gap: 16, flexWrap: 'wrap' }}>
+      <div style={{ marginBottom: 16, display: 'flex', gap: 16, flexWrap: 'wrap', alignItems: 'flex-end', background: '#fff', padding: 12, borderRadius: 8 }}>
         <div>
-          <div style={{ marginBottom: 4, fontWeight: 500 }}>Khu vực:</div>
+          <div style={{ marginBottom: 4, fontWeight: 500, fontSize: 13 }}>Khu vực:</div>
           <Select
             value={selectedRegion}
             onChange={(val) => setSelectedRegion(val)}
-            style={{ width: 150 }}
+            style={{ width: 130 }}
           >
             <Option value="MB">Miền Bắc</Option>
             <Option value="MT">Miền Trung</Option>
@@ -389,11 +424,11 @@ export default function TicketManagement() {
           </Select>
         </div>
         <div>
-          <div style={{ marginBottom: 4, fontWeight: 500 }}>Tỉnh/Đài:</div>
+          <div style={{ marginBottom: 4, fontWeight: 500, fontSize: 13 }}>Tỉnh/Đài:</div>
           <Select
             value={selectedProvince}
             onChange={(val) => setSelectedProvince(val)}
-            style={{ width: 180 }}
+            style={{ width: 160 }}
             showSearch
             optionFilterProp="children"
           >
@@ -403,24 +438,79 @@ export default function TicketManagement() {
           </Select>
         </div>
         <div>
-          <div style={{ marginBottom: 4, fontWeight: 500 }}>Ngày xổ:</div>
+          <div style={{ marginBottom: 4, fontWeight: 500, fontSize: 13 }}>Ngày xổ:</div>
           <Select
             value={selectedDate}
             onChange={(val) => setSelectedDate(val)}
-            style={{ width: 250 }}
+            style={{ width: 220 }}
           >
             {dateOptions.map(d => (
               <Option key={d} value={d}>{d}</Option>
             ))}
           </Select>
         </div>
+        <div>
+          <div style={{ marginBottom: 4, fontWeight: 500, fontSize: 13 }}>Loại vé:</div>
+          <Select
+            value={ticketTypeFilter}
+            onChange={(val) => setTicketTypeFilter(val)}
+            style={{ width: 130 }}
+            options={[
+              { label: 'Tất cả loại', value: 'all' },
+              { label: 'Vé Đặc biệt', value: 'special' },
+              { label: 'Vé Thường', value: 'normal' },
+            ]}
+          />
+        </div>
+        <div>
+          <div style={{ marginBottom: 4, fontWeight: 500, fontSize: 13 }}>Tình trạng:</div>
+          <Select
+            value={stockFilter}
+            onChange={(val) => setStockFilter(val)}
+            style={{ width: 130 }}
+            options={[
+              { label: 'Tất cả tình trạng', value: 'all' },
+              { label: 'Còn vé', value: 'available' },
+              { label: 'Đã bán', value: 'sold' },
+            ]}
+          />
+        </div>
+        <div>
+          <div style={{ marginBottom: 4, fontWeight: 500, fontSize: 13 }}>Khóa:</div>
+          <Select
+            value={lockFilter}
+            onChange={(val) => setLockFilter(val)}
+            style={{ width: 120 }}
+            options={[
+              { label: 'Tất cả', value: 'all' },
+              { label: 'Đang mở', value: 'unlocked' },
+              { label: 'Đã khoá', value: 'locked' },
+            ]}
+          />
+        </div>
+        {(ticketTypeFilter !== 'all' || stockFilter !== 'all' || lockFilter !== 'all' || searchText) && (
+          <Button
+            icon={<ReloadOutlined />}
+            onClick={() => {
+              setTicketTypeFilter('all');
+              setStockFilter('all');
+              setLockFilter('all');
+              setSearchText('');
+              setPage(1);
+              fetchTickets('', 1, pageSize);
+            }}
+            style={{ color: '#ff4d4f', borderColor: '#ff4d4f' }}
+          >
+            Xoá bộ lọc
+          </Button>
+        )}
       </div>
 
       <Table 
         style={{ flex: 1 }}
         scroll={{ y: 'calc(100vh - 280px)', x: 'max-content' }}
         columns={columns}
-        dataSource={tickets}
+        dataSource={filteredTickets}
         rowKey="_id"
         loading={loading}
         pagination={{ 

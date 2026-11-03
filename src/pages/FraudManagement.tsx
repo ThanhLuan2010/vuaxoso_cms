@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react';
-import { Typography, Table, Card, Tabs, message, Button, Tag, Space, Modal } from 'antd';
-import { ExclamationCircleOutlined, SecurityScanOutlined } from '@ant-design/icons';
+import React, { useState, useEffect, useMemo } from 'react';
+import { Typography, Table, Card, Tabs, message, Button, Tag, Space, Modal, Input, Select } from 'antd';
+import { ExclamationCircleOutlined, SecurityScanOutlined, ReloadOutlined } from '@ant-design/icons';
 import api from '../services/api';
 import moment from 'moment';
 
@@ -9,8 +9,10 @@ const { TabPane } = Tabs;
 
 export default function FraudManagement() {
   const [loading, setLoading] = useState(false);
-  const [duplicateIps, setDuplicateIps] = useState([]);
-  const [duplicateDevices, setDuplicateDevices] = useState([]);
+  const [duplicateIps, setDuplicateIps] = useState<any[]>([]);
+  const [duplicateDevices, setDuplicateDevices] = useState<any[]>([]);
+  const [searchText, setSearchText] = useState('');
+  const [minCount, setMinCount] = useState<number>(0);
 
   useEffect(() => {
     fetchFraudData();
@@ -28,6 +30,41 @@ export default function FraudManagement() {
       setLoading(false);
     }
   };
+
+  const handleResetFilters = () => {
+    setSearchText('');
+    setMinCount(0);
+  };
+
+  const filteredIps = useMemo(() => {
+    return duplicateIps.filter((item: any) => {
+      if (minCount > 0 && item.count < minCount) return false;
+      if (searchText.trim()) {
+        const query = searchText.toLowerCase().trim();
+        const matchesIp = (item.ip || '').toLowerCase().includes(query);
+        const matchesUser = (item.users || []).some((u: any) => 
+          (u.phone || '').toLowerCase().includes(query) || (u.name || '').toLowerCase().includes(query)
+        );
+        if (!matchesIp && !matchesUser) return false;
+      }
+      return true;
+    });
+  }, [duplicateIps, minCount, searchText]);
+
+  const filteredDevices = useMemo(() => {
+    return duplicateDevices.filter((item: any) => {
+      if (minCount > 0 && item.count < minCount) return false;
+      if (searchText.trim()) {
+        const query = searchText.toLowerCase().trim();
+        const matchesDevice = (item.device || '').toLowerCase().includes(query);
+        const matchesUser = (item.users || []).some((u: any) => 
+          (u.phone || '').toLowerCase().includes(query) || (u.name || '').toLowerCase().includes(query)
+        );
+        if (!matchesDevice && !matchesUser) return false;
+      }
+      return true;
+    });
+  }, [duplicateDevices, minCount, searchText]);
 
   const expandedRowRender = (record: any) => {
     const columns: any = [
@@ -71,6 +108,7 @@ export default function FraudManagement() {
       title: 'Số tài khoản trùng',
       dataIndex: 'count',
       key: 'count',
+      sorter: (a: any, b: any) => a.count - b.count,
       render: (val: number) => <Tag color="orange">{val} tài khoản</Tag>
     },
   ];
@@ -90,13 +128,14 @@ export default function FraudManagement() {
       title: 'Số tài khoản trùng',
       dataIndex: 'count',
       key: 'count',
+      sorter: (a: any, b: any) => a.count - b.count,
       render: (val: number) => <Tag color="orange">{val} tài khoản</Tag>
     },
   ];
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 110px)' }}>
-      <div style={{ flex: 'none', display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
+      <div style={{ flex: 'none', display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
         <Title level={2} style={{ margin: 0 }}>
           <SecurityScanOutlined style={{ marginRight: 12, color: '#ff4d4f' }} />
           Kiểm tra Gian lận
@@ -106,25 +145,58 @@ export default function FraudManagement() {
         </Button>
       </div>
 
+      {/* Filter Bar */}
+      <div style={{ flex: 'none', display: 'flex', flexWrap: 'wrap', gap: 12, alignItems: 'center', marginBottom: 16, background: '#fff', padding: '12px 16px', borderRadius: 8, border: '1px solid #f0f0f0' }}>
+        <Input.Search
+          placeholder="Tìm IP, User Agent, SĐT, Tên user..."
+          allowClear
+          value={searchText}
+          onChange={(e) => setSearchText(e.target.value)}
+          style={{ width: 300 }}
+        />
+
+        <Space align="center" size="small">
+          <span style={{ fontWeight: 600, color: '#333' }}>Trùng tối thiểu:</span>
+          <Select
+            value={minCount}
+            onChange={(val) => setMinCount(val)}
+            style={{ width: 160 }}
+            options={[
+              { value: 0, label: 'Tất cả mức trùng' },
+              { value: 2, label: 'Từ 2 tài khoản' },
+              { value: 3, label: 'Từ 3 tài khoản' },
+              { value: 5, label: 'Từ 5 tài khoản' },
+              { value: 10, label: 'Từ 10 tài khoản' },
+            ]}
+          />
+        </Space>
+
+        {(minCount > 0 || searchText) && (
+          <Button onClick={handleResetFilters} icon={<ReloadOutlined />}>
+            Xoá bộ lọc
+          </Button>
+        )}
+      </div>
+
       <Card>
         <Tabs defaultActiveKey="1">
-          <TabPane tab={<span><ExclamationCircleOutlined /> Trùng IP Đăng nhập ({duplicateIps.length})</span>} key="1">
+          <TabPane tab={<span><ExclamationCircleOutlined /> Trùng IP Đăng nhập ({filteredIps.length})</span>} key="1">
             <Table 
-        style={{ flex: 1 }}
-        scroll={{ y: 'calc(100vh - 260px)', x: 'max-content' }}
+              style={{ flex: 1 }}
+              scroll={{ y: 'calc(100vh - 300px)', x: 'max-content' }}
               columns={ipColumns}
-              dataSource={duplicateIps}
+              dataSource={filteredIps}
               rowKey="ip"
               loading={loading}
               expandable={{ expandedRowRender }}
             />
           </TabPane>
-          <TabPane tab={<span><ExclamationCircleOutlined /> Trùng Thiết bị ({duplicateDevices.length})</span>} key="2">
+          <TabPane tab={<span><ExclamationCircleOutlined /> Trùng Thiết bị ({filteredDevices.length})</span>} key="2">
             <Table 
-        style={{ flex: 1 }}
-        scroll={{ y: 'calc(100vh - 260px)', x: 'max-content' }}
+              style={{ flex: 1 }}
+              scroll={{ y: 'calc(100vh - 300px)', x: 'max-content' }}
               columns={deviceColumns}
-              dataSource={duplicateDevices}
+              dataSource={filteredDevices}
               rowKey="device"
               loading={loading}
               expandable={{ expandedRowRender }}

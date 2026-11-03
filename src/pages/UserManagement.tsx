@@ -15,6 +15,11 @@ export default function UserManagement() {
   const [endDate, setEndDate] = useState<dayjs.Dayjs | null>(null);
   const [memberType, setMemberType] = useState<string>('all');
   const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [balanceFilter, setBalanceFilter] = useState<string>('all');
+  const [currentPage, setCurrentPage] = useState<number>(1);
+  const [pageSize, setPageSize] = useState<number>(10);
+  const [totalUsers, setTotalUsers] = useState<number>(0);
+  const [isServerPaginated, setIsServerPaginated] = useState<boolean>(false);
   const [users, setUsers] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [isDrawerVisible, setIsDrawerVisible] = useState(false);
@@ -42,16 +47,89 @@ export default function UserManagement() {
   const [editingUser, setEditingUser] = useState<any>(null);
   const [form] = Form.useForm();
 
+  const [ordersLoading, setOrdersLoading] = useState(false);
+  const [ordersData, setOrdersData] = useState<any[]>([]);
+  const [ordersTotal, setOrdersTotal] = useState(0);
+  const [ordersPage, setOrdersPage] = useState(1);
+  const [ordersPageSize, setOrdersPageSize] = useState(10);
+
+  const [transactionsLoading, setTransactionsLoading] = useState(false);
+  const [transactionsData, setTransactionsData] = useState<any[]>([]);
+  const [transactionsTotal, setTransactionsTotal] = useState(0);
+  const [transactionsPage, setTransactionsPage] = useState(1);
+  const [transactionsPageSize, setTransactionsPageSize] = useState(10);
+
+  const fetchUserOrders = async (userId: string, page: number = 1, limit: number = 10) => {
+    try {
+      setOrdersLoading(true);
+      const res = await api.get(`/users/${userId}/orders?page=${page}&limit=${limit}`);
+      setOrdersData(res.data.orders || []);
+      setOrdersTotal(res.data.total || 0);
+      setOrdersPage(page);
+      setOrdersPageSize(limit);
+    } catch (error) {
+      console.error(error);
+      message.error('Không thể tải lịch sử mua vé');
+    } finally {
+      setOrdersLoading(false);
+    }
+  };
+
+  const fetchUserTransactions = async (userId: string, page: number = 1, limit: number = 10) => {
+    try {
+      setTransactionsLoading(true);
+      const res = await api.get(`/users/${userId}/transactions?page=${page}&limit=${limit}`);
+      setTransactionsData(res.data.transactions || []);
+      setTransactionsTotal(res.data.total || 0);
+      setTransactionsPage(page);
+      setTransactionsPageSize(limit);
+    } catch (error) {
+      console.error(error);
+      message.error('Không thể tải lịch sử nạp / rút');
+    } finally {
+      setTransactionsLoading(false);
+    }
+  };
+
+  const [activitiesLoading, setActivitiesLoading] = useState(false);
+  const [activitiesData, setActivitiesData] = useState<any[]>([]);
+  const [activitiesTotal, setActivitiesTotal] = useState(0);
+  const [activitiesPage, setActivitiesPage] = useState(1);
+  const [activitiesPageSize, setActivitiesPageSize] = useState(10);
+
+  const fetchUserActivities = async (userId: string, page: number = 1, limit: number = 10) => {
+    try {
+      setActivitiesLoading(true);
+      const res = await api.get(`/users/${userId}/activities?page=${page}&limit=${limit}`);
+      setActivitiesData(res.data.logs || []);
+      setActivitiesTotal(res.data.total || 0);
+      setActivitiesPage(page);
+      setActivitiesPageSize(limit);
+    } catch (error) {
+      console.error(error);
+      message.error('Không thể tải lịch sử hoạt động');
+    } finally {
+      setActivitiesLoading(false);
+    }
+  };
+
   useEffect(() => {
-    if (isDrawerVisible && editingUser && activeTab === 'balance_history') {
-      fetchBalanceHistory(editingUser._id, 1);
+    if (isDrawerVisible && editingUser) {
+      if (activeTab === '2') {
+        fetchUserOrders(editingUser._id, 1, ordersPageSize);
+      } else if (activeTab === '3') {
+        fetchUserTransactions(editingUser._id, 1, transactionsPageSize);
+      } else if (activeTab === '6') {
+        fetchUserActivities(editingUser._id, 1, activitiesPageSize);
+      } else if (activeTab === 'balance_history') {
+        fetchBalanceHistory(editingUser._id, 1);
+      }
     }
   }, [isDrawerVisible, editingUser, activeTab]);
 
   const [historyLoading, setHistoryLoading] = useState(false);
   const [historyData, setHistoryData] = useState({ orders: [], transactions: [] });
   const [userLogs, setUserLogs] = useState<any[]>([]);
-  const [userActionLogs, setUserActionLogs] = useState<any[]>([]);
 
   const [msgModalVisible, setMsgModalVisible] = useState(false);
   const [msgForm] = Form.useForm();
@@ -65,19 +143,41 @@ export default function UserManagement() {
   const [newLoginPassword, setNewLoginPassword] = useState('');
   const [newWithdrawPassword, setNewWithdrawPassword] = useState('');
 
-  const fetchUsers = async (search: string = searchText) => {
+  const fetchUsers = async (
+    pageIndex: number = currentPage,
+    limitCount: number = pageSize,
+    search: string = searchText,
+    start = startDate,
+    end = endDate,
+    mType = memberType,
+    sFilter = statusFilter,
+    bFilter = balanceFilter
+  ) => {
     setLoading(true);
     try {
-      const params: any = {};
+      const params: any = {
+        page: pageIndex,
+        limit: limitCount,
+      };
       if (search) params.search = search;
-      if (startDate) params.startDate = startDate.format('YYYY-MM-DD');
-      if (endDate) params.endDate = endDate.format('YYYY-MM-DD');
-      if (memberType && memberType !== 'all') params.memberType = memberType;
-      if (statusFilter && statusFilter !== 'all') params.status = statusFilter;
+      if (start) params.startDate = start.format('YYYY-MM-DD');
+      if (end) params.endDate = end.format('YYYY-MM-DD');
+      if (mType && mType !== 'all') params.memberType = mType;
+      if (sFilter && sFilter !== 'all') params.status = sFilter;
+      if (bFilter && bFilter !== 'all') params.balanceFilter = bFilter;
 
       const res = await api.get('/users', { params });
-      setUsers(res.data);
-      return res.data;
+      if (res.data && Array.isArray(res.data.users)) {
+        setUsers(res.data.users);
+        setTotalUsers(res.data.total ?? res.data.users.length);
+        setIsServerPaginated(true);
+        return res.data.users;
+      } else if (Array.isArray(res.data)) {
+        setUsers(res.data);
+        setTotalUsers(res.data.length);
+        setIsServerPaginated(false);
+        return res.data;
+      }
     } catch (err) {
       message.error('Lỗi khi tải danh sách user');
     } finally {
@@ -88,7 +188,7 @@ export default function UserManagement() {
   useEffect(() => {
     const handleOpenUser = (phone: string) => {
       setSearchText(phone);
-      fetchUsers(phone).then((data) => {
+      fetchUsers(1, pageSize, phone).then((data) => {
         if (data && data.length > 0) {
           const exactUser = data.find((u: any) => u.phone === phone) || data[0];
           if (exactUser) {
@@ -103,7 +203,7 @@ export default function UserManagement() {
       handleOpenUser(searchPhone);
       localStorage.removeItem('userSearchPhone');
     } else {
-      fetchUsers();
+      fetchUsers(1, pageSize);
     }
 
     const handleOpenUserDetail = (e: any) => {
@@ -121,10 +221,14 @@ export default function UserManagement() {
     setEndDate(null);
     setMemberType('all');
     setStatusFilter('all');
+    setBalanceFilter('all');
     setSearchText('');
+    setCurrentPage(1);
+    fetchUsers(1, pageSize, '', null, null, 'all', 'all', 'all');
   };
 
   const filteredUsers = useMemo(() => {
+    if (isServerPaginated) return users;
     return users.filter((u: any) => {
       // 1. Text search
       if (searchText.trim()) {
@@ -149,7 +253,14 @@ export default function UserManagement() {
         if (curStatus !== statusFilter) return false;
       }
 
-      // 3. Date & Member type filter
+      // 3. Balance filter
+      if (balanceFilter === 'has_balance') {
+        if (!u.balance || u.balance <= 0) return false;
+      } else if (balanceFilter === 'zero_balance') {
+        if (u.balance && u.balance > 0) return false;
+      }
+
+      // 4. Date & Member type filter
       if (!u.createdAt) return true;
       const userCreated = dayjs(u.createdAt);
       if (!userCreated.isValid()) return true;
@@ -187,7 +298,7 @@ export default function UserManagement() {
 
       return true;
     });
-  }, [users, searchText, statusFilter, memberType, startDate, endDate]);
+  }, [users, searchText, statusFilter, balanceFilter, memberType, startDate, endDate, isServerPaginated]);
 
   const showEditDrawer = async (user: any) => {
     setEditingUser(user);
@@ -211,34 +322,26 @@ export default function UserManagement() {
     setIsDrawerVisible(true);
 
     // Fetch History
-    setHistoryLoading(true);
+    setOrdersPage(1);
+    setTransactionsPage(1);
+    setActivitiesPage(1);
+    if (activeTab === '2') {
+      fetchUserOrders(user._id, 1, ordersPageSize);
+    } else if (activeTab === '3') {
+      fetchUserTransactions(user._id, 1, transactionsPageSize);
+    } else if (activeTab === '6') {
+      fetchUserActivities(user._id, 1, activitiesPageSize);
+    }
+
     try {
       // Log the view action
-      await api.post('/logs/view-user', { targetUserId: user._id }).catch(err => console.error('Failed to log view action', err));
-
-      const res = await api.get(`/users/${user._id}/history`);
-      setHistoryData(res.data);
+      api.post('/logs/view-user', { targetUserId: user._id }).catch(err => console.error('Failed to log view action', err));
       
       const adminLogsRes = await api.get(`/logs/user/${user._id}`);
-      const userLogsRes = await api.get(`/logs/user-actions/${user._id}`);
 
       // Filter only notes for the notes section
       const notesOnly = adminLogsRes.data.filter((log: any) => log.details?.includes('Ghi chú:'));
       setUserLogs(notesOnly);
-
-      // Merge Admin actions and User actions for the activity tab, excluding VIEW_USER
-      const mergedActions = [
-        ...adminLogsRes.data.filter((log: any) => log.action !== 'VIEW_USER').map((log: any) => ({
-          ...log,
-          actor: 'Admin'
-        })),
-        ...userLogsRes.data.map((log: any) => ({
-          ...log,
-          actor: 'User'
-        }))
-      ].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-
-      setUserActionLogs(mergedActions);
     } catch (err) {
       message.error('Không thể tải lịch sử người dùng');
     } finally {
@@ -272,7 +375,7 @@ export default function UserManagement() {
       setIsDrawerVisible(false);
       setEditingUser(null);
       setUserLogs([]);
-      fetchUsers();
+      fetchUsers(currentPage, pageSize);
     } catch (error) {
       if (error && (error as any).errorFields) {
         // Validation error
@@ -301,7 +404,7 @@ export default function UserManagement() {
       };
       await api.put(`/users/${user._id}`, payload);
       message.success(`Đã đổi trạng thái`);
-      fetchUsers();
+      fetchUsers(currentPage, pageSize);
     } catch (error) {
       message.error('Lỗi khi cập nhật trạng thái');
     }
@@ -367,6 +470,7 @@ export default function UserManagement() {
       title: 'Số dư (đ)',
       dataIndex: 'balance',
       key: 'balance',
+      sorter: (a: any, b: any) => (a.balance || 0) - (b.balance || 0),
       render: (val: any) => (!canViewField('balance') ? '******' : (
         <span style={{ color: '#52c41a', fontWeight: 'bold' }}>{typeof val === 'number' ? val.toLocaleString('vi-VN') : (val || 0)}</span>
       )),
@@ -375,6 +479,11 @@ export default function UserManagement() {
       title: 'Quyền',
       dataIndex: 'role',
       key: 'role',
+      filters: [
+        { text: 'USER', value: 'user' },
+        { text: 'ADMIN', value: 'admin' },
+      ],
+      onFilter: (value: any, record: any) => record.role === value,
       render: (role: string) => (
         <Tag color={role === 'admin' ? 'purple' : 'green'}>{role?.toUpperCase()}</Tag>
       ),
@@ -384,6 +493,12 @@ export default function UserManagement() {
       dataIndex: 'status',
       key: 'status',
       width: 125,
+      filters: [
+        { text: 'Hoạt động', value: 'active' },
+        { text: 'Đã khoá', value: 'locked' },
+        { text: 'Review', value: 'review' },
+      ],
+      onFilter: (value: any, record: any) => (record.status || 'active') === value,
       render: (status: string) => {
         if (status === 'locked') return <Tag color="error">Đã khoá</Tag>;
         if (status === 'review') return <Tag color="warning">Review</Tag>;
@@ -394,6 +509,7 @@ export default function UserManagement() {
       title: 'Tổng nạp',
       dataIndex: 'totalDeposit',
       key: 'totalDeposit',
+      sorter: (a: any, b: any) => (a.totalDeposit || 0) - (b.totalDeposit || 0),
       render: (val: any) => (!canViewField('totalDepositWithdraw') ? '******' : (
         <span style={{ color: '#1890ff' }}>{typeof val === 'number' ? val.toLocaleString('vi-VN') : (val || 0)} đ</span>
       )),
@@ -402,6 +518,7 @@ export default function UserManagement() {
       title: 'Tổng rút',
       dataIndex: 'totalWithdraw',
       key: 'totalWithdraw',
+      sorter: (a: any, b: any) => (a.totalWithdraw || 0) - (b.totalWithdraw || 0),
       render: (val: any) => (!canViewField('totalDepositWithdraw') ? '******' : (
         <span style={{ color: '#faad14' }}>{typeof val === 'number' ? val.toLocaleString('vi-VN') : (val || 0)} đ</span>
       )),
@@ -423,6 +540,7 @@ export default function UserManagement() {
       dataIndex: 'createdAt',
       key: 'createdAt',
       width: 155,
+      sorter: (a: any, b: any) => dayjs(a.createdAt || 0).valueOf() - dayjs(b.createdAt || 0).valueOf(),
       render: (date: string) => date ? dayjs(date).format('DD/MM/YYYY HH:mm') : '-',
     },
     {
@@ -430,6 +548,7 @@ export default function UserManagement() {
       dataIndex: 'lastLoginAt',
       key: 'lastLoginAt',
       width: 155,
+      sorter: (a: any, b: any) => dayjs(a.lastLoginAt || 0).valueOf() - dayjs(b.lastLoginAt || 0).valueOf(),
       render: (date: string) => date ? dayjs(date).format('DD/MM/YYYY HH:mm') : '-',
     },
     {
@@ -497,7 +616,7 @@ export default function UserManagement() {
         <Title style={{ margin: 0 }} level={3}>Quản lý User</Title>
         <Space wrap>
           <Tag color="blue" style={{ fontSize: 13, padding: '4px 10px', borderRadius: 4 }}>
-            Tổng thành viên: <strong>{users.length}</strong>
+            Tổng thành viên: <strong>{isServerPaginated ? totalUsers : filteredUsers.length}</strong>
           </Tag>
           <Tag color="green" style={{ fontSize: 13, padding: '4px 10px', borderRadius: 4 }}>
             Hoạt động: <strong>{users.filter(u => (u.status || 'active') === 'active').length}</strong>
@@ -518,7 +637,11 @@ export default function UserManagement() {
             format="DD/MM/YYYY"
             placeholder="01/10/2026"
             value={startDate}
-            onChange={(d) => setStartDate(d)}
+            onChange={(d) => {
+              setStartDate(d);
+              setCurrentPage(1);
+              fetchUsers(1, pageSize, searchText, d, endDate, memberType, statusFilter, balanceFilter);
+            }}
             allowClear
             style={{ width: 140 }}
           />
@@ -527,7 +650,11 @@ export default function UserManagement() {
             format="DD/MM/YYYY"
             placeholder="10/10/2026"
             value={endDate}
-            onChange={(d) => setEndDate(d)}
+            onChange={(d) => {
+              setEndDate(d);
+              setCurrentPage(1);
+              fetchUsers(1, pageSize, searchText, startDate, d, memberType, statusFilter, balanceFilter);
+            }}
             allowClear
             style={{ width: 140 }}
           />
@@ -537,7 +664,11 @@ export default function UserManagement() {
           <span style={{ fontWeight: 600, color: '#333' }}>Thành viên:</span>
           <Select
             value={memberType}
-            onChange={(val) => setMemberType(val)}
+            onChange={(val) => {
+              setMemberType(val);
+              setCurrentPage(1);
+              fetchUsers(1, pageSize, searchText, startDate, endDate, val, statusFilter, balanceFilter);
+            }}
             style={{ width: 155 }}
             options={[
               { value: 'all', label: 'Tất cả' },
@@ -551,7 +682,11 @@ export default function UserManagement() {
           <span style={{ fontWeight: 600, color: '#333' }}>Trạng thái:</span>
           <Select
             value={statusFilter}
-            onChange={(val) => setStatusFilter(val)}
+            onChange={(val) => {
+              setStatusFilter(val);
+              setCurrentPage(1);
+              fetchUsers(1, pageSize, searchText, startDate, endDate, memberType, val, balanceFilter);
+            }}
             style={{ width: 155 }}
             options={[
               { value: 'all', label: 'Tất cả' },
@@ -562,16 +697,44 @@ export default function UserManagement() {
           />
         </Space>
 
+        <Space align="center" size="small">
+          <span style={{ fontWeight: 600, color: '#333' }}>Số dư:</span>
+          <Select
+            value={balanceFilter}
+            onChange={(val) => {
+              setBalanceFilter(val);
+              setCurrentPage(1);
+              fetchUsers(1, pageSize, searchText, startDate, endDate, memberType, statusFilter, val);
+            }}
+            style={{ width: 145 }}
+            options={[
+              { value: 'all', label: 'Tất cả số dư' },
+              { value: 'has_balance', label: 'Có số dư (> 0đ)' },
+              { value: 'zero_balance', label: 'Bằng 0đ' },
+            ]}
+          />
+        </Space>
+
         <Input.Search
           placeholder="Tìm IP, thiết bị, họ tên, TKNH, CCCD, SĐT..."
           allowClear
           value={searchText}
-          onChange={(e) => setSearchText(e.target.value)}
-          onSearch={(value) => fetchUsers(value)}
+          onChange={(e) => {
+            const val = e.target.value;
+            setSearchText(val);
+            if (!val) {
+              setCurrentPage(1);
+              fetchUsers(1, pageSize, '', startDate, endDate, memberType, statusFilter, balanceFilter);
+            }
+          }}
+          onSearch={(val) => {
+            setCurrentPage(1);
+            fetchUsers(1, pageSize, val, startDate, endDate, memberType, statusFilter, balanceFilter);
+          }}
           style={{ width: 280 }}
         />
 
-        {(startDate || endDate || memberType !== 'all' || statusFilter !== 'all' || searchText) && (
+        {(startDate || endDate || memberType !== 'all' || statusFilter !== 'all' || balanceFilter !== 'all' || searchText) && (
           <Button onClick={handleResetFilters} icon={<ReloadOutlined />}>
             Đặt lại
           </Button>
@@ -582,19 +745,28 @@ export default function UserManagement() {
         style={{ flex: 1 }}
         scroll={{ y: 'calc(100vh - 300px)', x: 'max-content' }}
         columns={columns}
-        dataSource={filteredUsers}
+        dataSource={isServerPaginated ? users : filteredUsers.slice((currentPage - 1) * pageSize, currentPage * pageSize)}
         rowKey="_id"
         loading={loading}
         pagination={{
+          current: currentPage,
+          pageSize: pageSize,
+          total: isServerPaginated ? totalUsers : filteredUsers.length,
+          showSizeChanger: true,
+          pageSizeOptions: ['10', '20', '50', '100'],
+          onChange: (page, size) => {
+            setCurrentPage(page);
+            setPageSize(size);
+            if (isServerPaginated) {
+              fetchUsers(page, size, searchText, startDate, endDate, memberType, statusFilter, balanceFilter);
+            }
+          },
           showTotal: (total, range) => (
             <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, fontWeight: 500 }}>
-              <span>Tổng số thành viên đã đăng ký: <strong style={{ color: '#1677ff', fontSize: 14 }}>{total}</strong></span>
+              <span>Tổng số thành viên: <strong style={{ color: '#1677ff', fontSize: 14 }}>{total}</strong></span>
               <span style={{ color: '#888' }}>(Hiển thị {range[0]}-{range[1]})</span>
             </div>
           ),
-          pageSize: 10,
-          showSizeChanger: true,
-          pageSizeOptions: ['10', '20', '50', '100'],
         }}
       />
 
@@ -843,13 +1015,29 @@ export default function UserManagement() {
           </Tabs.TabPane>
 
           <Tabs.TabPane tab="Lịch sử Mua vé" key="2">
-            <Spin spinning={historyLoading}>
+            <Spin spinning={ordersLoading}>
               <Table 
-        style={{ flex: 1 }}
-        scroll={{ y: 'calc(100vh - 260px)', x: 'max-content' }}
-                dataSource={historyData.orders}
+                style={{ flex: 1 }}
+                scroll={{ y: 'calc(100vh - 260px)', x: 'max-content' }}
+                dataSource={ordersData}
                 rowKey="_id"
-                pagination={{ pageSize: 5 }}
+                pagination={{
+                  current: ordersPage,
+                  pageSize: ordersPageSize,
+                  total: ordersTotal,
+                  showSizeChanger: true,
+                  pageSizeOptions: ['5', '10', '20', '50'],
+                  onChange: (page, size) => {
+                    setOrdersPage(page);
+                    setOrdersPageSize(size);
+                    if (editingUser) fetchUserOrders(editingUser._id, page, size);
+                  },
+                  showTotal: (total, range) => (
+                    <span style={{ fontSize: 13, color: '#666' }}>
+                      Hiển thị {range[0]}-{range[1]} / <strong>{total}</strong> vé
+                    </span>
+                  )
+                }}
                 columns={[
                   { 
       title: 'Mã Đơn', 
@@ -874,27 +1062,57 @@ export default function UserManagement() {
           </Tabs.TabPane>
 
           <Tabs.TabPane tab="Lịch sử Nạp / Rút" key="3">
-            <Spin spinning={historyLoading}>
+            <Spin spinning={transactionsLoading}>
               <Table 
-        style={{ flex: 1 }}
-        scroll={{ y: 'calc(100vh - 260px)', x: 'max-content' }}
-                dataSource={historyData.transactions}
+                style={{ flex: 1 }}
+                scroll={{ y: 'calc(100vh - 260px)', x: 'max-content' }}
+                dataSource={transactionsData}
                 rowKey="_id"
-                pagination={{ pageSize: 5 }}
+                pagination={{
+                  current: transactionsPage,
+                  pageSize: transactionsPageSize,
+                  total: transactionsTotal,
+                  showSizeChanger: true,
+                  pageSizeOptions: ['5', '10', '20', '50'],
+                  onChange: (page, size) => {
+                    setTransactionsPage(page);
+                    setTransactionsPageSize(size);
+                    if (editingUser) fetchUserTransactions(editingUser._id, page, size);
+                  },
+                  showTotal: (total, range) => (
+                    <span style={{ fontSize: 13, color: '#666' }}>
+                      Hiển thị {range[0]}-{range[1]} / <strong>{total}</strong> giao dịch
+                    </span>
+                  )
+                }}
                 columns={[
                   { 
-      title: 'Mã GD', 
-      dataIndex: 'txId', 
-      key: 'txId', 
-      render: (val: any) => val ? (
-        <a onClick={() => {
-          setIsDrawerVisible(false);
-          window.dispatchEvent(new CustomEvent('changeTab', { detail: 'wallet' }));
-          // Note: Dashboard doesn't have a searchText yet, so it just switches tab
-        }}>{val}</a>
-      ) : '---' 
-    },
-                  { title: 'Loại', dataIndex: 'type', key: 'type', render: val => val === 'deposit' ? <Tag color="green">Nạp tiền</Tag> : <Tag color="red">Rút tiền</Tag> },
+                    title: 'Mã GD', 
+                    dataIndex: 'txId', 
+                    key: 'txId', 
+                    render: (val: any, record: any) => val ? (
+                      <a onClick={() => {
+                        if (record.type === 'win') {
+                          setIsDrawerVisible(false);
+                          window.dispatchEvent(new CustomEvent('openOrder', { detail: { orderId: val, date: record.createdAt } }));
+                        } else {
+                          setIsDrawerVisible(false);
+                          window.dispatchEvent(new CustomEvent('changeTab', { detail: 'wallet' }));
+                        }
+                      }}>{val}</a>
+                    ) : '---' 
+                  },
+                  { 
+                    title: 'Loại', 
+                    dataIndex: 'type', 
+                    key: 'type', 
+                    render: val => {
+                      if (val === 'deposit') return <Tag color="green">Nạp tiền</Tag>;
+                      if (val === 'withdraw') return <Tag color="red">Rút tiền</Tag>;
+                      if (val === 'win') return <Tag color="gold">Thắng cược</Tag>;
+                      return <Tag>{val}</Tag>;
+                    } 
+                  },
                   { title: 'Số tiền', dataIndex: 'amount', key: 'amount', render: val => `${val.toLocaleString()}đ` },
                   {
                     title: 'Trạng thái', dataIndex: 'status', key: 'status', render: val => {
@@ -964,46 +1182,66 @@ export default function UserManagement() {
             </Row>
           </Tabs.TabPane>
           <Tabs.TabPane tab="Lịch sử hoạt động" key="6">
-            <Table
-              dataSource={userActionLogs}
-              rowKey="_id"
-              pagination={{ pageSize: 10 }}
-              columns={[
-                {
-                  title: 'Thời gian',
-                  dataIndex: 'createdAt',
-                  key: 'createdAt',
-                  width: 150,
-                  render: (val) => new Date(val).toLocaleString('vi-VN')
-                },
-                {
-                  title: 'Người thao tác',
-                  dataIndex: 'actor',
-                  key: 'actor',
-                  width: 120,
-                  render: (val, record: any) => val === 'Admin' ? <Tag color="purple">{record.adminName || 'Admin'}</Tag> : <Tag color="green">Khách hàng</Tag>
-                },
-                {
-                  title: 'Hành động',
-                  dataIndex: 'action',
-                  key: 'action',
-                  width: 120,
-                  render: (val) => <Tag color="blue">{val}</Tag>
-                },
-                {
-                  title: 'Chi tiết',
-                  dataIndex: 'details',
-                  key: 'details',
-                },
-                {
-                  title: 'IP',
-                  dataIndex: 'ip',
-                  key: 'ip',
-                  width: 120,
-                  render: (val) => val || '-'
-                }
-              ]}
-            />
+            <Spin spinning={activitiesLoading}>
+              <Table
+                style={{ flex: 1 }}
+                scroll={{ y: 'calc(100vh - 260px)', x: 'max-content' }}
+                dataSource={activitiesData}
+                rowKey="_id"
+                pagination={{
+                  current: activitiesPage,
+                  pageSize: activitiesPageSize,
+                  total: activitiesTotal,
+                  showSizeChanger: true,
+                  pageSizeOptions: ['5', '10', '20', '50'],
+                  onChange: (page, size) => {
+                    setActivitiesPage(page);
+                    setActivitiesPageSize(size);
+                    if (editingUser) fetchUserActivities(editingUser._id, page, size);
+                  },
+                  showTotal: (total, range) => (
+                    <span style={{ fontSize: 13, color: '#666' }}>
+                      Hiển thị {range[0]}-{range[1]} / <strong>{total}</strong> hoạt động
+                    </span>
+                  )
+                }}
+                columns={[
+                  {
+                    title: 'Thời gian',
+                    dataIndex: 'createdAt',
+                    key: 'createdAt',
+                    width: 150,
+                    render: (val) => new Date(val).toLocaleString('vi-VN')
+                  },
+                  {
+                    title: 'Người thao tác',
+                    dataIndex: 'actor',
+                    key: 'actor',
+                    width: 120,
+                    render: (val, record: any) => val === 'Admin' ? <Tag color="purple">{record.adminName || 'Admin'}</Tag> : <Tag color="green">Khách hàng</Tag>
+                  },
+                  {
+                    title: 'Hành động',
+                    dataIndex: 'action',
+                    key: 'action',
+                    width: 120,
+                    render: (val) => <Tag color="blue">{val}</Tag>
+                  },
+                  {
+                    title: 'Chi tiết',
+                    dataIndex: 'details',
+                    key: 'details',
+                  },
+                  {
+                    title: 'IP',
+                    dataIndex: 'ip',
+                    key: 'ip',
+                    width: 120,
+                    render: (val) => val || '-'
+                  }
+                ]}
+              />
+            </Spin>
           </Tabs.TabPane>
                   <Tabs.TabPane tab="Biến động số dư" key="balance_history">
             <Table

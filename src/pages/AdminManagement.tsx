@@ -1,6 +1,6 @@
-import { useState, useEffect } from 'react';
-import { Table, Button, Space, Modal, Form, Input, Tag, Switch, Card, Row, Col, Checkbox, message, Typography, Tabs, Popconfirm, Tooltip } from 'antd';
-import { UserAddOutlined, EditOutlined, DeleteOutlined, SafetyCertificateOutlined, CheckCircleOutlined, CloseCircleOutlined } from '@ant-design/icons';
+import { useState, useEffect, useMemo } from 'react';
+import { Table, Button, Space, Modal, Form, Input, Tag, Switch, Card, Row, Col, Checkbox, message, Typography, Tabs, Popconfirm, Tooltip, Select } from 'antd';
+import { UserAddOutlined, EditOutlined, DeleteOutlined, SafetyCertificateOutlined, CheckCircleOutlined, CloseCircleOutlined, ReloadOutlined } from '@ant-design/icons';
 import api from '../services/api';
 import { useAuthStore } from '../store/useAuthStore';
 
@@ -51,6 +51,9 @@ export default function AdminManagement() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingAdmin, setEditingAdmin] = useState<any>(null);
   const [saving, setSaving] = useState(false);
+  const [searchText, setSearchText] = useState('');
+  const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [roleFilter, setRoleFilter] = useState<string>('all');
   const [form] = Form.useForm();
 
   // State for permissions matrix
@@ -245,6 +248,11 @@ export default function AdminManagement() {
       title: 'Trạng thái',
       dataIndex: 'status',
       key: 'status',
+      filters: [
+        { text: 'Hoạt động', value: 'active' },
+        { text: 'Đã khoá', value: 'locked' },
+      ],
+      onFilter: (value: any, record: any) => record.status === value,
       render: (status: string) => (
         <Tag color={status === 'active' ? 'green' : 'red'}>
           {status === 'active' ? 'Hoạt động' : 'Đã khoá'}
@@ -322,9 +330,26 @@ export default function AdminManagement() {
     },
   ];
 
+  const filteredAdmins = useMemo(() => {
+    return admins.filter(a => {
+      if (statusFilter !== 'all' && a.status !== statusFilter) return false;
+      if (roleFilter !== 'all') {
+        if (roleFilter === 'master' && !a.isMasterAdmin) return false;
+        if (roleFilter === 'sub' && a.isMasterAdmin) return false;
+      }
+      if (searchText.trim()) {
+        const q = searchText.toLowerCase().trim();
+        const matchesName = (a.name || '').toLowerCase().includes(q);
+        const matchesPhone = (a.phone || '').toLowerCase().includes(q);
+        if (!matchesName && !matchesPhone) return false;
+      }
+      return true;
+    });
+  }, [admins, statusFilter, roleFilter, searchText]);
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 110px)' }}>
-      <div style={{ flex: 'none', display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+      <div style={{ flex: 'none', display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
         <div>
           <Title level={3} style={{ margin: 0 }}>Quản lý Admin & Phân quyền</Title>
           <Text type="secondary">Tạo tài khoản quản trị viên và phân quyền chi tiết cho từng chức năng</Text>
@@ -339,10 +364,62 @@ export default function AdminManagement() {
         </Button>
       </div>
 
+      <div style={{ marginBottom: 16, display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'center', background: '#fff', padding: 12, borderRadius: 8 }}>
+        <Input.Search
+          placeholder="Tìm theo Tên admin, SĐT..."
+          allowClear
+          value={searchText}
+          onChange={(e) => setSearchText(e.target.value)}
+          style={{ width: 260 }}
+        />
+
+        <Space size="small">
+          <span style={{ fontWeight: 500, fontSize: 13 }}>Vai trò:</span>
+          <Select
+            value={roleFilter}
+            onChange={(val) => setRoleFilter(val)}
+            style={{ width: 160 }}
+            options={[
+              { label: 'Tất cả vai trò', value: 'all' },
+              { label: 'Master Admin', value: 'master' },
+              { label: 'Quản trị viên', value: 'sub' },
+            ]}
+          />
+        </Space>
+
+        <Space size="small">
+          <span style={{ fontWeight: 500, fontSize: 13 }}>Trạng thái:</span>
+          <Select
+            value={statusFilter}
+            onChange={(val) => setStatusFilter(val)}
+            style={{ width: 140 }}
+            options={[
+              { label: 'Tất cả', value: 'all' },
+              { label: 'Hoạt động', value: 'active' },
+              { label: 'Đã khoá', value: 'locked' },
+            ]}
+          />
+        </Space>
+
+        {(searchText || roleFilter !== 'all' || statusFilter !== 'all') && (
+          <Button
+            icon={<ReloadOutlined />}
+            onClick={() => {
+              setSearchText('');
+              setRoleFilter('all');
+              setStatusFilter('all');
+            }}
+            style={{ color: '#ff4d4f', borderColor: '#ff4d4f' }}
+          >
+            Xoá bộ lọc
+          </Button>
+        )}
+      </div>
+
       <Card bordered={false} style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }} bodyStyle={{ flex: 1, padding: 0, overflow: 'auto' }}>
         <Table
           columns={columns}
-          dataSource={admins}
+          dataSource={filteredAdmins}
           rowKey="_id"
           loading={loading}
           pagination={{ pageSize: 15 }}

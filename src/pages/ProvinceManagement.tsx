@@ -1,6 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Table, Button, Typography, message, Modal, Form, Input, Select, Space, Tag, Popover } from 'antd';
-import { PlusOutlined, DeleteOutlined, SyncOutlined, EditOutlined, MoreOutlined } from '@ant-design/icons';
+import { PlusOutlined, DeleteOutlined, SyncOutlined, EditOutlined, MoreOutlined, ReloadOutlined } from '@ant-design/icons';
 import api from '../services/api';
 
 const { Title } = Typography;
@@ -30,6 +30,9 @@ export default function ProvinceManagement() {
   const [loading, setLoading] = useState(true);
   const [modalVisible, setModalVisible] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [searchText, setSearchText] = useState('');
+  const [regionFilter, setRegionFilter] = useState<string>('all');
+  const [dayFilter, setDayFilter] = useState<number | 'all'>('all');
   const [form] = Form.useForm();
 
   useEffect(() => {
@@ -182,10 +185,25 @@ export default function ProvinceManagement() {
     },
   ];
 
+  const filteredProvinces = useMemo(() => {
+    return provinces.filter(p => {
+      if (regionFilter !== 'all' && p.region !== regionFilter) return false;
+      if (dayFilter !== 'all' && (!p.drawDays || !p.drawDays.includes(dayFilter as number))) return false;
+      if (searchText.trim()) {
+        const q = searchText.toLowerCase().trim();
+        const matchesName = (p.name || '').toLowerCase().includes(q);
+        const matchesCode = (p.code || '').toLowerCase().includes(q);
+        const matchesId = (p.provinceId || '').toLowerCase().includes(q);
+        if (!matchesName && !matchesCode && !matchesId) return false;
+      }
+      return true;
+    });
+  }, [provinces, regionFilter, dayFilter, searchText]);
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 110px)' }}>
-      <div style={{ flex: 'none', display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-        <Title style={{ marginTop: 0, marginBottom: 16 }} level={4}>Cấu hình Tỉnh/Đài Xổ Số Kiến Thiết</Title>
+      <div style={{ flex: 'none', display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+        <Title style={{ marginTop: 0, marginBottom: 0 }} level={4}>Cấu hình Tỉnh/Đài Xổ Số Kiến Thiết</Title>
         <Space>
           <Button
             type="dashed"
@@ -208,11 +226,63 @@ export default function ProvinceManagement() {
         </Space>
       </div>
 
+      <div style={{ marginBottom: 16, display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'center', background: '#fff', padding: 12, borderRadius: 8 }}>
+        <Input.Search
+          placeholder="Tìm theo Tên tỉnh, Mã tỉnh, Viết tắt..."
+          value={searchText}
+          onChange={e => setSearchText(e.target.value)}
+          style={{ width: 260 }}
+          allowClear
+        />
+
+        <Space size="small">
+          <span style={{ fontWeight: 500, fontSize: 13 }}>Khu vực:</span>
+          <Select
+            value={regionFilter}
+            onChange={val => setRegionFilter(val)}
+            style={{ width: 140 }}
+            options={[
+              { label: 'Tất cả khu vực', value: 'all' },
+              { label: 'Miền Bắc (MB)', value: 'MB' },
+              { label: 'Miền Trung (MT)', value: 'MT' },
+              { label: 'Miền Nam (MN)', value: 'MN' },
+            ]}
+          />
+        </Space>
+
+        <Space size="small">
+          <span style={{ fontWeight: 500, fontSize: 13 }}>Lịch quay:</span>
+          <Select
+            value={dayFilter}
+            onChange={val => setDayFilter(val)}
+            style={{ width: 140 }}
+            options={[
+              { label: 'Tất cả các ngày', value: 'all' },
+              ...DAYS_OF_WEEK.map(d => ({ label: d.label, value: d.value }))
+            ]}
+          />
+        </Space>
+
+        {(searchText || regionFilter !== 'all' || dayFilter !== 'all') && (
+          <Button
+            icon={<ReloadOutlined />}
+            onClick={() => {
+              setSearchText('');
+              setRegionFilter('all');
+              setDayFilter('all');
+            }}
+            style={{ color: '#ff4d4f', borderColor: '#ff4d4f' }}
+          >
+            Xoá bộ lọc
+          </Button>
+        )}
+      </div>
+
       <Table 
         style={{ flex: 1 }}
-        scroll={{ y: 'calc(100vh - 260px)', x: 'max-content' }}
+        scroll={{ y: 'calc(100vh - 280px)', x: 'max-content' }}
         columns={columns}
-        dataSource={provinces}
+        dataSource={filteredProvinces}
         rowKey="_id"
         loading={loading}
         pagination={{ pageSize: 20 }}
