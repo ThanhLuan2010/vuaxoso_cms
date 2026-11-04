@@ -2,6 +2,7 @@ import { useEffect, useState, useMemo } from 'react';
 import api from '../services/api';
 import { Table, Button, Space, Form, Input, Select, Modal, Switch, message, InputNumber, Radio, Checkbox, Card, Tag, Typography, Popover } from 'antd';
 import { EditOutlined, MoreOutlined, ReloadOutlined } from '@ant-design/icons';
+import { isDerived3MienGame } from '../utils/gameUtils';
 
 export default function GameManagement() {
   const [games, setGames] = useState<any[]>([]);
@@ -57,7 +58,7 @@ export default function GameManagement() {
 
   const handleSubmit = async (values: any) => {
     try {
-      const isLode = editingGame?.type === 'lode' || editingGame?.code === 'xoso_3mien' || values.code === 'xoso_3mien';
+      const isLode = isDerived3MienGame(editingGame) || isDerived3MienGame({ code: values.code });
       let finalCron = '';
       if (isLode) {
         finalCron = '';
@@ -168,23 +169,23 @@ export default function GameManagement() {
       dataIndex: 'cronExpression',
       key: 'cronExpression',
       render: (text: string, record: any) => {
-        if (record.type === 'lode' || record.code === 'xoso_3mien') {
-          return <Tag color="blue">Theo lịch Kiến Thiết</Tag>;
+          if (isDerived3MienGame(record)) {
+            return <Tag color="blue">Theo lịch Kiến Thiết</Tag>;
+          }
+          return text ? <code>{text}</code> : <span style={{ color: '#999' }}>Không có</span>;
         }
-        return text ? <code>{text}</code> : <span style={{ color: '#999' }}>Không có</span>;
-      }
-    },
+      },
     {
       title: 'Thời gian 1 kỳ',
       dataIndex: 'drawDurationMinutes',
       key: 'drawDurationMinutes',
       render: (val: number, record: any) => {
-        if (record.type === 'lode' || record.code === 'xoso_3mien') {
-          return <Tag color="orange">Theo lịch quay Kiến Thiết</Tag>;
+          if (isDerived3MienGame(record)) {
+            return <Tag color="orange">Theo lịch quay Kiến Thiết</Tag>;
+          }
+          return (val && val > 0 && (record.code || '').toLowerCase().includes('keno')) ? `${val} phút` : <Tag color="orange">Theo lịch quay</Tag>;
         }
-        return (val && val > 0 && (record.code || '').toLowerCase().includes('keno')) ? `${val} phút` : <Tag color="orange">Theo lịch quay</Tag>;
-      }
-    },
+      },
     {
       title: 'Huy hiệu (Nút xanh)',
       dataIndex: 'badge',
@@ -226,7 +227,7 @@ export default function GameManagement() {
     }
   ];
 
-  const isLodeEditing = editingGame?.type === 'lode' || editingGame?.code === 'xoso_3mien';
+  const isLodeEditing = isDerived3MienGame(editingGame);
 
   const filteredGames = useMemo(() => {
     return games.filter(g => {
@@ -301,7 +302,7 @@ export default function GameManagement() {
         )}
       </div>
 
-      <Table 
+      <Table
         style={{ flex: 1 }}
         scroll={{ y: 'calc(100vh - 260px)', x: 'max-content' }}
         columns={columns}
@@ -326,7 +327,7 @@ export default function GameManagement() {
                   ℹ️ Lịch mở thưởng tự động theo Xổ Số Kiến Thiết 3 Miền
                 </Typography.Text>
                 <Typography.Text type="secondary" style={{ fontSize: 13 }}>
-                  Lô Đề 3 Miền không cần cài đặt lịch quay độc lập. Trò chơi tự động lấy lịch quay và kết quả từ 3 đài Kiến Thiết tương ứng:
+                  Trò chơi này ăn theo kết quả Xổ Số Kiến Thiết 3 Miền nên không cần cài đặt lịch quay độc lập. Trò chơi tự động lấy lịch quay và kết quả từ 3 đài Kiến Thiết tương ứng:
                 </Typography.Text>
                 <div style={{ marginLeft: 16, fontSize: 13, color: '#333', lineHeight: 1.8 }}>
                   <div>• <strong>Miền Nam (MN):</strong> Chốt vé 16:10 — Xổ thưởng 16:15</div>
