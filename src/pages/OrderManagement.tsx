@@ -57,7 +57,22 @@ const calculateCostPerNum = (record: any): number | undefined => {
       const pType = (record.playType || '').toLowerCase();
       const gType = (record.gameType || '').toLowerCase();
 
-      if (pType.includes('bao 2 số') || pType.includes('bao lô tô 2 số')) {
+      if (pType.includes('lô 2 số') || pType.includes('lo 2 so')) {
+        const mult = gType === 'mb' ? 27 : 18;
+        baseCost = Math.round(record.totalCost / count / mult);
+      } else if (pType.includes('lô giải 6') || pType.includes('lo giai 6')) {
+        baseCost = Math.round(record.totalCost / count / 3);
+      } else if (pType.includes('lô giải 4') || pType.includes('lo giai 4')) {
+        baseCost = Math.round(record.totalCost / count / 7);
+      } else if (pType.includes('lô giải 3') || pType.includes('lo giai 3') || pType.includes('lô giải 5') || pType.includes('lo giai 5')) {
+        baseCost = Math.round(record.totalCost / count / 6);
+      } else if (pType.includes('lô 3 số') || pType.includes('lo 3 so')) {
+        const mult = gType === 'mb' ? 23 : 17;
+        baseCost = Math.round(record.totalCost / count / mult);
+      } else if (pType.includes('lô 4 số') || pType.includes('lo 4 so')) {
+        const mult = gType === 'mb' ? 20 : 16;
+        baseCost = Math.round(record.totalCost / count / mult);
+      } else if (pType.includes('bao 2 số') || pType.includes('bao lô tô 2 số')) {
         baseCost = Math.round(record.totalCost / count / 13.5);
       } else if (pType.includes('lô tô 5 số')) {
         baseCost = Math.round(record.totalCost / count / 27);

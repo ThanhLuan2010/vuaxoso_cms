@@ -1,4 +1,4 @@
-import { PlusOutlined, SaveOutlined, SyncOutlined, EditOutlined, DeleteOutlined, ReloadOutlined } from '@ant-design/icons';
+import { PlusOutlined, SaveOutlined, SyncOutlined, EditOutlined, DeleteOutlined, ReloadOutlined, ThunderboltOutlined } from '@ant-design/icons';
 import { Button, DatePicker, Form, Input, Modal, Popconfirm, Select, Space, Table, Tag, Typography, message } from 'antd';
 import useAuthStore from '../store/useAuthStore';
 import { useEffect, useState, useMemo } from 'react';
@@ -246,6 +246,86 @@ export default function DrawManagement() {
     }
   };
 
+  const handleRandomizeKienThiet = () => {
+    const isMB = currentKienThietDraw?.game?.code === 'MB';
+    const randDigits = (len: number) => {
+      let s = '';
+      for (let i = 0; i < len; i++) s += Math.floor(Math.random() * 10);
+      return s;
+    };
+
+    if (isMB) {
+      ktForm.setFieldsValue({
+        gdb: randDigits(5),
+        g1: randDigits(5),
+        g2_1: randDigits(5), g2_2: randDigits(5),
+        g3_1: randDigits(5), g3_2: randDigits(5), g3_3: randDigits(5),
+        g3_4: randDigits(5), g3_5: randDigits(5), g3_6: randDigits(5),
+        g4_1: randDigits(4), g4_2: randDigits(4), g4_3: randDigits(4), g4_4: randDigits(4),
+        g5_1: randDigits(4), g5_2: randDigits(4), g5_3: randDigits(4),
+        g5_4: randDigits(4), g5_5: randDigits(4), g5_6: randDigits(4),
+        g6_1: randDigits(3), g6_2: randDigits(3), g6_3: randDigits(3),
+        g7_1: randDigits(2), g7_2: randDigits(2), g7_3: randDigits(2), g7_4: randDigits(2),
+      });
+    } else {
+      ktForm.setFieldsValue({
+        gdb: randDigits(6),
+        g1: randDigits(5),
+        g2: randDigits(5),
+        g3_1: randDigits(5), g3_2: randDigits(5),
+        g4_1: randDigits(5), g4_2: randDigits(5), g4_3: randDigits(5), g4_4: randDigits(5),
+        g4_5: randDigits(5), g4_6: randDigits(5), g4_7: randDigits(5),
+        g5: randDigits(4),
+        g6_1: randDigits(4), g6_2: randDigits(4), g6_3: randDigits(4),
+        g7: randDigits(3),
+        g8: randDigits(2),
+      });
+    }
+    message.success('Đã tự động điền ngẫu nhiên kết quả các giải!');
+  };
+
+  const handleInstantSettle = async (record: any) => {
+    try {
+      const isMB = record.game?.code === 'MB';
+      const isMNMT = ['MN', 'MT'].includes(record.game?.code);
+      const randDigits = (len: number) => {
+        let s = '';
+        for (let i = 0; i < len; i++) s += Math.floor(Math.random() * 10);
+        return s;
+      };
+
+      let numbers: string[] = [];
+      if (isMB) {
+        for (let i = 0; i < 27; i++) {
+          const len = i < 4 ? 5 : (i < 10 ? 5 : (i < 20 ? 4 : (i < 23 ? 3 : 2)));
+          numbers.push(randDigits(len));
+        }
+      } else if (isMNMT) {
+        for (let i = 0; i < 18; i++) {
+          const len = i === 0 ? 6 : (i <= 11 ? 5 : (i <= 15 ? 4 : (i === 16 ? 3 : 2)));
+          numbers.push(randDigits(len));
+        }
+      } else {
+        const count = record.game?.code === 'bingo18' ? 3 : 20;
+        const nums = new Set<string>();
+        while (nums.size < count) {
+          const rnd = Math.floor(Math.random() * (record.game?.code === 'bingo18' ? 6 : 80)) + 1;
+          nums.add(rnd.toString().padStart(2, '0'));
+        }
+        numbers = Array.from(nums);
+      }
+
+      await api.put(`/draws/admin/${record._id}/results`, {
+        winningNumbers: numbers,
+        provinceId: record.provinceId
+      });
+      message.success(`Đã xổ nhanh kỳ ${record.drawCode} và trả thưởng thành công! 🎉`);
+      fetchData();
+    } catch (error) {
+      message.error('Lỗi khi xổ nhanh kỳ quay');
+    }
+  };
+
   const columns: any = [
     {
       title: 'Ngày quay',
@@ -344,22 +424,40 @@ export default function DrawManagement() {
         }
 
         return (
-          <Button
-            type="link"
-            style={{ fontWeight: 500 }}
-            onClick={() => {
-              if (['MB', 'MT', 'MN'].includes(record.game?.code)) {
-                setCurrentKienThietDraw(record);
-                ktForm.resetFields();
-                setIsKienThietModalOpen(true);
-              } else {
-                setEditingDrawId(record._id);
-                setWinningNumbersInput('');
-              }
-            }}
-          >
-            + Nhập kết quả
-          </Button>
+          <Space>
+            <Button
+              type="link"
+              style={{ fontWeight: 500 }}
+              onClick={() => {
+                if (['MB', 'MT', 'MN'].includes(record.game?.code)) {
+                  setCurrentKienThietDraw(record);
+                  ktForm.resetFields();
+                  setIsKienThietModalOpen(true);
+                } else {
+                  setEditingDrawId(record._id);
+                  setWinningNumbersInput('');
+                }
+              }}
+            >
+              + Nhập kết quả
+            </Button>
+            <Popconfirm
+              title="Xổ nhanh & Trả thưởng ngay?"
+              description={`Hệ thống sẽ tự sinh kết quả và trả thưởng tức thì cho tất cả vé cược kỳ ${record.drawCode}?`}
+              onConfirm={() => handleInstantSettle(record)}
+              okText="Xổ ngay"
+              cancelText="Hủy"
+            >
+              <Button
+                size="small"
+                type="primary"
+                icon={<ThunderboltOutlined />}
+                style={{ backgroundColor: '#fa8c16', borderColor: '#fa8c16' }}
+              >
+                Xổ nhanh
+              </Button>
+            </Popconfirm>
+          </Space>
         );
       }
     },
@@ -770,7 +868,10 @@ export default function DrawManagement() {
             </>
           )}
 
-          <Form.Item style={{ marginTop: 24, textAlign: 'right' }}>
+          <Form.Item style={{ marginTop: 24, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <Button icon={<SyncOutlined />} onClick={handleRandomizeKienThiet} style={{ marginRight: 'auto' }}>
+              Điền ngẫu nhiên (Random)
+            </Button>
             <Space>
               <Button onClick={() => setIsKienThietModalOpen(false)}>Hủy</Button>
               <Button type="primary" htmlType="submit">Lưu Kết Quả</Button>
