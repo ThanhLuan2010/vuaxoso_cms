@@ -1,8 +1,12 @@
 @import "tailwindcss";
 
-body {
+html,
+body,
+#root {
+  height: 100%;
   margin: 0;
   padding: 0;
+  overflow: hidden;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial,
     'Noto Sans', sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol',
     'Noto Color Emoji';
@@ -11,4 +15,128 @@ body {
 .ant-modal-body {
   max-height: calc(100vh - 250px) !important;
   overflow-y: auto !important;
+}
+
+/* Page container for pages with tables */
+.cms-page-container {
+  display: flex !important;
+  flex-direction: column !important;
+  height: 100% !important;
+  min-height: 0 !important;
+  flex: 1 1 0% !important;
+  overflow: hidden !important;
+}
+
+/* Fixed header and filter sections */
+.cms-page-header,
+.cms-filter-bar {
+  flex-shrink: 0 !important;
+}
+
+/* Table container that fills 100% remaining space and pushes pagination down */
+.cms-table-fill {
+  display: flex !important;
+  flex-direction: column !important;
+  flex: 1 1 0% !important;
+  min-height: 0 !important;
+  height: 100% !important;
+  overflow: hidden !important;
+}
+
+.cms-table-fill .ant-spin,
+.cms-table-fill .ant-spin-nested-loading {
+  display: flex !important;
+  flex-direction: column !important;
+  flex: 1 1 0% !important;
+  min-height: 0 !important;
+  height: 100% !important;
+  overflow: hidden !important;
+  position: relative !important;
+}
+
+.cms-table-fill .ant-spin-container {
+  display: flex !important;
+  flex-direction: column !important;
+  flex: 1 1 0% !important;
+  min-height: 0 !important;
+  height: 100% !important;
+  overflow: hidden !important;
+}
+
+.cms-table-fill .ant-table {
+  display: flex !important;
+  flex-direction: column !important;
+  flex: 1 1 0% !important;
+  min-height: 0 !important;
+  height: 100% !important;
+  overflow: hidden !important;
+}
+
+.cms-table-fill .ant-table-container {
+  display: flex !important;
+  flex-direction: column !important;
+  flex: 1 1 0% !important;
+  min-height: 0 !important;
+  height: 100% !important;
+  overflow: hidden !important;
+}
+
+.cms-table-fill .ant-table-header {
+  flex-shrink: 0 !important;
+}
+
+.cms-table-fill .ant-table-body {
+  flex: 1 1 0% !important;
+  min-height: 0 !important;
+  overflow: auto !important;
+  max-height: none !important;
+}
+
+.cms-table-fill .ant-table-content {
+  flex: 1 1 0% !important;
+  min-height: 0 !important;
+  height: 100% !important;
+  overflow: auto !important;
+}
+
+.cms-table-fill .ant-pagination,
+.cms-table-fill .ant-table-pagination {
+  flex-shrink: 0 !important;
+  margin-top: auto !important;
+  margin-bottom: 0 !important;
+  padding-top: 12px !important;
+  padding-bottom: 4px !important;
+}
+
+.cms-table-fill .ant-pagination .ant-pagination-total-text,
+.cms-table-fill .ant-table-pagination .ant-pagination-total-text,
+.ant-table-pagination .ant-pagination-total-text {
+  margin-inline-end: auto !important;
+}
+
+/* Custom subtle scrollbars for table body and scrollable page bodies */
+.cms-table-fill .ant-table-body::-webkit-scrollbar,
+.cms-table-fill .ant-table-content::-webkit-scrollbar,
+.cms-scroll-body::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+.cms-table-fill .ant-table-body::-webkit-scrollbar-thumb,
+.cms-table-fill .ant-table-content::-webkit-scrollbar-thumb,
+.cms-scroll-body::-webkit-scrollbar-thumb {
+  background: #d9d9d9;
+  border-radius: 4px;
+}
+
+.cms-table-fill .ant-table-body::-webkit-scrollbar-thumb:hover,
+.cms-table-fill .ant-table-content::-webkit-scrollbar-thumb:hover,
+.cms-scroll-body::-webkit-scrollbar-thumb:hover {
+  background: #bfbfbf;
+}
+
+.cms-table-fill .ant-table-body::-webkit-scrollbar-track,
+.cms-table-fill .ant-table-content::-webkit-scrollbar-track,
+.cms-scroll-body::-webkit-scrollbar-track {
+  background: transparent;
 }

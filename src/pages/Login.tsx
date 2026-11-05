@@ -94,7 +94,7 @@ export default function Login() {
           </Form.Item>
 
           <Form.Item style={{ marginBottom: 0 }}>
-            <Button type="primary" htmlType="submit" block loading={loading}>
+            <Button type="primary" htmlType="submit" block loading={loading} disabled={loading}>
               Đăng nhập
             </Button>
           </Form.Item>

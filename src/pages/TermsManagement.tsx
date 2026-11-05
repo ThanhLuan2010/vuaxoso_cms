@@ -54,7 +54,7 @@ export default function TermsManagement() {
           </Form.Item>
 
           <Form.Item>
-            <Button type="primary" htmlType="submit" icon={<SaveOutlined />} loading={loading} size="large">
+            <Button type="primary" htmlType="submit" icon={<SaveOutlined />} loading={loading} disabled={loading} size="large">
               Lưu nội dung
             </Button>
           </Form.Item>

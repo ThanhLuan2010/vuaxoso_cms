@@ -348,8 +348,8 @@ export default function AdminManagement() {
   }, [admins, statusFilter, roleFilter, searchText]);
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 110px)' }}>
-      <div style={{ flex: 'none', display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+    <div className="cms-page-container">
+      <div className="cms-page-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
         <div>
           <Title level={3} style={{ margin: 0 }}>Quản lý Admin & Phân quyền</Title>
           <Text type="secondary">Tạo tài khoản quản trị viên và phân quyền chi tiết cho từng chức năng</Text>
@@ -364,7 +364,7 @@ export default function AdminManagement() {
         </Button>
       </div>
 
-      <div style={{ marginBottom: 16, display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'center', background: '#fff', padding: 12, borderRadius: 8 }}>
+      <div className="cms-filter-bar" style={{ marginBottom: 16, display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'center', background: '#fff', padding: 12, borderRadius: 8 }}>
         <Input.Search
           placeholder="Tìm theo Tên admin, SĐT..."
           allowClear
@@ -416,15 +416,15 @@ export default function AdminManagement() {
         )}
       </div>
 
-      <Card bordered={false} style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }} bodyStyle={{ flex: 1, padding: 0, overflow: 'auto' }}>
-        <Table
-          columns={columns}
-          dataSource={filteredAdmins}
-          rowKey="_id"
-          loading={loading}
-          pagination={{ pageSize: 15 }}
-        />
-      </Card>
+      <Table
+        className="cms-table-fill"
+        scroll={{ y: '100%', x: 'max-content' }}
+        columns={columns}
+        dataSource={filteredAdmins}
+        rowKey="_id"
+        loading={loading}
+        pagination={{ pageSize: 15 }}
+      />
 
       <Modal
         title={
@@ -433,9 +433,14 @@ export default function AdminManagement() {
           </div>
         }
         open={isModalOpen}
-        onCancel={() => setIsModalOpen(false)}
+        onCancel={() => {
+          if (saving) return;
+          setIsModalOpen(false);
+        }}
         onOk={handleSubmit}
         confirmLoading={saving}
+        okButtonProps={{ loading: saving, disabled: saving }}
+        cancelButtonProps={{ disabled: saving }}
         okText={editingAdmin ? 'Lưu thay đổi' : 'Tạo Admin'}
         cancelText="Huỷ"
         width={850}

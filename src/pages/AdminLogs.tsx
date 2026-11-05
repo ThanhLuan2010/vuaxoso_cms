@@ -285,12 +285,12 @@ export default function AdminLogs() {
   ];
 
   return (
-    <>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+    <div className="cms-page-container">
+      <div className="cms-page-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
         <Title style={{ margin: 0 }} level={3} >Nhật ký Hoạt động</Title>
       </div>
 
-      <div style={{ marginBottom: 16, display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'center', background: '#fff', padding: 12, borderRadius: 8 }}>
+      <div className="cms-filter-bar" style={{ marginBottom: 16, display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'center', background: '#fff', padding: 12, borderRadius: 8 }}>
         <Input.Search
           placeholder="Tìm theo Admin, Hành động, Khách hàng..."
           allowClear
@@ -384,8 +384,8 @@ export default function AdminLogs() {
       </div>
 
       <Table 
-        style={{ flex: 1 }}
-        scroll={{ y: 'calc(100vh - 280px)', x: 'max-content' }}
+        className="cms-table-fill"
+        scroll={{ y: '100%', x: 'max-content' }}
         columns={columns}
         dataSource={logs}
         rowKey="_id"
@@ -408,6 +408,6 @@ export default function AdminLogs() {
           )
         }}
       />
-    </>
+    </div>
   );
 }

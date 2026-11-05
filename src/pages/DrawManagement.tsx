@@ -28,6 +28,11 @@ export default function DrawManagement() {
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [editingDraw, setEditingDraw] = useState<any>(null);
   const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([]);
+  const [creatingDraw, setCreatingDraw] = useState(false);
+  const [savingEditDraw, setSavingEditDraw] = useState(false);
+  const [savingResultId, setSavingResultId] = useState<string | null>(null);
+  const [savingKtResult, setSavingKtResult] = useState(false);
+  const [settlingDrawId, setSettlingDrawId] = useState<string | null>(null);
 
   const { isMasterAdmin, hasPermission } = useAuthStore();
   const isMaster = isMasterAdmin();
@@ -107,6 +112,7 @@ export default function DrawManagement() {
 
   const handleCreateDraw = async (values: any) => {
     try {
+      setCreatingDraw(true);
       await api.post('/draws/admin', {
         gameId: values.gameId,
         drawCode: values.drawCode,
@@ -120,6 +126,8 @@ export default function DrawManagement() {
       fetchData();
     } catch (error) {
       message.error('Lỗi tạo kỳ quay');
+    } finally {
+      setCreatingDraw(false);
     }
   };
 
@@ -165,6 +173,7 @@ export default function DrawManagement() {
 
   const handleSaveEdit = async (values: any) => {
     try {
+      setSavingEditDraw(true);
       const payload: any = {
         drawCode: values.drawCode,
         status: values.status,
@@ -183,6 +192,8 @@ export default function DrawManagement() {
       fetchData();
     } catch (err: any) {
       message.error(err.response?.data?.message || 'Lỗi khi cập nhật kỳ quay');
+    } finally {
+      setSavingEditDraw(false);
     }
   };
 
@@ -219,6 +230,7 @@ export default function DrawManagement() {
 
   const handleSaveResult = async (id: string) => {
     try {
+      setSavingResultId(id);
       const numbers = winningNumbersInput.split(',').map(n => n.trim()).filter(Boolean);
       await api.put(`/draws/admin/${id}/results`, { winningNumbers: numbers });
       message.success('Lưu kết quả thành công');
@@ -226,11 +238,14 @@ export default function DrawManagement() {
       fetchData();
     } catch (error) {
       message.error('Lỗi lưu kết quả');
+    } finally {
+      setSavingResultId(null);
     }
   };
 
   const handleSaveKienThietResult = async (values: any) => {
     try {
+      setSavingKtResult(true);
       const gameCode = currentKienThietDraw?.game?.code;
       let numbers: string[] = [];
       if (gameCode === 'MB') {
@@ -270,6 +285,8 @@ export default function DrawManagement() {
       fetchData();
     } catch (error) {
       message.error('Lỗi lưu kết quả');
+    } finally {
+      setSavingKtResult(false);
     }
   };
 
@@ -313,6 +330,7 @@ export default function DrawManagement() {
 
   const handleInstantSettle = async (record: any) => {
     try {
+      setSettlingDrawId(record._id);
       const isMB = record.game?.code === 'MB';
       const isMNMT = ['MN', 'MT'].includes(record.game?.code);
       const randDigits = (len: number) => {
@@ -350,6 +368,8 @@ export default function DrawManagement() {
       fetchData();
     } catch (error) {
       message.error('Lỗi khi xổ nhanh kỳ quay');
+    } finally {
+      setSettlingDrawId(null);
     }
   };
 
@@ -442,9 +462,9 @@ export default function DrawManagement() {
                 onChange={(e) => setWinningNumbersInput(e.target.value)}
               />
               <Space>
-                <Button size="small" icon={<SyncOutlined />} onClick={() => handleRandomize(record.game)}>Random</Button>
-                <Button size="small" type="primary" icon={<SaveOutlined />} onClick={() => handleSaveResult(record._id)}>Lưu</Button>
-                <Button size="small" type="text" onClick={() => setEditingDrawId(null)}>Hủy</Button>
+                <Button size="small" icon={<SyncOutlined />} onClick={() => handleRandomize(record.game)} disabled={savingResultId === record._id}>Random</Button>
+                <Button size="small" type="primary" icon={<SaveOutlined />} onClick={() => handleSaveResult(record._id)} loading={savingResultId === record._id} disabled={savingResultId === record._id}>Lưu</Button>
+                <Button size="small" type="text" onClick={() => setEditingDrawId(null)} disabled={savingResultId === record._id}>Hủy</Button>
               </Space>
             </Space>
           );
@@ -455,6 +475,7 @@ export default function DrawManagement() {
             <Button
               type="link"
               style={{ fontWeight: 500 }}
+              disabled={settlingDrawId === record._id}
               onClick={() => {
                 if (['MB', 'MT', 'MN'].includes(record.game?.code)) {
                   setCurrentKienThietDraw(record);
@@ -474,12 +495,15 @@ export default function DrawManagement() {
               onConfirm={() => handleInstantSettle(record)}
               okText="Xổ ngay"
               cancelText="Hủy"
+              okButtonProps={{ loading: settlingDrawId === record._id, disabled: settlingDrawId === record._id }}
             >
               <Button
                 size="small"
                 type="primary"
                 icon={<ThunderboltOutlined />}
                 style={{ backgroundColor: '#fa8c16', borderColor: '#fa8c16' }}
+                loading={settlingDrawId === record._id}
+                disabled={settlingDrawId === record._id}
               >
                 Xổ nhanh
               </Button>
@@ -549,8 +573,8 @@ export default function DrawManagement() {
 }, [draws, games, showRedundantDraws, filterStatus, filterProvinceId, filterDate, searchCode]);
 
 return (
-  <div style={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 110px)' }}>
-    <div style={{ flex: 'none', display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+  <div className="cms-page-container">
+    <div className="cms-page-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
       <Title style={{ marginTop: 0, marginBottom: 0 }} level={3} >Quản lý Kỳ quay (Draws)</Title>
       <Space>
         {canDeleteDraw && selectedRowKeys.length > 0 && (
@@ -575,7 +599,7 @@ return (
 
     {redundantDraws.length > 0 && (
       <Alert
-        style={{ marginBottom: 16 }}
+        style={{ marginBottom: 16, flexShrink: 0 }}
         type="warning"
         showIcon
         message={
@@ -611,7 +635,7 @@ return (
       />
     )}
 
-    <div style={{ marginBottom: 16, display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'center', background: '#fff', padding: 12, borderRadius: 8 }}>
+    <div className="cms-filter-bar" style={{ marginBottom: 16, display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'center', background: '#fff', padding: 12, borderRadius: 8 }}>
       <Input.Search
         placeholder="Tìm theo Mã kỳ quay..."
         value={searchCode}
@@ -718,8 +742,8 @@ return (
     </div>
 
     <Table
-      style={{ flex: 1 }}
-      scroll={{ y: 'calc(100vh - 260px)', x: 1350 }}
+      className="cms-table-fill"
+      scroll={{ y: '100%', x: 1350 }}
       columns={columns}
       dataSource={displayDraws}
       rowKey="_id"
@@ -838,8 +862,8 @@ return (
 
         <Form.Item style={{ marginBottom: 0, textAlign: 'right' }}>
           <Space>
-            <Button onClick={() => setIsModalOpen(false)}>Hủy</Button>
-            <Button type="primary" htmlType="submit">Tạo mới</Button>
+            <Button onClick={() => setIsModalOpen(false)} disabled={creatingDraw}>Hủy</Button>
+            <Button type="primary" htmlType="submit" loading={creatingDraw} disabled={creatingDraw}>Tạo mới</Button>
           </Space>
         </Form.Item>
       </Form>
@@ -942,12 +966,12 @@ return (
         )}
 
         <Form.Item style={{ marginTop: 24, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <Button icon={<SyncOutlined />} onClick={handleRandomizeKienThiet} style={{ marginRight: 'auto' }}>
+          <Button icon={<SyncOutlined />} onClick={handleRandomizeKienThiet} style={{ marginRight: 'auto' }} disabled={savingKtResult}>
             Điền ngẫu nhiên (Random)
           </Button>
           <Space>
-            <Button onClick={() => setIsKienThietModalOpen(false)}>Hủy</Button>
-            <Button type="primary" htmlType="submit">Lưu Kết Quả</Button>
+            <Button onClick={() => setIsKienThietModalOpen(false)} disabled={savingKtResult}>Hủy</Button>
+            <Button type="primary" htmlType="submit" loading={savingKtResult} disabled={savingKtResult}>Lưu Kết Quả</Button>
           </Space>
         </Form.Item>
       </Form>
@@ -1037,8 +1061,8 @@ return (
 
         <Form.Item style={{ marginBottom: 0, textAlign: 'right' }}>
           <Space>
-            <Button onClick={() => setIsEditModalOpen(false)}>Hủy</Button>
-            <Button type="primary" htmlType="submit">Lưu thay đổi</Button>
+            <Button onClick={() => setIsEditModalOpen(false)} disabled={savingEditDraw}>Hủy</Button>
+            <Button type="primary" htmlType="submit" loading={savingEditDraw} disabled={savingEditDraw}>Lưu thay đổi</Button>
           </Space>
         </Form.Item>
       </Form>

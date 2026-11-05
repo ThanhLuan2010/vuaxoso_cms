@@ -264,7 +264,7 @@ export default function SettingsManagement() {
       </Card>
 
       <div style={{ maxWidth: 800 }}>
-        <Button type="primary" htmlType="submit" icon={<SaveOutlined />} loading={loading} size="large" block style={{ height: 48, fontSize: 16 }}>
+        <Button type="primary" htmlType="submit" icon={<SaveOutlined />} loading={loading} disabled={loading} size="large" block style={{ height: 48, fontSize: 16 }}>
           Lưu tất cả thay đổi cấu hình
         </Button>
       </div>

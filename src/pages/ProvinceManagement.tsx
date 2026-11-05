@@ -29,6 +29,7 @@ export default function ProvinceManagement() {
   const [provinces, setProvinces] = useState<Province[]>([]);
   const [loading, setLoading] = useState(true);
   const [modalVisible, setModalVisible] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [searchText, setSearchText] = useState('');
   const [regionFilter, setRegionFilter] = useState<string>('all');
@@ -54,6 +55,7 @@ export default function ProvinceManagement() {
 
   const handleSubmit = async () => {
     try {
+      setSubmitting(true);
       const values = await form.validateFields();
       if (editingId) {
         await api.put(`/provinces/admin/${editingId}`, values);
@@ -69,6 +71,8 @@ export default function ProvinceManagement() {
     } catch (error: any) {
       if (error.errorFields) return; // Validation error
       message.error(error.response?.data?.message || 'Có lỗi xảy ra');
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -201,8 +205,8 @@ export default function ProvinceManagement() {
   }, [provinces, regionFilter, dayFilter, searchText]);
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 110px)' }}>
-      <div style={{ flex: 'none', display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+    <div className="cms-page-container">
+      <div className="cms-page-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
         <Title style={{ marginTop: 0, marginBottom: 0 }} level={4}>Cấu hình Tỉnh/Đài Xổ Số Kiến Thiết</Title>
         <Space>
           <Button
@@ -226,7 +230,7 @@ export default function ProvinceManagement() {
         </Space>
       </div>
 
-      <div style={{ marginBottom: 16, display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'center', background: '#fff', padding: 12, borderRadius: 8 }}>
+      <div className="cms-filter-bar" style={{ marginBottom: 16, display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'center', background: '#fff', padding: 12, borderRadius: 8 }}>
         <Input.Search
           placeholder="Tìm theo Tên tỉnh, Mã tỉnh, Viết tắt..."
           value={searchText}
@@ -279,8 +283,8 @@ export default function ProvinceManagement() {
       </div>
 
       <Table 
-        style={{ flex: 1 }}
-        scroll={{ y: 'calc(100vh - 280px)', x: 'max-content' }}
+        className="cms-table-fill"
+        scroll={{ y: '100%', x: 'max-content' }}
         columns={columns}
         dataSource={filteredProvinces}
         rowKey="_id"
@@ -292,7 +296,13 @@ export default function ProvinceManagement() {
         title={editingId ? "Sửa thông tin" : "Thêm Tỉnh/Đài"}
         open={modalVisible}
         onOk={handleSubmit}
-        onCancel={() => setModalVisible(false)}
+        confirmLoading={submitting}
+        okButtonProps={{ loading: submitting, disabled: submitting }}
+        cancelButtonProps={{ disabled: submitting }}
+        onCancel={() => {
+          if (submitting) return;
+          setModalVisible(false);
+        }}
         width={500}
       >
         <Form form={form} layout="vertical">

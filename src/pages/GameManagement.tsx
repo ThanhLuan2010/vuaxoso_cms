@@ -10,6 +10,7 @@ export default function GameManagement() {
   const [typeFilter, setTypeFilter] = useState<string>('all');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [loading, setLoading] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingGame, setEditingGame] = useState<any>(null);
@@ -58,6 +59,7 @@ export default function GameManagement() {
 
   const handleSubmit = async (values: any) => {
     try {
+      setSubmitting(true);
       const isLode = isDerived3MienGame(editingGame) || isDerived3MienGame({ code: values.code });
       let finalCron = '';
       if (isLode) {
@@ -88,6 +90,8 @@ export default function GameManagement() {
       fetchGames();
     } catch (error: any) {
       message.error(error?.response?.data?.message || 'Lỗi xử lý');
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -241,12 +245,12 @@ export default function GameManagement() {
   }, [games, typeFilter, statusFilter]);
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 110px)' }}>
-      <div style={{ flex: 'none', display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+    <div className="cms-page-container">
+      <div className="cms-page-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
         <h2 style={{ fontSize: 24, margin: 0 }}>Quản lý Danh sách Game</h2>
       </div>
 
-      <div style={{ marginBottom: 16, display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'center', background: '#fff', padding: 12, borderRadius: 8 }}>
+      <div className="cms-filter-bar" style={{ marginBottom: 16, display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'center', background: '#fff', padding: 12, borderRadius: 8 }}>
         <Input.Search
           placeholder="Tìm theo Tên game, Mã game..."
           allowClear
@@ -303,8 +307,8 @@ export default function GameManagement() {
       </div>
 
       <Table
-        style={{ flex: 1 }}
-        scroll={{ y: 'calc(100vh - 260px)', x: 'max-content' }}
+        className="cms-table-fill"
+        scroll={{ y: '100%', x: 'max-content' }}
         columns={columns}
         dataSource={filteredGames}
         rowKey="_id"
@@ -455,8 +459,8 @@ export default function GameManagement() {
 
           <Form.Item style={{ textAlign: 'right', margin: 0 }}>
             <Space>
-              <Button onClick={closeModal}>Hủy</Button>
-              <Button type="primary" htmlType="submit">Lưu lại</Button>
+              <Button onClick={closeModal} disabled={submitting}>Hủy</Button>
+              <Button type="primary" htmlType="submit" loading={submitting} disabled={submitting}>Lưu lại</Button>
             </Space>
           </Form.Item>
         </Form>

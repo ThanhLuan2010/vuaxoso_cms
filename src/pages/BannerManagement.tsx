@@ -8,6 +8,7 @@ const { Title } = Typography;
 export default function BannerManagement() {
   const [banners, setBanners] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingBanner, setEditingBanner] = useState<any>(null);
   const [searchText, setSearchText] = useState('');
@@ -63,6 +64,7 @@ export default function BannerManagement() {
 
   const handleSaveBanner = async (values: any) => {
     try {
+      setSubmitting(true);
       if (editingBanner) {
         await api.put(`/banners/${editingBanner._id}`, values);
         message.success('Cập nhật banner thành công');
@@ -74,6 +76,8 @@ export default function BannerManagement() {
       fetchBanners();
     } catch (error) {
       message.error('Lỗi lưu banner');
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -141,8 +145,8 @@ export default function BannerManagement() {
   ];
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 110px)' }}>
-      <div style={{ flex: 'none', display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+    <div className="cms-page-container">
+      <div className="cms-page-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
         <Title style={{ margin: 0 }} level={3} >Quản lý Banner</Title>
         <Button type="primary" icon={<PlusOutlined />} onClick={() => handleOpenModal()}>
           Thêm Banner
@@ -150,7 +154,7 @@ export default function BannerManagement() {
       </div>
 
       {/* Filter Bar */}
-      <div style={{ flex: 'none', display: 'flex', flexWrap: 'wrap', gap: 12, alignItems: 'center', marginBottom: 16, background: '#fff', padding: '12px 16px', borderRadius: 8, border: '1px solid #f0f0f0' }}>
+      <div className="cms-filter-bar" style={{ display: 'flex', flexWrap: 'wrap', gap: 12, alignItems: 'center', marginBottom: 16, background: '#fff', padding: '12px 16px', borderRadius: 8, border: '1px solid #f0f0f0' }}>
         <Input.Search
           placeholder="Tìm URL ảnh, thứ tự..."
           allowClear
@@ -181,8 +185,8 @@ export default function BannerManagement() {
       </div>
 
       <Table 
-        style={{ flex: 1 }}
-        scroll={{ y: 'calc(100vh - 260px)', x: 'max-content' }}
+        className="cms-table-fill"
+        scroll={{ y: '100%', x: 'max-content' }}
         columns={columns}
         dataSource={filteredBanners}
         rowKey="_id"
@@ -193,7 +197,10 @@ export default function BannerManagement() {
       <Modal
         title={editingBanner ? "Sửa Banner" : "Thêm Banner mới"}
         open={isModalOpen}
-        onCancel={() => setIsModalOpen(false)}
+        onCancel={() => {
+          if (submitting) return;
+          setIsModalOpen(false);
+        }}
         footer={null}
       >
         <Form
@@ -225,7 +232,7 @@ export default function BannerManagement() {
           </Form.Item>
 
           <Form.Item>
-            <Button type="primary" htmlType="submit" style={{ width: '100%' }}>
+            <Button type="primary" htmlType="submit" loading={submitting} disabled={submitting} style={{ width: '100%' }}>
               Lưu Banner
             </Button>
           </Form.Item>

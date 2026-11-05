@@ -22,6 +22,10 @@ export default function UserManagement() {
   const [isServerPaginated, setIsServerPaginated] = useState<boolean>(false);
   const [users, setUsers] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
+  const [updatingUser, setUpdatingUser] = useState(false);
+  const [togglingStatusId, setTogglingStatusId] = useState<string | null>(null);
+  const [resettingLoginPwd, setResettingLoginPwd] = useState(false);
+  const [resettingWithdrawPwd, setResettingWithdrawPwd] = useState(false);
   const [isDrawerVisible, setIsDrawerVisible] = useState(false);
   const [balanceHistoryData, setBalanceHistoryData] = useState<any[]>([]);
   const [balanceHistoryLoading, setBalanceHistoryLoading] = useState(false);
@@ -357,6 +361,7 @@ export default function UserManagement() {
 
   const handleUpdate = async () => {
     try {
+      setUpdatingUser(true);
       const values = await form.validateFields();
 
       const payload = {
@@ -382,11 +387,14 @@ export default function UserManagement() {
         return;
       }
       message.error('Lỗi khi cập nhật user');
+    } finally {
+      setUpdatingUser(false);
     }
   };
 
   const handleToggleStatus = async (user: any, newStatus: string) => {
     try {
+      setTogglingStatusId(user._id);
       const payload = {
         name: user.name,
         phone: user.phone,
@@ -407,28 +415,36 @@ export default function UserManagement() {
       fetchUsers(currentPage, pageSize);
     } catch (error) {
       message.error('Lỗi khi cập nhật trạng thái');
+    } finally {
+      setTogglingStatusId(null);
     }
   };
 
   const handleResetLoginPassword = async () => {
     if (!newLoginPassword) return message.warning('Vui lòng nhập mật khẩu mới');
     try {
+      setResettingLoginPwd(true);
       await api.post(`/users/${editingUser._id}/reset-password`, { newPassword: newLoginPassword });
       message.success('Đặt lại mật khẩu đăng nhập thành công');
       setNewLoginPassword('');
     } catch (err: any) {
       message.error(err.response?.data?.message || 'Lỗi khi đặt lại mật khẩu');
+    } finally {
+      setResettingLoginPwd(false);
     }
   };
 
   const handleResetWithdrawPassword = async () => {
     if (!newWithdrawPassword) return message.warning('Vui lòng nhập mật khẩu mới');
     try {
+      setResettingWithdrawPwd(true);
       await api.post(`/users/${editingUser._id}/reset-withdraw-password`, { newPassword: newWithdrawPassword });
       message.success('Đặt lại mật khẩu rút tiền thành công');
       setNewWithdrawPassword('');
     } catch (err: any) {
       message.error(err.response?.data?.message || 'Lỗi khi đặt lại mật khẩu');
+    } finally {
+      setResettingWithdrawPwd(false);
     }
   };
 
@@ -582,20 +598,50 @@ export default function UserManagement() {
               {canUpdateUser && (
                 <>
                   {record.status === 'locked' ? (
-                    <Button size="small" icon={<UnlockOutlined />} onClick={() => handleToggleStatus(record, 'active')} block>
+                    <Button
+                      size="small"
+                      icon={<UnlockOutlined />}
+                      onClick={() => handleToggleStatus(record, 'active')}
+                      loading={togglingStatusId === record._id}
+                      disabled={togglingStatusId === record._id}
+                      block
+                    >
                       Mở Khoá
                     </Button>
                   ) : (
-                    <Button size="small" danger icon={<LockOutlined />} onClick={() => handleToggleStatus(record, 'locked')} block>
+                    <Button
+                      size="small"
+                      danger
+                      icon={<LockOutlined />}
+                      onClick={() => handleToggleStatus(record, 'locked')}
+                      loading={togglingStatusId === record._id}
+                      disabled={togglingStatusId === record._id}
+                      block
+                    >
                       Khoá
                     </Button>
                   )}
                   {record.status === 'review' ? (
-                    <Button size="small" icon={<EyeInvisibleOutlined />} onClick={() => handleToggleStatus(record, 'active')} block>
+                    <Button
+                      size="small"
+                      icon={<EyeInvisibleOutlined />}
+                      onClick={() => handleToggleStatus(record, 'active')}
+                      loading={togglingStatusId === record._id}
+                      disabled={togglingStatusId === record._id}
+                      block
+                    >
                       Bỏ Review
                     </Button>
                   ) : (
-                    <Button size="small" style={{ color: '#fa8c16', borderColor: '#fa8c16' }} icon={<EyeOutlined />} onClick={() => handleToggleStatus(record, 'review')} block disabled={record.status === 'locked'}>
+                    <Button
+                      size="small"
+                      style={{ color: '#fa8c16', borderColor: '#fa8c16' }}
+                      icon={<EyeOutlined />}
+                      onClick={() => handleToggleStatus(record, 'review')}
+                      loading={togglingStatusId === record._id}
+                      disabled={record.status === 'locked' || togglingStatusId === record._id}
+                      block
+                    >
                       Review
                     </Button>
                   )}
@@ -611,8 +657,8 @@ export default function UserManagement() {
   ];
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 110px)' }}>
-      <div style={{ flex: 'none', display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+    <div className="cms-page-container">
+      <div className="cms-page-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
         <Title style={{ margin: 0 }} level={3}>Quản lý User</Title>
         <Space wrap>
           <Tag color="blue" style={{ fontSize: 13, padding: '4px 10px', borderRadius: 4 }}>
@@ -630,7 +676,7 @@ export default function UserManagement() {
         </Space>
       </div>
 
-      <div style={{ flex: 'none', display: 'flex', flexWrap: 'wrap', gap: 12, alignItems: 'center', marginBottom: 16, background: '#fff', padding: '12px 16px', borderRadius: 8, border: '1px solid #f0f0f0' }}>
+      <div className="cms-filter-bar" style={{ display: 'flex', flexWrap: 'wrap', gap: 12, alignItems: 'center', marginBottom: 16, background: '#fff', padding: '12px 16px', borderRadius: 8, border: '1px solid #f0f0f0' }}>
         <Space align="center" size="small">
           <span style={{ fontWeight: 600, color: '#333' }}>Từ:</span>
           <DatePicker
@@ -742,8 +788,8 @@ export default function UserManagement() {
       </div>
 
       <Table 
-        style={{ flex: 1 }}
-        scroll={{ y: 'calc(100vh - 300px)', x: 'max-content' }}
+        className="cms-table-fill"
+        scroll={{ y: '100%', x: 'max-content' }}
         columns={columns}
         dataSource={isServerPaginated ? users : filteredUsers.slice((currentPage - 1) * pageSize, currentPage * pageSize)}
         rowKey="_id"
@@ -777,8 +823,8 @@ export default function UserManagement() {
         open={isDrawerVisible}
         extra={
           <Space>
-            <Button onClick={handleCancel}>Đóng</Button>
-            {canUpdateUser && <Button type="primary" onClick={handleUpdate}>Lưu thay đổi</Button>}
+            <Button onClick={handleCancel} disabled={updatingUser}>Đóng</Button>
+            {canUpdateUser && <Button type="primary" onClick={handleUpdate} loading={updatingUser} disabled={updatingUser}>Lưu thay đổi</Button>}
           </Space>
         }
       >
@@ -1158,7 +1204,13 @@ export default function UserManagement() {
                 />
               </Col>
               <Col span={8}>
-                <Button type="primary" danger disabled={!canUpdateUser} onClick={handleResetLoginPassword}>
+                <Button
+                  type="primary"
+                  danger
+                  disabled={!canUpdateUser || resettingLoginPwd}
+                  loading={resettingLoginPwd}
+                  onClick={handleResetLoginPassword}
+                >
                   Đặt lại
                 </Button>
               </Col>
@@ -1175,7 +1227,13 @@ export default function UserManagement() {
                 />
               </Col>
               <Col span={8}>
-                <Button type="primary" danger disabled={!canUpdateUser} onClick={handleResetWithdrawPassword}>
+                <Button
+                  type="primary"
+                  danger
+                  disabled={!canUpdateUser || resettingWithdrawPwd}
+                  loading={resettingWithdrawPwd}
+                  onClick={handleResetWithdrawPassword}
+                >
                   Đặt lại
                 </Button>
               </Col>
@@ -1310,11 +1368,16 @@ export default function UserManagement() {
       <Modal
         title={`Gửi tin nhắn tới: ${selectedUserForMsg?.name || ''}`}
         open={msgModalVisible}
-        onCancel={() => setMsgModalVisible(false)}
+        onCancel={() => {
+          if (sendingMsg) return;
+          setMsgModalVisible(false);
+        }}
         onOk={() => msgForm.submit()}
         confirmLoading={sendingMsg}
         okText="Gửi"
         cancelText="Hủy"
+        okButtonProps={{ loading: sendingMsg, disabled: sendingMsg }}
+        cancelButtonProps={{ disabled: sendingMsg }}
       >
         <Form
           form={msgForm}
