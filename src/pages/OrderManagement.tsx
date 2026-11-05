@@ -1062,11 +1062,12 @@ export default function OrderManagement() {
 
   return (
     <div className="cms-page-container">
-      <div className="cms-page-header" style={{ marginBottom: 12 }}>
+      <div className="cms-page-header" style={{ marginBottom: 12, flexShrink: 0 }}>
         <Title style={{ marginTop: 0, marginBottom: 0 }} level={4}>Quản lý Đặt vé (Orders)</Title>
       </div>
 
-      <div style={{ flex: 'none' }}>
+      <div className="cms-scroll-body" style={{ flex: 1, minHeight: 0, overflowY: 'auto', overflowX: 'hidden', paddingRight: 4 }}>
+        <div style={{ flex: 'none' }}>
         <Row gutter={16} style={{ marginBottom: 16 }}>
           <Col span={6}>
             <Card bordered={false}>
@@ -1364,8 +1365,7 @@ export default function OrderManagement() {
       )}
 
       <Table 
-        className="cms-table-fill"
-        scroll={{ y: '100%', x: 'max-content' }}
+        scroll={{ x: 'max-content' }}
         columns={columns}
         dataSource={isServerPaginated ? orders : filteredOrders.slice((currentPage - 1) * pageSize, currentPage * pageSize)}
         rowKey="_id"
@@ -1391,6 +1391,7 @@ export default function OrderManagement() {
           ),
         }}
       />
+      </div>
 
       <Modal
         title={`Tải hình ảnh vé - ${selectedOrder?.orderId}`}

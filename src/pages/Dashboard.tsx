@@ -223,8 +223,8 @@ export default function Dashboard() {
       title: 'Người dùng',
       key: 'user',
       render: (_: any, record: any) => (
-        <div 
-          style={{ cursor: 'pointer', padding: '4px', borderRadius: '4px', backgroundColor: '#f0f5ff' }} 
+        <div
+          style={{ cursor: 'pointer', padding: '4px', borderRadius: '4px', backgroundColor: '#f0f5ff' }}
           onClick={() => {
             if (record.user?.phone) {
               localStorage.setItem('userSearchPhone', record.user.phone);
@@ -262,7 +262,7 @@ export default function Dashboard() {
         const isCrypto = record.paymentMethod === 'binance' || (record.type === 'withdraw' && record.destinationInfo?.network);
         const isScratch = record.paymentMethod === 'scratch';
         const displayAmount = isScratch ? Math.floor(amount * 0.83) : amount;
-        
+
         return (
           <div>
             <span style={{ fontWeight: 'bold', color: isScratch ? '#faad14' : 'inherit' }}>
@@ -600,7 +600,7 @@ export default function Dashboard() {
                 <div className="cms-page-header" style={{ display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 16 }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
                     <Title level={3} style={{ margin: 0, whiteSpace: 'nowrap' }}>Quản lý Nạp / Rút</Title>
-                    
+
                     <Space wrap size="middle">
                       <Space size="small">
                         <span style={{ fontWeight: 600, fontSize: '13px' }}>Loại GD:</span>
@@ -638,7 +638,7 @@ export default function Dashboard() {
                     </Space>
                   </div>
 
-                  <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 12 }}>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 12, }}>
                     <Space size="small">
                       <span style={{ fontWeight: 500, fontSize: '13px' }}>Nạp tiền:</span>
                       <Select
@@ -783,11 +783,11 @@ export default function Dashboard() {
                       <p><strong>Người dùng:</strong> {currentRecord.user?.name} - {currentRecord.user?.phone}</p>
                       <p><strong>Loại:</strong> {currentRecord.type === 'deposit' ? 'NẠP TIỀN' : 'RÚT TIỀN'}</p>
                       <p>
-                        <strong>Số tiền:</strong> 
-                        {currentRecord.paymentMethod === 'binance' && currentRecord.destinationInfo?.amountUsdt 
-                          ? ` ${currentRecord.destinationInfo.amountUsdt.toLocaleString()} USDT` 
+                        <strong>Số tiền:</strong>
+                        {currentRecord.paymentMethod === 'binance' && currentRecord.destinationInfo?.amountUsdt
+                          ? ` ${currentRecord.destinationInfo.amountUsdt.toLocaleString()} USDT`
                           : ` ${currentRecord.paymentMethod === 'scratch' ? Math.floor(currentRecord.amount * 0.83).toLocaleString() : currentRecord.amount?.toLocaleString()} đ`}
-                        
+
                         {currentRecord.paymentMethod === 'scratch' && (
                           <span style={{ fontSize: '12px', color: '#888', marginLeft: '8px' }}>
                             (Gốc: {currentRecord.amount?.toLocaleString()} đ - Phí 17%)
@@ -814,7 +814,7 @@ export default function Dashboard() {
                             } else {
                               dest = { ...dest, isBank: !!dest.bankName };
                             }
-                            
+
                             let qrUrl = '';
                             if (dest.isBank) {
                               if (dest.qrCode && dest.qrCode !== 'undefined' && dest.qrCode !== 'null') {
@@ -829,7 +829,7 @@ export default function Dashboard() {
                                 qrUrl = `https://quickchart.io/qr?text=${encodeURIComponent(dest.address)}&size=150`;
                               }
                             }
-                            
+
                             return (
                               <div>
                                 {dest.isBank ? (

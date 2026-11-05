@@ -1,6 +1,8 @@
 @import "tailwindcss";
 
-html, body, #root {
+html,
+body,
+#root {
   height: 100%;
   margin: 0;
   padding: 0;
@@ -41,6 +43,7 @@ html, body, #root {
   overflow: hidden !important;
 }
 
+.cms-table-fill .ant-spin,
 .cms-table-fill .ant-spin-nested-loading {
   display: flex !important;
   flex-direction: column !important;
@@ -48,6 +51,7 @@ html, body, #root {
   min-height: 0 !important;
   height: 100% !important;
   overflow: hidden !important;
+  position: relative !important;
 }
 
 .cms-table-fill .ant-spin-container {
@@ -64,6 +68,7 @@ html, body, #root {
   flex-direction: column !important;
   flex: 1 1 0% !important;
   min-height: 0 !important;
+  height: 100% !important;
   overflow: hidden !important;
 }
 
@@ -83,20 +88,19 @@ html, body, #root {
 .cms-table-fill .ant-table-body {
   flex: 1 1 0% !important;
   min-height: 0 !important;
-  overflow-y: auto !important;
+  overflow: auto !important;
   max-height: none !important;
 }
 
 .cms-table-fill .ant-table-content {
-  display: flex !important;
-  flex-direction: column !important;
   flex: 1 1 0% !important;
   min-height: 0 !important;
   height: 100% !important;
   overflow: auto !important;
 }
 
-.cms-table-fill .ant-pagination {
+.cms-table-fill .ant-pagination,
+.cms-table-fill .ant-table-pagination {
   flex-shrink: 0 !important;
   margin-top: auto !important;
   margin-bottom: 0 !important;
@@ -104,3 +108,35 @@ html, body, #root {
   padding-bottom: 4px !important;
 }
 
+.cms-table-fill .ant-pagination .ant-pagination-total-text,
+.cms-table-fill .ant-table-pagination .ant-pagination-total-text,
+.ant-table-pagination .ant-pagination-total-text {
+  margin-inline-end: auto !important;
+}
+
+/* Custom subtle scrollbars for table body and scrollable page bodies */
+.cms-table-fill .ant-table-body::-webkit-scrollbar,
+.cms-table-fill .ant-table-content::-webkit-scrollbar,
+.cms-scroll-body::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+.cms-table-fill .ant-table-body::-webkit-scrollbar-thumb,
+.cms-table-fill .ant-table-content::-webkit-scrollbar-thumb,
+.cms-scroll-body::-webkit-scrollbar-thumb {
+  background: #d9d9d9;
+  border-radius: 4px;
+}
+
+.cms-table-fill .ant-table-body::-webkit-scrollbar-thumb:hover,
+.cms-table-fill .ant-table-content::-webkit-scrollbar-thumb:hover,
+.cms-scroll-body::-webkit-scrollbar-thumb:hover {
+  background: #bfbfbf;
+}
+
+.cms-table-fill .ant-table-body::-webkit-scrollbar-track,
+.cms-table-fill .ant-table-content::-webkit-scrollbar-track,
+.cms-scroll-body::-webkit-scrollbar-track {
+  background: transparent;
+}
