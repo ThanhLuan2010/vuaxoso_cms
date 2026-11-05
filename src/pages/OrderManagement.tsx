@@ -1061,54 +1061,56 @@ export default function OrderManagement() {
   ];
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 110px)' }}>
-      <div style={{ flex: 'none', marginBottom: 16 }}>
-        <Title style={{ marginTop: 0, marginBottom: 16 }} level={4}>Quản lý Đặt vé (Orders)</Title>
+    <div className="cms-page-container">
+      <div className="cms-page-header" style={{ marginBottom: 12 }}>
+        <Title style={{ marginTop: 0, marginBottom: 0 }} level={4}>Quản lý Đặt vé (Orders)</Title>
       </div>
 
-      <Row gutter={16} style={{ marginBottom: 24 }}>
-        <Col span={6}>
-          <Card bordered={false}>
-            <Statistic
-              title="Số vé bán ra"
-              value={summaryData.totalTickets}
-              valueStyle={{ color: '#1890ff' }}
-            />
-          </Card>
-        </Col>
-        <Col span={6}>
-          <Card bordered={false}>
-            <Statistic
-              title="Tổng tiền bán ra"
-              value={summaryData.totalSales}
-              suffix="đ"
-              valueStyle={{ color: '#3f8600' }}
-            />
-          </Card>
-        </Col>
-        <Col span={6}>
-          <Card bordered={false}>
-            <Statistic
-              title="Tổng tiền khách thắng"
-              value={summaryData.totalPrize}
-              suffix="đ"
-              valueStyle={{ color: '#cf1322' }}
-            />
-          </Card>
-        </Col>
-        <Col span={6}>
-          <Card bordered={false}>
-            <Statistic
-              title="Tổng tiền khách thua"
-              value={summaryData.totalLoss}
-              suffix="đ"
-              valueStyle={{ color: '#d48806' }}
-            />
-          </Card>
-        </Col>
-      </Row>
+      <div style={{ flex: 'none' }}>
+        <Row gutter={16} style={{ marginBottom: 16 }}>
+          <Col span={6}>
+            <Card bordered={false}>
+              <Statistic
+                title="Số vé bán ra"
+                value={summaryData.totalTickets}
+                valueStyle={{ color: '#1890ff' }}
+              />
+            </Card>
+          </Col>
+          <Col span={6}>
+            <Card bordered={false}>
+              <Statistic
+                title="Tổng tiền bán ra"
+                value={summaryData.totalSales}
+                suffix="đ"
+                valueStyle={{ color: '#3f8600' }}
+              />
+            </Card>
+          </Col>
+          <Col span={6}>
+            <Card bordered={false}>
+              <Statistic
+                title="Tổng tiền khách thắng"
+                value={summaryData.totalPrize}
+                suffix="đ"
+                valueStyle={{ color: '#cf1322' }}
+              />
+            </Card>
+          </Col>
+          <Col span={6}>
+            <Card bordered={false}>
+              <Statistic
+                title="Tổng tiền khách thua"
+                value={summaryData.totalLoss}
+                suffix="đ"
+                valueStyle={{ color: '#d48806' }}
+              />
+            </Card>
+          </Col>
+        </Row>
+      </div>
 
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 16, background: '#fff', padding: 16, borderRadius: 8, boxShadow: '0 1px 2px rgba(0,0,0,0.03)' }}>
+      <div className="cms-filter-bar" style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 12, background: '#fff', padding: 12, borderRadius: 8, boxShadow: '0 1px 2px rgba(0,0,0,0.03)' }}>
         {/* Hàng 1: Tìm kiếm & Lọc Kết quả & Tỉnh/Đài */}
         <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 12 }}>
           <Input.Search 
@@ -1362,8 +1364,8 @@ export default function OrderManagement() {
       )}
 
       <Table 
-        style={{ flex: 1 }}
-        scroll={{ y: 'calc(100vh - 380px)', x: 'max-content' }}
+        className="cms-table-fill"
+        scroll={{ y: '100%', x: 'max-content' }}
         columns={columns}
         dataSource={isServerPaginated ? orders : filteredOrders.slice((currentPage - 1) * pageSize, currentPage * pageSize)}
         rowKey="_id"
@@ -1394,11 +1396,14 @@ export default function OrderManagement() {
         title={`Tải hình ảnh vé - ${selectedOrder?.orderId}`}
         open={uploadModalVisible}
         onOk={handleUpload}
-        onCancel={() => setUploadModalVisible(false)}
+        onCancel={() => {
+          if (uploading) return;
+          setUploadModalVisible(false);
+        }}
         confirmLoading={uploading}
         footer={[
-          <Button key="cancel" onClick={() => setUploadModalVisible(false)}>Huỷ</Button>,
-          <Button key="submit" type="primary" onClick={handleUpload} loading={uploading}>Xác nhận & Tải lên</Button>
+          <Button key="cancel" onClick={() => setUploadModalVisible(false)} disabled={uploading}>Huỷ</Button>,
+          <Button key="submit" type="primary" onClick={handleUpload} loading={uploading} disabled={uploading}>Xác nhận & Tải lên</Button>
         ]}
       >
         <Upload
@@ -1581,6 +1586,7 @@ export default function OrderManagement() {
               return newWon < oldWon;
             })()}
             loading={submittingEdit}
+            disabled={submittingEdit}
             onClick={handleSubmitEditResult}
           >
             Lưu thay đổi & Báo cáo Lịch sử hoạt động

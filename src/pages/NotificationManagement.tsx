@@ -186,8 +186,8 @@ export default function NotificationManagement() {
   }, [notifications, typeFilter, recipientFilter]);
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 110px)' }}>
-      <div style={{ flex: 'none', display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+    <div className="cms-page-container">
+      <div className="cms-page-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
         <Title style={{ marginTop: 0, marginBottom: 0 }} level={4} >Quản lý Thông báo</Title>
         <Button
           type="primary"
@@ -201,7 +201,7 @@ export default function NotificationManagement() {
         </Button>
       </div>
 
-      <div style={{ marginBottom: 16, display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'center', background: '#fff', padding: 12, borderRadius: 8 }}>
+      <div className="cms-filter-bar" style={{ marginBottom: 16, display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'center', background: '#fff', padding: 12, borderRadius: 8 }}>
         <Input.Search
           placeholder="Tìm theo Tiêu đề, Nội dung..."
           allowClear
@@ -257,8 +257,8 @@ export default function NotificationManagement() {
       </div>
 
       <Table
-        style={{ flex: 1 }}
-        scroll={{ y: 'calc(100vh - 280px)', x: 'max-content' }}
+        className="cms-table-fill"
+        scroll={{ y: '100%', x: 'max-content' }}
         columns={columns}
         dataSource={filteredNotifications}
         rowKey="_id"
@@ -274,11 +274,16 @@ export default function NotificationManagement() {
       <Modal
         title="Tạo Thông báo Khuyến mãi (Gửi tới tất cả User)"
         open={modalVisible}
-        onCancel={() => setModalVisible(false)}
+        onCancel={() => {
+          if (submitting) return;
+          setModalVisible(false);
+        }}
         onOk={() => form.submit()}
         confirmLoading={submitting}
         okText="Tạo mới"
         cancelText="Hủy"
+        okButtonProps={{ loading: submitting, disabled: submitting }}
+        cancelButtonProps={{ disabled: submitting }}
       >
         <Form
           form={form}

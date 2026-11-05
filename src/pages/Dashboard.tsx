@@ -19,6 +19,7 @@ import {
 import { Button, DatePicker, Image, Input, Layout, Menu, message, Modal, Popover, Select, Space, Table, Tag, theme, Typography, Radio } from 'antd';
 import dayjs from 'dayjs';
 import { useEffect, useState, useMemo } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import api from '../services/api';
 import { useAuthStore } from '../store/useAuthStore';
 import AdminLogs from './AdminLogs';
@@ -39,6 +40,7 @@ const { Header, Sider, Content } = Layout;
 const { Title } = Typography;
 
 export default function Dashboard() {
+  const queryClient = useQueryClient();
   const { logout, user, hasPermission, isMasterAdmin, fetchProfile } = useAuthStore();
   const [transactions, setTransactions] = useState<any[]>([]);
   const [searchText, setSearchText] = useState('');
@@ -190,10 +192,12 @@ export default function Dashboard() {
   const [currentRecord, setCurrentRecord] = useState<any>(null);
   const [actionType, setActionType] = useState<'approve' | 'reject' | 'review' | null>(null);
   const [actionNote, setActionNote] = useState('');
+  const [actionLoading, setActionLoading] = useState(false);
 
   const handleActionSubmit = async () => {
     if (!currentRecord) return;
     try {
+      setActionLoading(true);
       if (actionType === 'approve') {
         await api.put(`/wallet/admin/transactions/${currentRecord._id}/approve`, { note: actionNote });
         message.success('Duyệt giao dịch thành công');
@@ -204,9 +208,12 @@ export default function Dashboard() {
       setActionModalVisible(false);
       setActionNote('');
       setCurrentRecord(null);
+      queryClient.invalidateQueries({ queryKey: ['walletTransactions'] });
       fetchTransactions();
     } catch (error) {
       message.error(`Lỗi ${actionType === 'approve' ? 'duyệt' : 'từ chối'} giao dịch`);
+    } finally {
+      setActionLoading(false);
     }
   };
 
@@ -574,21 +581,23 @@ export default function Dashboard() {
         />
       </Sider>
       <Layout style={{ height: '100vh', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-        <Content style={{ margin: 0, padding: 0, flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+        <Content style={{ margin: 0, padding: 0, flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', minHeight: 0 }}>
           <div
             style={{
-              padding: '24px',
+              padding: '16px 20px',
               flex: 1,
               display: 'flex',
               flexDirection: 'column',
               background: colorBgContainer,
               borderRadius: borderRadiusLG,
-              overflowY: 'auto',
+              overflow: activeTab === 'settings' || activeTab === 'terms' ? 'auto' : 'hidden',
+              minHeight: 0,
+              height: '100%',
             }}
           >
             {activeTab === 'wallet' && (
-              <>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 16 }}>
+              <div className="cms-page-container">
+                <div className="cms-page-header" style={{ display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 16 }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
                     <Title level={3} style={{ margin: 0, whiteSpace: 'nowrap' }}>Quản lý Nạp / Rút</Title>
                     
@@ -715,6 +724,7 @@ export default function Dashboard() {
                   </div>
                 </div>
                 <Table
+                  className="cms-table-fill"
                   columns={columns}
                   dataSource={isServerPaginated ? transactions : filteredTransactions.slice((currentPage - 1) * pageSize, currentPage * pageSize)}
                   rowKey="_id"
@@ -739,7 +749,7 @@ export default function Dashboard() {
                       </div>
                     )
                   }}
-                  scroll={{ y: 'calc(100vh - 200px)', x: 'max-content' }}
+                  scroll={{ y: '100%', x: 'max-content' }}
                 />
 
                 <Modal
@@ -750,15 +760,22 @@ export default function Dashboard() {
                   }
                   open={actionModalVisible}
                   onCancel={() => {
+                    if (actionLoading) return;
                     setActionModalVisible(false);
                     setActionNote('');
                   }}
                   onOk={actionType === 'review' ? () => setActionModalVisible(false) : handleActionSubmit}
+                  confirmLoading={actionLoading}
                   okText={actionType === 'review' ? 'Đóng' : 'Xác nhận'}
                   cancelText="Hủy"
                   okButtonProps={{
                     danger: actionType === 'reject',
-                    type: actionType === 'approve' ? 'primary' : 'default'
+                    type: actionType === 'approve' ? 'primary' : 'default',
+                    loading: actionLoading,
+                    disabled: actionLoading,
+                  }}
+                  cancelButtonProps={{
+                    disabled: actionLoading,
                   }}
                 >
                   {currentRecord && (
@@ -874,7 +891,7 @@ export default function Dashboard() {
                   )}
                 </Modal>
 
-              </>
+              </div>
             )}
 
             {activeTab === 'users' && <UserManagement />}

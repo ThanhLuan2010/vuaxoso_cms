@@ -34,6 +34,7 @@ export default function TicketManagement() {
   const [loading, setLoading] = useState(true);
   const [modalVisible, setModalVisible] = useState(false);
   const [detailModalVisible, setDetailModalVisible] = useState(false);
+  const [submittingTicket, setSubmittingTicket] = useState(false);
   const [selectedTicket, setSelectedTicket] = useState<Ticket | null>(null);
   const [form] = Form.useForm();
 
@@ -162,6 +163,7 @@ export default function TicketManagement() {
 
   const handleAdd = async () => {
     try {
+      setSubmittingTicket(true);
       const values = await form.validateFields();
       if (selectedTicket && selectedTicket._id) {
         // Edit mode
@@ -187,6 +189,8 @@ export default function TicketManagement() {
     } catch (error: any) {
       if (error.errorFields) return;
       message.error(error.response?.data?.message || 'Có lỗi xảy ra');
+    } finally {
+      setSubmittingTicket(false);
     }
   };
 
@@ -368,8 +372,8 @@ export default function TicketManagement() {
   ];
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 110px)' }}>
-      <div style={{ flex: 'none', display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+    <div className="cms-page-container">
+      <div className="cms-page-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
         <Title level={4} style={{ margin: 0 }}>Quản lý vé Kiến Thiết</Title>
         <Space>
           <Input.Search 
@@ -410,7 +414,7 @@ export default function TicketManagement() {
         </Space>
       </div>
 
-      <div style={{ marginBottom: 16, display: 'flex', gap: 16, flexWrap: 'wrap', alignItems: 'flex-end', background: '#fff', padding: 12, borderRadius: 8 }}>
+      <div className="cms-filter-bar" style={{ marginBottom: 16, display: 'flex', gap: 16, flexWrap: 'wrap', alignItems: 'flex-end', background: '#fff', padding: 12, borderRadius: 8 }}>
         <div>
           <div style={{ marginBottom: 4, fontWeight: 500, fontSize: 13 }}>Khu vực:</div>
           <Select
@@ -507,8 +511,8 @@ export default function TicketManagement() {
       </div>
 
       <Table 
-        style={{ flex: 1 }}
-        scroll={{ y: 'calc(100vh - 280px)', x: 'max-content' }}
+        className="cms-table-fill"
+        scroll={{ y: '100%', x: 'max-content' }}
         columns={columns}
         dataSource={filteredTickets}
         rowKey="_id"
@@ -533,10 +537,15 @@ export default function TicketManagement() {
         title={<span><ThunderboltOutlined style={{ color: '#fa8c16', marginRight: 8 }} />Tạo 1.000 Vé Số Tự Động (500 ĐB + 500 Thường)</span>}
         open={bulkModalVisible}
         onOk={() => bulkForm.submit()}
-        onCancel={() => setBulkModalVisible(false)}
+        onCancel={() => {
+          if (bulkLoading) return;
+          setBulkModalVisible(false);
+        }}
         okText="Xác nhận tạo 1.000 vé"
         cancelText="Hủy"
         confirmLoading={bulkLoading}
+        okButtonProps={{ loading: bulkLoading, disabled: bulkLoading }}
+        cancelButtonProps={{ disabled: bulkLoading }}
         width={560}
       >
         <div style={{ marginBottom: 16, padding: '10px 14px', background: '#f6ffed', border: '1px solid #b7eb8f', borderRadius: 8 }}>
@@ -603,7 +612,11 @@ export default function TicketManagement() {
         title={selectedTicket && selectedTicket._id ? "Sửa vé số" : "Thêm vé thủ công"}
         open={modalVisible}
         onOk={handleAdd}
+        confirmLoading={submittingTicket}
+        okButtonProps={{ loading: submittingTicket, disabled: submittingTicket }}
+        cancelButtonProps={{ disabled: submittingTicket }}
         onCancel={() => {
+          if (submittingTicket) return;
           setModalVisible(false);
           setSelectedTicket(null);
           form.resetFields();

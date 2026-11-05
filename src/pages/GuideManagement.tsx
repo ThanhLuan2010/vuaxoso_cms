@@ -10,6 +10,7 @@ const { Title } = Typography;
 export default function GuideManagement() {
   const [guides, setGuides] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
   const [isModalVisible, setIsModalVisible] = useState(false);
   const [editingGuide, setEditingGuide] = useState<any>(null);
   const [searchText, setSearchText] = useState('');
@@ -88,6 +89,7 @@ export default function GuideManagement() {
 
   const handleModalOk = async () => {
     try {
+      setSubmitting(true);
       const values = await form.validateFields();
       if (editingGuide) {
         await api.put(`/guides/${editingGuide._id}`, values);
@@ -102,6 +104,8 @@ export default function GuideManagement() {
       if (error.response) {
         message.error(error.response.data.message || 'Có lỗi xảy ra');
       }
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -189,8 +193,8 @@ export default function GuideManagement() {
   ];
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 110px)' }}>
-      <div style={{ flex: 'none', display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+    <div className="cms-page-container">
+      <div className="cms-page-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
         <Title style={{ margin: 0 }} level={2}>Quản Lý Hướng Dẫn</Title>
         <Button type="primary" icon={<PlusOutlined />} onClick={handleAdd}>
           Thêm Hướng Dẫn
@@ -198,7 +202,7 @@ export default function GuideManagement() {
       </div>
 
       {/* Filter Bar */}
-      <div style={{ flex: 'none', display: 'flex', flexWrap: 'wrap', gap: 12, alignItems: 'center', marginBottom: 16, background: '#fff', padding: '12px 16px', borderRadius: 8, border: '1px solid #f0f0f0' }}>
+      <div className="cms-filter-bar" style={{ display: 'flex', flexWrap: 'wrap', gap: 12, alignItems: 'center', marginBottom: 16, background: '#fff', padding: '12px 16px', borderRadius: 8, border: '1px solid #f0f0f0' }}>
         <Input.Search
           placeholder="Tìm tiêu đề hướng dẫn..."
           allowClear
@@ -229,8 +233,8 @@ export default function GuideManagement() {
       </div>
 
       <Table 
-        style={{ flex: 1 }}
-        scroll={{ y: 'calc(100vh - 260px)', x: 'max-content' }}
+        className="cms-table-fill"
+        scroll={{ y: '100%', x: 'max-content' }}
         columns={columns}
         dataSource={filteredGuides}
         rowKey="_id"
@@ -242,7 +246,13 @@ export default function GuideManagement() {
         title={editingGuide ? 'Sửa Hướng Dẫn' : 'Thêm Hướng Dẫn'}
         open={isModalVisible}
         onOk={handleModalOk}
-        onCancel={() => setIsModalVisible(false)}
+        confirmLoading={submitting}
+        okButtonProps={{ loading: submitting, disabled: submitting }}
+        cancelButtonProps={{ disabled: submitting }}
+        onCancel={() => {
+          if (submitting) return;
+          setIsModalVisible(false);
+        }}
         width={800}
         style={{ top: 20 }}
         bodyStyle={{ maxHeight: 'calc(100vh - 150px)', overflowY: 'auto', paddingRight: 8 }}
