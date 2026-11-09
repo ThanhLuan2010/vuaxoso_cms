@@ -275,6 +275,17 @@ export default function DrawManagement() {
 
       numbers = numbers.map(n => (n || '').trim()).filter(Boolean);
 
+      if (gameCode === 'MB' && numbers.length < 27) {
+        message.error(`Vui lòng điền đủ 27 giải cho Xổ số Miền Bắc (hiện có ${numbers.length}/27 số), hoặc bấm Điền ngẫu nhiên`);
+        setSavingKtResult(false);
+        return;
+      }
+      if (['MN', 'MT'].includes(gameCode) && numbers.length < 18) {
+        message.error(`Vui lòng điền đủ 18 giải (hiện có ${numbers.length}/18 số), hoặc bấm Điền ngẫu nhiên`);
+        setSavingKtResult(false);
+        return;
+      }
+
       await api.put(`/draws/admin/${currentKienThietDraw._id}/results`, {
         winningNumbers: numbers,
         provinceId: values.provinceId || currentKienThietDraw.provinceId
