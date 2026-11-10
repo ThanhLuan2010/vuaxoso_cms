@@ -1,4 +1,4 @@
-import { PlusOutlined, SaveOutlined, SyncOutlined, EditOutlined, DeleteOutlined, ReloadOutlined, ThunderboltOutlined } from '@ant-design/icons';
+import { PlusOutlined, SaveOutlined, SyncOutlined, EditOutlined, DeleteOutlined, ReloadOutlined } from '@ant-design/icons';
 import { Alert, Button, DatePicker, Form, Input, Modal, Popconfirm, Select, Space, Table, Tag, Typography, message } from 'antd';
 import useAuthStore from '../store/useAuthStore';
 import { useEffect, useState, useMemo } from 'react';
@@ -32,7 +32,6 @@ export default function DrawManagement() {
   const [savingEditDraw, setSavingEditDraw] = useState(false);
   const [savingResultId, setSavingResultId] = useState<string | null>(null);
   const [savingKtResult, setSavingKtResult] = useState(false);
-  const [settlingDrawId, setSettlingDrawId] = useState<string | null>(null);
 
   const { isMasterAdmin, hasPermission } = useAuthStore();
   const isMaster = isMasterAdmin();
@@ -158,34 +157,115 @@ export default function DrawManagement() {
 
   const handleOpenEdit = (record: any) => {
     setEditingDraw(record);
-    editForm.setFieldsValue({
+    const gCode = record.game?.code;
+    const nums: string[] = record.winningNumbers || [];
+
+    const formVals: any = {
       drawCode: record.drawCode,
       status: record.status,
       openTime: record.openTime ? dayjs(record.openTime) : null,
       closeTime: record.closeTime ? dayjs(record.closeTime) : null,
       drawTime: record.drawTime ? dayjs(record.drawTime) : null,
-      winningNumbers: record.winningNumbers?.join(', ') || '',
+      winningNumbers: nums.join(', '),
       jackpotAmount: record.jackpotAmount || 0,
       provinceId: record.provinceId
-    });
+    };
+
+    if (gCode === 'MB' && nums.length >= 27) {
+      formVals.gdb = nums[0];
+      formVals.g1 = nums[1];
+      formVals.g2_1 = nums[2]; formVals.g2_2 = nums[3];
+      formVals.g3_1 = nums[4]; formVals.g3_2 = nums[5]; formVals.g3_3 = nums[6];
+      formVals.g3_4 = nums[7]; formVals.g3_5 = nums[8]; formVals.g3_6 = nums[9];
+      formVals.g4_1 = nums[10]; formVals.g4_2 = nums[11]; formVals.g4_3 = nums[12]; formVals.g4_4 = nums[13];
+      formVals.g5_1 = nums[14]; formVals.g5_2 = nums[15]; formVals.g5_3 = nums[16];
+      formVals.g5_4 = nums[17]; formVals.g5_5 = nums[18]; formVals.g5_6 = nums[19];
+      formVals.g6_1 = nums[20]; formVals.g6_2 = nums[21]; formVals.g6_3 = nums[22];
+      formVals.g7_1 = nums[23]; formVals.g7_2 = nums[24]; formVals.g7_3 = nums[25]; formVals.g7_4 = nums[26];
+    } else if (['MT', 'MN'].includes(gCode) && nums.length >= 18) {
+      formVals.gdb = nums[0];
+      formVals.g1 = nums[1];
+      formVals.g2 = nums[2];
+      formVals.g3_1 = nums[3]; formVals.g3_2 = nums[4];
+      formVals.g4_1 = nums[5]; formVals.g4_2 = nums[6]; formVals.g4_3 = nums[7];
+      formVals.g4_4 = nums[8]; formVals.g4_5 = nums[9]; formVals.g4_6 = nums[10]; formVals.g4_7 = nums[11];
+      formVals.g5 = nums[12];
+      formVals.g6_1 = nums[13]; formVals.g6_2 = nums[14]; formVals.g6_3 = nums[15];
+      formVals.g7 = nums[16];
+      formVals.g8 = nums[17];
+    }
+
+    editForm.setFieldsValue(formVals);
     setIsEditModalOpen(true);
   };
 
   const handleSaveEdit = async (values: any) => {
     try {
       setSavingEditDraw(true);
+      const gCode = editingDraw?.game?.code;
+      let numbers: string[] = [];
+
+      if (gCode === 'MB') {
+        const mbNums = [
+          values.gdb,
+          values.g1,
+          values.g2_1, values.g2_2,
+          values.g3_1, values.g3_2, values.g3_3, values.g3_4, values.g3_5, values.g3_6,
+          values.g4_1, values.g4_2, values.g4_3, values.g4_4,
+          values.g5_1, values.g5_2, values.g5_3, values.g5_4, values.g5_5, values.g5_6,
+          values.g6_1, values.g6_2, values.g6_3,
+          values.g7_1, values.g7_2, values.g7_3, values.g7_4,
+        ].map(n => (n || '').trim()).filter(Boolean);
+
+        if (mbNums.length > 0) {
+          if (mbNums.length < 27) {
+            message.error(`Vui lòng điền đủ 27 giải cho Xổ số Miền Bắc (hiện có ${mbNums.length}/27 số), hoặc bấm Điền ngẫu nhiên`);
+            setSavingEditDraw(false);
+            return;
+          }
+          numbers = mbNums;
+        } else if (values.winningNumbers) {
+          numbers = values.winningNumbers.split(',').map((s: string) => s.trim()).filter(Boolean);
+        }
+      } else if (['MN', 'MT'].includes(gCode)) {
+        const mnNums = [
+          values.gdb,
+          values.g1,
+          values.g2,
+          values.g3_1, values.g3_2,
+          values.g4_1, values.g4_2, values.g4_3, values.g4_4, values.g4_5, values.g4_6, values.g4_7,
+          values.g5,
+          values.g6_1, values.g6_2, values.g6_3,
+          values.g7,
+          values.g8,
+        ].map(n => (n || '').trim()).filter(Boolean);
+
+        if (mnNums.length > 0) {
+          if (mnNums.length < 18) {
+            message.error(`Vui lòng điền đủ 18 giải (hiện có ${mnNums.length}/18 số), hoặc bấm Điền ngẫu nhiên`);
+            setSavingEditDraw(false);
+            return;
+          }
+          numbers = mnNums;
+        } else if (values.winningNumbers) {
+          numbers = values.winningNumbers.split(',').map((s: string) => s.trim()).filter(Boolean);
+        }
+      } else {
+        if (values.winningNumbers !== undefined) {
+          numbers = values.winningNumbers.split(',').map((s: string) => s.trim()).filter(Boolean);
+        }
+      }
+
       const payload: any = {
         drawCode: values.drawCode,
         status: values.status,
         openTime: values.openTime?.toISOString(),
         closeTime: values.closeTime?.toISOString(),
         drawTime: values.drawTime ? values.drawTime.toISOString() : undefined,
+        winningNumbers: numbers,
         jackpotAmount: values.jackpotAmount,
         provinceId: values.provinceId
       };
-      if (values.winningNumbers !== undefined) {
-        payload.winningNumbers = values.winningNumbers.split(',').map((s: string) => s.trim()).filter(Boolean);
-      }
       await api.put(`/draws/admin/${editingDraw._id}`, payload);
       message.success('Cập nhật kỳ quay thành công');
       setIsEditModalOpen(false);
@@ -197,27 +277,126 @@ export default function DrawManagement() {
     }
   };
 
-  const handleRandomize = (game: any) => {
+  const handleRandomizeEdit = (game: any) => {
+    if (!game) return;
+    const gCode = (game.code || '').toLowerCase();
+
+    // 1. Kien Thiet MB
+    if (game.code === 'MB') {
+      const randDigits = (len: number) => {
+        let s = '';
+        for (let i = 0; i < len; i++) s += Math.floor(Math.random() * 10);
+        return s;
+      };
+      editForm.setFieldsValue({
+        gdb: randDigits(5),
+        g1: randDigits(5),
+        g2_1: randDigits(5), g2_2: randDigits(5),
+        g3_1: randDigits(5), g3_2: randDigits(5), g3_3: randDigits(5),
+        g3_4: randDigits(5), g3_5: randDigits(5), g3_6: randDigits(5),
+        g4_1: randDigits(4), g4_2: randDigits(4), g4_3: randDigits(4), g4_4: randDigits(4),
+        g5_1: randDigits(4), g5_2: randDigits(4), g5_3: randDigits(4),
+        g5_4: randDigits(4), g5_5: randDigits(4), g5_6: randDigits(4),
+        g6_1: randDigits(3), g6_2: randDigits(3), g6_3: randDigits(3),
+        g7_1: randDigits(2), g7_2: randDigits(2), g7_3: randDigits(2), g7_4: randDigits(2),
+      });
+      message.success('Đã tự động điền ngẫu nhiên các giải Miền Bắc!');
+      return;
+    }
+
+    // 2. Kien Thiet MN / MT
+    if (['MT', 'MN'].includes(game.code)) {
+      const randDigits = (len: number) => {
+        let s = '';
+        for (let i = 0; i < len; i++) s += Math.floor(Math.random() * 10);
+        return s;
+      };
+      editForm.setFieldsValue({
+        gdb: randDigits(6),
+        g1: randDigits(5),
+        g2: randDigits(5),
+        g3_1: randDigits(5), g3_2: randDigits(5),
+        g4_1: randDigits(5), g4_2: randDigits(5), g4_3: randDigits(5), g4_4: randDigits(5),
+        g4_5: randDigits(5), g4_6: randDigits(5), g4_7: randDigits(5),
+        g5: randDigits(4),
+        g6_1: randDigits(4), g6_2: randDigits(4), g6_3: randDigits(4),
+        g7: randDigits(3),
+        g8: randDigits(2),
+      });
+      message.success('Đã tự động điền ngẫu nhiên các giải!');
+      return;
+    }
+
+    // 3. Other games (Keno, Mega, Power, Lotto, Dien toan...)
     const nums = new Set<string>();
     let maxNum = 45;
     let reqCount = 6;
 
-    if (!game) {
-      // Fallback
-    } else if (game.code === 'keno' || game.code === 'bao_keno' || game.code === 'clln_keno') {
+    if (gCode.includes('keno')) {
       maxNum = 80;
       reqCount = 20;
-    } else if (game.code === 'power_655') {
+    } else if (gCode === 'power_655') {
       maxNum = 55;
       reqCount = 6;
-    } else if (game.code === 'mega_645') {
+    } else if (gCode === 'mega_645') {
       maxNum = 45;
       reqCount = 6;
-    } else if (game.code === 'lotto_535') {
+    } else if (gCode.includes('636') || gCode === 'dientoan_636') {
+      maxNum = 36;
+      reqCount = 6;
+    } else if (gCode === 'lotto_535') {
       maxNum = 35;
       reqCount = 5;
+    } else if (gCode === 'lotto_570') {
+      maxNum = 70;
+      reqCount = 5;
+    } else if (gCode === 'bingo18') {
+      maxNum = 6;
+      reqCount = 3;
     }
-    // TODO: Add support for Max3D and Kien Thiet if needed
+
+    while (nums.size < reqCount) {
+      const rnd = Math.floor(Math.random() * maxNum) + 1;
+      nums.add(rnd.toString().padStart(2, '0'));
+    }
+
+    const sortedNums = Array.from(nums).sort((a, b) => parseInt(a) - parseInt(b));
+    editForm.setFieldsValue({
+      winningNumbers: sortedNums.join(', ')
+    });
+    message.success(`Đã tự động sinh ngẫu nhiên ${reqCount} số kết quả!`);
+  };
+
+  const handleRandomize = (game: any) => {
+    const nums = new Set<string>();
+    let maxNum = 45;
+    let reqCount = 6;
+    const gCode = (game?.code || '').toLowerCase();
+
+    if (!game) {
+      // Fallback
+    } else if (gCode.includes('keno')) {
+      maxNum = 80;
+      reqCount = 20;
+    } else if (gCode === 'power_655') {
+      maxNum = 55;
+      reqCount = 6;
+    } else if (gCode === 'mega_645') {
+      maxNum = 45;
+      reqCount = 6;
+    } else if (gCode.includes('636') || gCode === 'dientoan_636') {
+      maxNum = 36;
+      reqCount = 6;
+    } else if (gCode === 'lotto_535') {
+      maxNum = 35;
+      reqCount = 5;
+    } else if (gCode === 'lotto_570') {
+      maxNum = 70;
+      reqCount = 5;
+    } else if (gCode === 'bingo18') {
+      maxNum = 6;
+      reqCount = 3;
+    }
 
     while (nums.size < reqCount) {
       const rnd = Math.floor(Math.random() * maxNum) + 1;
@@ -339,51 +518,6 @@ export default function DrawManagement() {
     message.success('Đã tự động điền ngẫu nhiên kết quả các giải!');
   };
 
-  const handleInstantSettle = async (record: any) => {
-    try {
-      setSettlingDrawId(record._id);
-      const isMB = record.game?.code === 'MB';
-      const isMNMT = ['MN', 'MT'].includes(record.game?.code);
-      const randDigits = (len: number) => {
-        let s = '';
-        for (let i = 0; i < len; i++) s += Math.floor(Math.random() * 10);
-        return s;
-      };
-
-      let numbers: string[] = [];
-      if (isMB) {
-        for (let i = 0; i < 27; i++) {
-          const len = i < 4 ? 5 : (i < 10 ? 5 : (i < 20 ? 4 : (i < 23 ? 3 : 2)));
-          numbers.push(randDigits(len));
-        }
-      } else if (isMNMT) {
-        for (let i = 0; i < 18; i++) {
-          const len = i === 0 ? 6 : (i <= 11 ? 5 : (i <= 15 ? 4 : (i === 16 ? 3 : 2)));
-          numbers.push(randDigits(len));
-        }
-      } else {
-        const count = record.game?.code === 'bingo18' ? 3 : 20;
-        const nums = new Set<string>();
-        while (nums.size < count) {
-          const rnd = Math.floor(Math.random() * (record.game?.code === 'bingo18' ? 6 : 80)) + 1;
-          nums.add(rnd.toString().padStart(2, '0'));
-        }
-        numbers = Array.from(nums);
-      }
-
-      await api.put(`/draws/admin/${record._id}/results`, {
-        winningNumbers: numbers,
-        provinceId: record.provinceId
-      });
-      message.success(`Đã xổ nhanh kỳ ${record.drawCode} và trả thưởng thành công! 🎉`);
-      fetchData();
-    } catch (error) {
-      message.error('Lỗi khi xổ nhanh kỳ quay');
-    } finally {
-      setSettlingDrawId(null);
-    }
-  };
-
   const columns: any = [
     {
       title: 'Ngày quay',
@@ -482,44 +616,22 @@ export default function DrawManagement() {
         }
 
         return (
-          <Space>
-            <Button
-              type="link"
-              style={{ fontWeight: 500 }}
-              disabled={settlingDrawId === record._id}
-              onClick={() => {
-                if (['MB', 'MT', 'MN'].includes(record.game?.code)) {
-                  setCurrentKienThietDraw(record);
-                  ktForm.resetFields();
-                  setIsKienThietModalOpen(true);
-                } else {
-                  setEditingDrawId(record._id);
-                  setWinningNumbersInput('');
-                }
-              }}
-            >
-              + Nhập kết quả
-            </Button>
-            <Popconfirm
-              title="Xổ nhanh & Trả thưởng ngay?"
-              description={`Hệ thống sẽ tự sinh kết quả và trả thưởng tức thì cho tất cả vé cược kỳ ${record.drawCode}?`}
-              onConfirm={() => handleInstantSettle(record)}
-              okText="Xổ ngay"
-              cancelText="Hủy"
-              okButtonProps={{ loading: settlingDrawId === record._id, disabled: settlingDrawId === record._id }}
-            >
-              <Button
-                size="small"
-                type="primary"
-                icon={<ThunderboltOutlined />}
-                style={{ backgroundColor: '#fa8c16', borderColor: '#fa8c16' }}
-                loading={settlingDrawId === record._id}
-                disabled={settlingDrawId === record._id}
-              >
-                Xổ nhanh
-              </Button>
-            </Popconfirm>
-          </Space>
+          <Button
+            type="link"
+            style={{ fontWeight: 500 }}
+            onClick={() => {
+              if (['MB', 'MT', 'MN'].includes(record.game?.code)) {
+                setCurrentKienThietDraw(record);
+                ktForm.resetFields();
+                setIsKienThietModalOpen(true);
+              } else {
+                setEditingDrawId(record._id);
+                setWinningNumbersInput('');
+              }
+            }}
+          >
+            + Nhập kết quả
+          </Button>
         );
       }
     },
@@ -988,12 +1100,13 @@ return (
       </Form>
     </Modal>
     <Modal
-      title={`Chỉnh sửa kỳ quay ${editingDraw?.drawCode || ''}`}
+      title={`Chỉnh sửa kỳ quay ${editingDraw?.drawCode || ''} ${editingDraw?.game?.name ? `(${editingDraw.game.name})` : ''}`}
       open={isEditModalOpen}
       onCancel={() => setIsEditModalOpen(false)}
       footer={null}
-      width={550}
+      width={['MB', 'MT', 'MN'].includes(editingDraw?.game?.code) ? 750 : 550}
       centered
+      styles={{ body: { overflowY: 'auto', maxHeight: 'calc(100vh - 160px)' } }}
     >
       <Form
         form={editForm}
@@ -1054,12 +1167,162 @@ return (
           <DatePicker showTime style={{ width: '100%' }} format="YYYY-MM-DD HH:mm:ss" placeholder="Chọn thời gian mở thưởng (nếu có)" />
         </Form.Item>
 
-        <Form.Item
-          name="winningNumbers"
-          label="Kết quả xổ số (Các số cách nhau bằng dấu phẩy)"
-        >
-          <Input.TextArea rows={2} placeholder="VD: 05, 12, 28, 45, 60..." />
-        </Form.Item>
+        {['MB', 'MT', 'MN'].includes(editingDraw?.game?.code) ? (
+          <div style={{ marginTop: 12, marginBottom: 16, padding: 12, background: '#fafafa', borderRadius: 8, border: '1px solid #f0f0f0' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+              <strong style={{ fontSize: 14, color: '#1f2937' }}>
+                Kết quả từng giải ({editingDraw?.game?.name || editingDraw?.game?.code}):
+              </strong>
+              <Button 
+                icon={<SyncOutlined />} 
+                size="small"
+                type="dashed"
+                onClick={() => handleRandomizeEdit(editingDraw?.game)}
+              >
+                Điền ngẫu nhiên (Random)
+              </Button>
+            </div>
+
+            {editingDraw?.game?.code === 'MB' ? (
+              <>
+                <div style={{ marginBottom: 8, display: 'flex', alignItems: 'center' }}>
+                  <span style={{ fontWeight: 600, width: 85, color: '#dc2626' }}>Đặc biệt:</span>
+                  <Form.Item name="gdb" noStyle><Input placeholder="5 chữ số" maxLength={5} style={{ width: 140 }} /></Form.Item>
+                </div>
+                <div style={{ marginBottom: 8, display: 'flex', alignItems: 'center' }}>
+                  <span style={{ fontWeight: 600, width: 85 }}>Giải Nhất:</span>
+                  <Form.Item name="g1" noStyle><Input placeholder="5 chữ số" maxLength={5} style={{ width: 140 }} /></Form.Item>
+                </div>
+                <div style={{ marginBottom: 8, display: 'flex', alignItems: 'center' }}>
+                  <span style={{ fontWeight: 600, width: 85 }}>Giải Nhì:</span>
+                  <Space wrap>
+                    <Form.Item name="g2_1" noStyle><Input placeholder="5 số" maxLength={5} style={{ width: 110 }} /></Form.Item>
+                    <Form.Item name="g2_2" noStyle><Input placeholder="5 số" maxLength={5} style={{ width: 110 }} /></Form.Item>
+                  </Space>
+                </div>
+                <div style={{ marginBottom: 8, display: 'flex', alignItems: 'flex-start' }}>
+                  <span style={{ fontWeight: 600, width: 85, paddingTop: 4 }}>Giải Ba:</span>
+                  <Space wrap style={{ flex: 1 }}>
+                    <Form.Item name="g3_1" noStyle><Input placeholder="5 số" maxLength={5} style={{ width: 95 }} /></Form.Item>
+                    <Form.Item name="g3_2" noStyle><Input placeholder="5 số" maxLength={5} style={{ width: 95 }} /></Form.Item>
+                    <Form.Item name="g3_3" noStyle><Input placeholder="5 số" maxLength={5} style={{ width: 95 }} /></Form.Item>
+                    <Form.Item name="g3_4" noStyle><Input placeholder="5 số" maxLength={5} style={{ width: 95 }} /></Form.Item>
+                    <Form.Item name="g3_5" noStyle><Input placeholder="5 số" maxLength={5} style={{ width: 95 }} /></Form.Item>
+                    <Form.Item name="g3_6" noStyle><Input placeholder="5 số" maxLength={5} style={{ width: 95 }} /></Form.Item>
+                  </Space>
+                </div>
+                <div style={{ marginBottom: 8, display: 'flex', alignItems: 'flex-start' }}>
+                  <span style={{ fontWeight: 600, width: 85, paddingTop: 4 }}>Giải Tư:</span>
+                  <Space wrap style={{ flex: 1 }}>
+                    <Form.Item name="g4_1" noStyle><Input placeholder="4 số" maxLength={4} style={{ width: 95 }} /></Form.Item>
+                    <Form.Item name="g4_2" noStyle><Input placeholder="4 số" maxLength={4} style={{ width: 95 }} /></Form.Item>
+                    <Form.Item name="g4_3" noStyle><Input placeholder="4 số" maxLength={4} style={{ width: 95 }} /></Form.Item>
+                    <Form.Item name="g4_4" noStyle><Input placeholder="4 số" maxLength={4} style={{ width: 95 }} /></Form.Item>
+                  </Space>
+                </div>
+                <div style={{ marginBottom: 8, display: 'flex', alignItems: 'flex-start' }}>
+                  <span style={{ fontWeight: 600, width: 85, paddingTop: 4 }}>Giải Năm:</span>
+                  <Space wrap style={{ flex: 1 }}>
+                    <Form.Item name="g5_1" noStyle><Input placeholder="4 số" maxLength={4} style={{ width: 95 }} /></Form.Item>
+                    <Form.Item name="g5_2" noStyle><Input placeholder="4 số" maxLength={4} style={{ width: 95 }} /></Form.Item>
+                    <Form.Item name="g5_3" noStyle><Input placeholder="4 số" maxLength={4} style={{ width: 95 }} /></Form.Item>
+                    <Form.Item name="g5_4" noStyle><Input placeholder="4 số" maxLength={4} style={{ width: 95 }} /></Form.Item>
+                    <Form.Item name="g5_5" noStyle><Input placeholder="4 số" maxLength={4} style={{ width: 95 }} /></Form.Item>
+                    <Form.Item name="g5_6" noStyle><Input placeholder="4 số" maxLength={4} style={{ width: 95 }} /></Form.Item>
+                  </Space>
+                </div>
+                <div style={{ marginBottom: 8, display: 'flex', alignItems: 'flex-start' }}>
+                  <span style={{ fontWeight: 600, width: 85, paddingTop: 4 }}>Giải Sáu:</span>
+                  <Space wrap style={{ flex: 1 }}>
+                    <Form.Item name="g6_1" noStyle><Input placeholder="3 số" maxLength={3} style={{ width: 95 }} /></Form.Item>
+                    <Form.Item name="g6_2" noStyle><Input placeholder="3 số" maxLength={3} style={{ width: 95 }} /></Form.Item>
+                    <Form.Item name="g6_3" noStyle><Input placeholder="3 số" maxLength={3} style={{ width: 95 }} /></Form.Item>
+                  </Space>
+                </div>
+                <div style={{ marginBottom: 8, display: 'flex', alignItems: 'flex-start' }}>
+                  <span style={{ fontWeight: 600, width: 85, paddingTop: 4 }}>Giải Bảy:</span>
+                  <Space wrap style={{ flex: 1 }}>
+                    <Form.Item name="g7_1" noStyle><Input placeholder="2 số" maxLength={2} style={{ width: 95 }} /></Form.Item>
+                    <Form.Item name="g7_2" noStyle><Input placeholder="2 số" maxLength={2} style={{ width: 95 }} /></Form.Item>
+                    <Form.Item name="g7_3" noStyle><Input placeholder="2 số" maxLength={2} style={{ width: 95 }} /></Form.Item>
+                    <Form.Item name="g7_4" noStyle><Input placeholder="2 số" maxLength={2} style={{ width: 95 }} /></Form.Item>
+                  </Space>
+                </div>
+              </>
+            ) : (
+              <>
+                <div style={{ marginBottom: 8, display: 'flex', alignItems: 'center' }}>
+                  <span style={{ fontWeight: 600, width: 85 }}>Giải Tám:</span>
+                  <Form.Item name="g8" noStyle><Input placeholder="2 chữ số" maxLength={2} style={{ width: 110 }} /></Form.Item>
+                </div>
+                <div style={{ marginBottom: 8, display: 'flex', alignItems: 'center' }}>
+                  <span style={{ fontWeight: 600, width: 85 }}>Giải Bảy:</span>
+                  <Form.Item name="g7" noStyle><Input placeholder="3 chữ số" maxLength={3} style={{ width: 110 }} /></Form.Item>
+                </div>
+                <div style={{ marginBottom: 8, display: 'flex', alignItems: 'flex-start' }}>
+                  <span style={{ fontWeight: 600, width: 85, paddingTop: 4 }}>Giải Sáu:</span>
+                  <Space wrap style={{ flex: 1 }}>
+                    <Form.Item name="g6_1" noStyle><Input placeholder="4 số" maxLength={4} style={{ width: 95 }} /></Form.Item>
+                    <Form.Item name="g6_2" noStyle><Input placeholder="4 số" maxLength={4} style={{ width: 95 }} /></Form.Item>
+                    <Form.Item name="g6_3" noStyle><Input placeholder="4 số" maxLength={4} style={{ width: 95 }} /></Form.Item>
+                  </Space>
+                </div>
+                <div style={{ marginBottom: 8, display: 'flex', alignItems: 'center' }}>
+                  <span style={{ fontWeight: 600, width: 85 }}>Giải Năm:</span>
+                  <Form.Item name="g5" noStyle><Input placeholder="4 chữ số" maxLength={4} style={{ width: 110 }} /></Form.Item>
+                </div>
+                <div style={{ marginBottom: 8, display: 'flex', alignItems: 'flex-start' }}>
+                  <span style={{ fontWeight: 600, width: 85, paddingTop: 4 }}>Giải Tư:</span>
+                  <Space wrap style={{ flex: 1 }}>
+                    <Form.Item name="g4_1" noStyle><Input placeholder="5 số" maxLength={5} style={{ width: 95 }} /></Form.Item>
+                    <Form.Item name="g4_2" noStyle><Input placeholder="5 số" maxLength={5} style={{ width: 95 }} /></Form.Item>
+                    <Form.Item name="g4_3" noStyle><Input placeholder="5 số" maxLength={5} style={{ width: 95 }} /></Form.Item>
+                    <Form.Item name="g4_4" noStyle><Input placeholder="5 số" maxLength={5} style={{ width: 95 }} /></Form.Item>
+                    <Form.Item name="g4_5" noStyle><Input placeholder="5 số" maxLength={5} style={{ width: 95 }} /></Form.Item>
+                    <Form.Item name="g4_6" noStyle><Input placeholder="5 số" maxLength={5} style={{ width: 95 }} /></Form.Item>
+                    <Form.Item name="g4_7" noStyle><Input placeholder="5 số" maxLength={5} style={{ width: 95 }} /></Form.Item>
+                  </Space>
+                </div>
+                <div style={{ marginBottom: 8, display: 'flex', alignItems: 'flex-start' }}>
+                  <span style={{ fontWeight: 600, width: 85, paddingTop: 4 }}>Giải Ba:</span>
+                  <Space wrap style={{ flex: 1 }}>
+                    <Form.Item name="g3_1" noStyle><Input placeholder="5 số" maxLength={5} style={{ width: 110 }} /></Form.Item>
+                    <Form.Item name="g3_2" noStyle><Input placeholder="5 số" maxLength={5} style={{ width: 110 }} /></Form.Item>
+                  </Space>
+                </div>
+                <div style={{ marginBottom: 8, display: 'flex', alignItems: 'center' }}>
+                  <span style={{ fontWeight: 600, width: 85 }}>Giải Nhì:</span>
+                  <Form.Item name="g2" noStyle><Input placeholder="5 chữ số" maxLength={5} style={{ width: 130 }} /></Form.Item>
+                </div>
+                <div style={{ marginBottom: 8, display: 'flex', alignItems: 'center' }}>
+                  <span style={{ fontWeight: 600, width: 85 }}>Giải Nhất:</span>
+                  <Form.Item name="g1" noStyle><Input placeholder="5 chữ số" maxLength={5} style={{ width: 130 }} /></Form.Item>
+                </div>
+                <div style={{ marginBottom: 8, display: 'flex', alignItems: 'center' }}>
+                  <span style={{ fontWeight: 600, width: 85, color: '#dc2626' }}>Đặc biệt:</span>
+                  <Form.Item name="gdb" noStyle><Input placeholder="6 chữ số" maxLength={6} style={{ width: 130 }} /></Form.Item>
+                </div>
+              </>
+            )}
+          </div>
+        ) : (
+          <div style={{ marginBottom: 16 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+              <span style={{ fontWeight: 500, fontSize: 14 }}>Kết quả xổ số (Các số cách nhau bằng dấu phẩy):</span>
+              <Button 
+                icon={<SyncOutlined />} 
+                size="small"
+                type="dashed"
+                onClick={() => handleRandomizeEdit(editingDraw?.game)}
+              >
+                Điền ngẫu nhiên (Random)
+              </Button>
+            </div>
+            <Form.Item name="winningNumbers" style={{ marginBottom: 0 }}>
+              <Input.TextArea rows={3} placeholder="VD: 05, 12, 28, 45, 60..." />
+            </Form.Item>
+          </div>
+        )}
 
         {editingDraw?.game?.type === 'vietlott' && (
           <Form.Item

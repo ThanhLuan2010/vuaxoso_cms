@@ -13,8 +13,11 @@ interface Order {
   orderId: string;
   gameType: string;
   playType?: string;
-  drawId?: string;
+  drawId?: any;
   drawDate?: string;
+  drawCode?: string;
+  draw?: any;
+  period?: string;
   provinceName?: string;
   items?: Array<{
     id?: string;
@@ -120,11 +123,100 @@ const getOrderResult = (record: Order): 'win' | 'lose' | 'pending' | 'cancelled'
   return 'lose';
 };
 
+const getOrderDrawInfo = (record: any, drawMap?: Record<string, any>) => {
+  if (!record) return { displayCode: null, displayDate: null };
+
+  let code: string | null = null;
+  let date: string | null = null;
+
+  // 1. Direct drawCode / period
+  if (record.drawCode) {
+    code = String(record.drawCode);
+  } else if (record.period) {
+    code = String(record.period);
+  }
+
+  // 2. Populated or embedded draw object
+  if (typeof record.draw === 'object' && record.draw !== null) {
+    if (!code && record.draw.drawCode) code = String(record.draw.drawCode);
+    if (!code && record.draw.period) code = String(record.draw.period);
+    if (!code && record.draw.code) code = String(record.draw.code);
+    if (!date) date = record.draw.drawDate || record.draw.drawTime || record.draw.closeTime || record.draw.openTime;
+  } else if (typeof record.draw === 'string' && record.draw) {
+    if (record.draw.startsWith('#') || (!/^[0-9a-fA-F]{24}$/.test(record.draw) && !record.draw.includes('/') && !record.draw.includes('-'))) {
+      if (!code) code = record.draw;
+    }
+  }
+
+  // 3. Populated or string drawId
+  if (typeof record.drawId === 'object' && record.drawId !== null) {
+    if (!code && record.drawId.drawCode) code = String(record.drawId.drawCode);
+    if (!code && record.drawId.period) code = String(record.drawId.period);
+    if (!code && record.drawId.code) code = String(record.drawId.code);
+    if (!date) date = record.drawId.drawDate || record.drawId.drawTime || record.drawId.closeTime || record.drawId.openTime;
+  } else if (typeof record.drawId === 'string' && record.drawId) {
+    const dId = record.drawId.trim();
+    if (dId.startsWith('#')) {
+      if (!code) code = dId;
+    } else if (/^[0-9a-fA-F]{24}$/.test(dId)) {
+      if (drawMap && drawMap[dId]) {
+        const found = drawMap[dId];
+        if (!code && found.drawCode) code = String(found.drawCode);
+        if (!date) date = found.drawDate || found.drawTime || found.closeTime || found.openTime;
+      }
+    } else if (dId.includes('/') || (dId.includes('-') && dId.length >= 8)) {
+      if (!date) date = dId;
+    } else {
+      if (!code) code = dId;
+    }
+  }
+
+  // 4. Fallback date from record.drawDate
+  if (!date && record.drawDate) {
+    date = record.drawDate;
+  }
+
+  // Format code
+  let displayCode: string | null = null;
+  if (code) {
+    const trimmed = code.trim();
+    displayCode = trimmed.startsWith('#') ? trimmed : `#${trimmed}`;
+  }
+
+  // Format date
+  let displayDate: string | null = null;
+  if (date) {
+    let rawDate = String(date).trim();
+    if (rawDate.length === 10 && rawDate.includes('/')) {
+      displayDate = rawDate;
+    } else if (dayjs(rawDate).isValid()) {
+      const parsed = dayjs(rawDate);
+      if (parsed.hour() !== 0 || parsed.minute() !== 0) {
+        displayDate = parsed.format('HH:mm:ss DD/MM/YYYY');
+      } else {
+        displayDate = parsed.format('DD/MM/YYYY');
+      }
+    } else {
+      displayDate = rawDate;
+    }
+
+    if (displayDate && displayDate.length === 10 && displayDate.includes('/')) {
+      const gType = (record.gameType || '').toLowerCase();
+      if (gType === 'xsmn' || gType === 'mn') displayDate = `16:15:00 ${displayDate}`;
+      else if (gType === 'xsmt' || gType === 'mt') displayDate = `17:15:00 ${displayDate}`;
+      else if (gType === 'xsmb' || gType === 'mb') displayDate = `18:15:00 ${displayDate}`;
+    }
+  }
+
+  return { displayCode, displayDate };
+};
+
 export default function OrderManagement() {
   const { isMasterAdmin } = useAuthStore();
   const isMaster = isMasterAdmin();
 
   const [orders, setOrders] = useState<Order[]>([]);
+  const [drawMap, setDrawMap] = useState<Record<string, any>>({});
   const [loading, setLoading] = useState(true);
 
   const [uploadModalVisible, setUploadModalVisible] = useState(false);
@@ -340,6 +432,23 @@ export default function OrderManagement() {
     fetchSummary(dateRange);
   }, [dateRange]);
 
+  useEffect(() => {
+    const fetchDrawsMap = async () => {
+      try {
+        const res = await api.get('/draws/admin', { params: { limit: 500 } });
+        const list = res.data?.data || (Array.isArray(res.data) ? res.data : []);
+        const map: Record<string, any> = {};
+        list.forEach((d: any) => {
+          if (d._id) map[d._id] = d;
+        });
+        setDrawMap(map);
+      } catch (err) {
+        // Silently catch if not supported
+      }
+    };
+    fetchDrawsMap();
+  }, []);
+
   const handleOpenUpload = (record: Order) => {
     setSelectedOrder(record);
     setFileList([]);
@@ -453,7 +562,8 @@ export default function OrderManagement() {
 
     filteredOrders.forEach(order => {
       const province = order.provinceName || order.gameType;
-      const draw = order.drawDate || order.drawId || 'unknown-draw';
+      const { displayCode, displayDate } = getOrderDrawInfo(order, drawMap);
+      const draw = displayCode || displayDate || order.drawDate || order.drawId || 'unknown-draw';
       
       const processItems = (playType: string, nums: string[]) => {
         if (!nums || nums.length === 0) return;
@@ -589,14 +699,9 @@ export default function OrderManagement() {
           'Trạng Thái': o.status === 'pending' ? 'Chờ KQ' : o.isWinner === true ? 'Thắng' : o.isWinner === false ? 'Thua' : o.status === 'cancelled' ? 'Đã huỷ' : 'Đã in',
         };
         
-        let drawText = o.drawDate || o.drawId || '';
-        if (drawText && drawText.length === 10 && drawText.includes('/')) {
-          if (o.gameType === 'xsmn') drawText = `16:15:00 ${drawText}`;
-          else if (o.gameType === 'xsmt') drawText = `17:15:00 ${drawText}`;
-          else if (o.gameType === 'xsmb') drawText = `18:15:00 ${drawText}`;
-        }
-        
-        exportRow['Ngày Xổ'] = drawText;
+        const { displayCode, displayDate } = getOrderDrawInfo(o, drawMap);
+        const drawText = [displayCode, displayDate].filter(Boolean).join(' - ') || '-';
+        exportRow['Kỳ Quay'] = drawText;
         return exportRow;
       });
 
@@ -768,6 +873,39 @@ export default function OrderManagement() {
       },
     },
     {
+      title: 'Kỳ quay',
+      key: 'draw',
+      width: 140,
+      render: (_: any, record: Order) => {
+        const { displayCode, displayDate } = getOrderDrawInfo(record, drawMap);
+        return (
+          <div>
+            {displayCode && (
+              <div>
+                <strong style={{ color: '#dc2626', fontSize: 13, letterSpacing: '0.2px' }}>
+                  {displayCode}
+                </strong>
+              </div>
+            )}
+            {displayDate && (
+              <div 
+                style={{ 
+                  fontSize: 12, 
+                  color: displayCode ? '#64748b' : '#0f172a',
+                  fontWeight: displayCode ? 400 : 600,
+                  marginTop: displayCode ? 2 : 0,
+                  whiteSpace: 'nowrap'
+                }}
+              >
+                {displayDate}
+              </div>
+            )}
+            {!displayCode && !displayDate && <span style={{ color: '#94a3b8' }}>-</span>}
+          </div>
+        );
+      },
+    },
+    {
       title: 'Mã vé cược',
       dataIndex: 'orderId',
       key: 'orderId',
@@ -925,27 +1063,6 @@ export default function OrderManagement() {
       dataIndex: 'createdAt',
       key: 'createdAt',
       render: (val: string) => new Date(val).toLocaleString('vi-VN'),
-    },
-    {
-      title: 'Ngày xổ',
-      key: 'drawDate',
-      render: (_: any, record: Order) => {
-        let text = record.drawDate || record.drawId || '-';
-        if (text && text.length === 10 && text.includes('/')) {
-          // This is likely a DD/MM/YYYY string for Kien Thiet
-          if (record.gameType === 'xsmn' || record.gameType === 'MN') text = `16:15:00 ${text}`;
-          else if (record.gameType === 'xsmt' || record.gameType === 'MT') text = `17:15:00 ${text}`;
-          else if (record.gameType === 'xsmb' || record.gameType === 'MB') text = `18:15:00 ${text}`;
-        } else if (text && typeof text === 'string') {
-          text = text.replace('15:40:00', '16:15:00')
-                     .replace('16:10:00', '16:15:00')
-                     .replace('16:40:00', '17:15:00')
-                     .replace('17:10:00', '17:15:00')
-                     .replace('17:30:00', '18:15:00')
-                     .replace('18:10:00', '18:15:00');
-        }
-        return text;
-      },
     },
     {
       title: 'Bảng KQ',
@@ -1115,8 +1232,8 @@ export default function OrderManagement() {
         {/* Hàng 1: Tìm kiếm & Lọc Kết quả & Tỉnh/Đài */}
         <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 12 }}>
           <Input.Search 
-            placeholder="Tìm tên, SĐT, Mã vé..." 
-            style={{ width: 220 }} 
+            placeholder="Tìm tên, SĐT, Mã vé, Mã kỳ..." 
+            style={{ width: 230 }} 
             value={searchText} 
             onChange={e => setSearchText(e.target.value)} 
             onSearch={handleSearch}
@@ -1521,6 +1638,19 @@ export default function OrderManagement() {
             <p><strong>Khách hàng:</strong> {selectedTicketOrder.user?.name} - {selectedTicketOrder.user?.phone}</p>
             <p><strong>Ngày đặt:</strong> {new Date(selectedTicketOrder.createdAt).toLocaleString('vi-VN')}</p>
             <p><strong>Tỉnh/Đài:</strong> {selectedTicketOrder.provinceName || selectedTicketOrder.gameType?.toUpperCase()}</p>
+            {(() => {
+              const { displayCode, displayDate } = getOrderDrawInfo(selectedTicketOrder, drawMap);
+              if (displayCode || displayDate) {
+                return (
+                  <p>
+                    <strong>Kỳ quay:</strong>{' '}
+                    {displayCode && <strong style={{ color: '#dc2626', marginRight: 8 }}>{displayCode}</strong>}
+                    {displayDate && <span style={{ color: '#64748b' }}>({displayDate})</span>}
+                  </p>
+                );
+              }
+              return null;
+            })()}
             <p><strong>Loại cược:</strong> <Tag color="geekblue">{selectedTicketOrder.playType || 'Vé cơ bản'}</Tag></p>
             <p><strong>Số tiền cược:</strong> <strong style={{color: 'red'}}>{selectedTicketOrder.totalCost?.toLocaleString('vi-VN')} đ</strong></p>
             {selectedTicketOrder.adminNote && (
