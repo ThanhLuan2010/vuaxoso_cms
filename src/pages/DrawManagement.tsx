@@ -1,4 +1,4 @@
-import { PlusOutlined, SaveOutlined, SyncOutlined, EditOutlined, DeleteOutlined, ReloadOutlined } from '@ant-design/icons';
+import { PlusOutlined, SaveOutlined, SyncOutlined, EditOutlined, DeleteOutlined, ReloadOutlined, CopyOutlined } from '@ant-design/icons';
 import { Alert, Button, DatePicker, Form, Input, Modal, Popconfirm, Select, Space, Table, Tag, Typography, message } from 'antd';
 import useAuthStore from '../store/useAuthStore';
 import { useEffect, useState, useMemo } from 'react';
@@ -171,7 +171,7 @@ export default function DrawManagement() {
       provinceId: record.provinceId
     };
 
-    if (gCode === 'MB' && nums.length >= 27) {
+    if ((gCode === 'MB' || ['loto_235', 'loto_cap', 'bao_loto_2', 'truot_loto'].includes(gCode)) && nums.length >= 27) {
       formVals.gdb = nums[0];
       formVals.g1 = nums[1];
       formVals.g2_1 = nums[2]; formVals.g2_2 = nums[3];
@@ -205,7 +205,7 @@ export default function DrawManagement() {
       const gCode = editingDraw?.game?.code;
       let numbers: string[] = [];
 
-      if (gCode === 'MB') {
+      if (gCode === 'MB' || ['loto_235', 'loto_cap', 'bao_loto_2', 'truot_loto'].includes(gCode)) {
         const mbNums = [
           values.gdb,
           values.g1,
@@ -219,7 +219,7 @@ export default function DrawManagement() {
 
         if (mbNums.length > 0) {
           if (mbNums.length < 27) {
-            message.error(`Vui lòng điền đủ 27 giải cho Xổ số Miền Bắc (hiện có ${mbNums.length}/27 số), hoặc bấm Điền ngẫu nhiên`);
+            message.error(`Vui lòng điền đủ 27 giải theo KQXS Miền Bắc (hiện có ${mbNums.length}/27 số), hoặc bấm Điền ngẫu nhiên`);
             setSavingEditDraw(false);
             return;
           }
@@ -282,7 +282,7 @@ export default function DrawManagement() {
     const gCode = (game.code || '').toLowerCase();
 
     // 1. Kien Thiet MB
-    if (game.code === 'MB') {
+    if (game.code === 'MB' || ['loto_235', 'loto_cap', 'bao_loto_2', 'truot_loto'].includes(game.code)) {
       const randDigits = (len: number) => {
         let s = '';
         for (let i = 0; i < len; i++) s += Math.floor(Math.random() * 10);
@@ -427,7 +427,7 @@ export default function DrawManagement() {
       setSavingKtResult(true);
       const gameCode = currentKienThietDraw?.game?.code;
       let numbers: string[] = [];
-      if (gameCode === 'MB') {
+      if (gameCode === 'MB' || ['loto_235', 'loto_cap', 'bao_loto_2', 'truot_loto'].includes(gameCode)) {
         numbers = [
           values.gdb,
           values.g1,
@@ -454,8 +454,8 @@ export default function DrawManagement() {
 
       numbers = numbers.map(n => (n || '').trim()).filter(Boolean);
 
-      if (gameCode === 'MB' && numbers.length < 27) {
-        message.error(`Vui lòng điền đủ 27 giải cho Xổ số Miền Bắc (hiện có ${numbers.length}/27 số), hoặc bấm Điền ngẫu nhiên`);
+      if ((gameCode === 'MB' || ['loto_235', 'loto_cap', 'bao_loto_2', 'truot_loto'].includes(gameCode)) && numbers.length < 27) {
+        message.error(`Vui lòng điền đủ 27 giải theo KQXS Miền Bắc (hiện có ${numbers.length}/27 số), hoặc bấm Điền ngẫu nhiên`);
         setSavingKtResult(false);
         return;
       }
@@ -480,8 +480,36 @@ export default function DrawManagement() {
     }
   };
 
+  const handleCopyFromMb = () => {
+    const targetDate = currentKienThietDraw?.closeTime ? new Date(currentKienThietDraw.closeTime).toISOString().slice(0, 10) : '';
+    const mbDraw = draws.find((d: any) => 
+      d.game?.code === 'MB' && 
+      d.winningNumbers && 
+      d.winningNumbers.length >= 27 &&
+      (!targetDate || (d.closeTime && new Date(d.closeTime).toISOString().slice(0, 10) === targetDate))
+    ) || draws.find((d: any) => d.game?.code === 'MB' && d.winningNumbers && d.winningNumbers.length >= 27);
+
+    if (!mbDraw || !mbDraw.winningNumbers || mbDraw.winningNumbers.length < 27) {
+      message.warning('Chưa có kết quả Xổ số Miền Bắc để sao chép. Bạn có thể tự nhập hoặc bấm Điền ngẫu nhiên.');
+      return;
+    }
+
+    const nums = mbDraw.winningNumbers;
+    ktForm.setFieldsValue({
+      gdb: nums[0],
+      g1: nums[1],
+      g2_1: nums[2], g2_2: nums[3],
+      g3_1: nums[4], g3_2: nums[5], g3_3: nums[6], g3_4: nums[7], g3_5: nums[8], g3_6: nums[9],
+      g4_1: nums[10], g4_2: nums[11], g4_3: nums[12], g4_4: nums[13],
+      g5_1: nums[14], g5_2: nums[15], g5_3: nums[16], g5_4: nums[17], g5_5: nums[18], g5_6: nums[19],
+      g6_1: nums[20], g6_2: nums[21], g6_3: nums[22],
+      g7_1: nums[23], g7_2: nums[24], g7_3: nums[25], g7_4: nums[26],
+    });
+    message.success(`Đã sao chép 27 kết quả từ Xổ số Miền Bắc (Kỳ ${mbDraw.drawCode})!`);
+  };
+
   const handleRandomizeKienThiet = () => {
-    const isMB = currentKienThietDraw?.game?.code === 'MB';
+    const isMB = currentKienThietDraw?.game?.code === 'MB' || ['loto_235', 'loto_cap', 'bao_loto_2', 'truot_loto'].includes(currentKienThietDraw?.game?.code);
     const randDigits = (len: number) => {
       let s = '';
       for (let i = 0; i < len; i++) s += Math.floor(Math.random() * 10);
@@ -620,7 +648,7 @@ export default function DrawManagement() {
             type="link"
             style={{ fontWeight: 500 }}
             onClick={() => {
-              if (['MB', 'MT', 'MN'].includes(record.game?.code)) {
+              if (['MB', 'MT', 'MN', 'loto_235', 'loto_cap', 'bao_loto_2', 'truot_loto'].includes(record.game?.code)) {
                 setCurrentKienThietDraw(record);
                 ktForm.resetFields();
                 setIsKienThietModalOpen(true);
@@ -908,12 +936,12 @@ return (
               if (game) {
                 const now = dayjs();
                 let closeTime = null;
-                if (game.code === 'MB') {
-                  closeTime = now.hour(18).minute(15).second(0);
+                if (game.code === 'MB' || ['loto_235', 'loto_cap', 'bao_loto_2', 'truot_loto'].includes(game.code)) {
+                  closeTime = now.hour(18).minute(10).second(0);
                 } else if (game.code === 'MT') {
-                  closeTime = now.hour(17).minute(15).second(0);
+                  closeTime = now.hour(17).minute(10).second(0);
                 } else if (game.code === 'MN') {
-                  closeTime = now.hour(16).minute(15).second(0);
+                  closeTime = now.hour(16).minute(10).second(0);
                 }
 
                 if (closeTime) {
@@ -993,7 +1021,7 @@ return (
     </Modal>
 
     <Modal
-      title={`Nhập kết quả ${currentKienThietDraw?.game?.name || ''} ${currentKienThietDraw?.provinceId ? `- Đài ${provinces.find(p => p.provinceId === currentKienThietDraw.provinceId)?.name}` : ''}`}
+      title={`Nhập kết quả ${currentKienThietDraw?.game?.name || ''} ${currentKienThietDraw?.provinceId ? `- Đài ${provinces.find(p => p.provinceId === currentKienThietDraw.provinceId)?.name}` : ''} ${['loto_235', 'loto_cap', 'bao_loto_2', 'truot_loto'].includes(currentKienThietDraw?.game?.code) ? '(Theo KQXS Miền Bắc)' : ''}`}
       open={isKienThietModalOpen}
       onCancel={() => setIsKienThietModalOpen(false)}
       footer={null}
@@ -1020,7 +1048,7 @@ return (
           </Form.Item>
         )}
 
-        {currentKienThietDraw?.game?.code === 'MB' ? (
+        {(currentKienThietDraw?.game?.code === 'MB' || ['loto_235', 'loto_cap', 'bao_loto_2', 'truot_loto'].includes(currentKienThietDraw?.game?.code)) ? (
           <>
             <Title level={5}>Đặc biệt</Title>
             <Form.Item name="gdb"><Input placeholder="5 chữ số" maxLength={5} style={{ width: 150 }} /></Form.Item>
@@ -1104,7 +1132,7 @@ return (
       open={isEditModalOpen}
       onCancel={() => setIsEditModalOpen(false)}
       footer={null}
-      width={['MB', 'MT', 'MN'].includes(editingDraw?.game?.code) ? 750 : 550}
+      width={['MB', 'MT', 'MN', 'loto_235', 'loto_cap', 'bao_loto_2', 'truot_loto'].includes(editingDraw?.game?.code) ? 750 : 550}
       centered
       styles={{ body: { overflowY: 'auto', maxHeight: 'calc(100vh - 160px)' } }}
     >
@@ -1167,7 +1195,7 @@ return (
           <DatePicker showTime style={{ width: '100%' }} format="YYYY-MM-DD HH:mm:ss" placeholder="Chọn thời gian mở thưởng (nếu có)" />
         </Form.Item>
 
-        {['MB', 'MT', 'MN'].includes(editingDraw?.game?.code) ? (
+        {['MB', 'MT', 'MN', 'loto_235', 'loto_cap', 'bao_loto_2', 'truot_loto'].includes(editingDraw?.game?.code) ? (
           <div style={{ marginTop: 12, marginBottom: 16, padding: 12, background: '#fafafa', borderRadius: 8, border: '1px solid #f0f0f0' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
               <strong style={{ fontSize: 14, color: '#1f2937' }}>
@@ -1183,7 +1211,7 @@ return (
               </Button>
             </div>
 
-            {editingDraw?.game?.code === 'MB' ? (
+            {(editingDraw?.game?.code === 'MB' || ['loto_235', 'loto_cap', 'bao_loto_2', 'truot_loto'].includes(editingDraw?.game?.code)) ? (
               <>
                 <div style={{ marginBottom: 8, display: 'flex', alignItems: 'center' }}>
                   <span style={{ fontWeight: 600, width: 85, color: '#dc2626' }}>Đặc biệt:</span>
