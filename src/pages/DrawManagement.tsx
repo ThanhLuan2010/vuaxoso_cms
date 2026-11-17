@@ -24,6 +24,7 @@ export default function DrawManagement() {
 
   const [form] = Form.useForm();
   const [ktForm] = Form.useForm();
+  const [maxForm] = Form.useForm();
   const [editForm] = Form.useForm();
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [editingDraw, setEditingDraw] = useState<any>(null);
@@ -40,9 +41,14 @@ export default function DrawManagement() {
 
   const [editingDrawId, setEditingDrawId] = useState<string | null>(null);
   const [winningNumbersInput, setWinningNumbersInput] = useState('');
+  const [lottoSpecialInput, setLottoSpecialInput] = useState('');
 
   const [isKienThietModalOpen, setIsKienThietModalOpen] = useState(false);
   const [currentKienThietDraw, setCurrentKienThietDraw] = useState<any>(null);
+
+  const [isMaxModalOpen, setIsMaxModalOpen] = useState(false);
+  const [currentMaxDraw, setCurrentMaxDraw] = useState<any>(null);
+  const [savingMaxResult, setSavingMaxResult] = useState(false);
 
   const getGameDisplayName = (g: any) => {
     if (!g) return '-';
@@ -59,7 +65,7 @@ export default function DrawManagement() {
       'keno': 4,
       'bingo18': 5,
       'than_tai_4': 6, 'dientoan_123': 7, 'dientoan_636': 8,
-      'power_655': 9, 'mega_645': 10, 'max_3d': 11, 'max_3d_pro': 12, 'max_4d': 13
+      'power_655': 9, 'mega_645': 10, 'max_3d': 11, 'max_3d_plus': 12, 'max_3d_pro': 13, 'max_4d': 14
     };
     return [...list].sort((a, b) => {
       const pA = priorityCodes[a.code] || 99;
@@ -233,6 +239,11 @@ export default function DrawManagement() {
       provinceId: record.provinceId
     };
 
+    if (['lotto_535', 'lotto_570'].includes(gCode)) {
+      formVals.lottoMainNumbers = nums.slice(0, 5).join(', ');
+      formVals.lottoSpecialNumber = (record.specialNumbers && record.specialNumbers[0]) || (nums.length > 5 ? nums[5] : '');
+    }
+
     if ((gCode === 'MB' || ['loto_235', 'loto_cap', 'bao_loto_2', 'truot_loto'].includes(gCode)) && nums.length >= 27) {
       formVals.gdb = nums[0];
       formVals.g1 = nums[1];
@@ -255,6 +266,17 @@ export default function DrawManagement() {
       formVals.g6_1 = nums[13]; formVals.g6_2 = nums[14]; formVals.g6_3 = nums[15];
       formVals.g7 = nums[16];
       formVals.g8 = nums[17];
+    } else if (['max_3d', 'max_3d_pro', 'max_3d_plus'].includes(gCode) && nums.length >= 20) {
+      formVals.m3d_db_1 = nums[0]; formVals.m3d_db_2 = nums[1];
+      formVals.m3d_g1_1 = nums[2]; formVals.m3d_g1_2 = nums[3]; formVals.m3d_g1_3 = nums[4]; formVals.m3d_g1_4 = nums[5];
+      formVals.m3d_g2_1 = nums[6]; formVals.m3d_g2_2 = nums[7]; formVals.m3d_g2_3 = nums[8];
+      formVals.m3d_g2_4 = nums[9]; formVals.m3d_g2_5 = nums[10]; formVals.m3d_g2_6 = nums[11];
+      formVals.m3d_g3_1 = nums[12]; formVals.m3d_g3_2 = nums[13]; formVals.m3d_g3_3 = nums[14]; formVals.m3d_g3_4 = nums[15];
+      formVals.m3d_g3_5 = nums[16]; formVals.m3d_g3_6 = nums[17]; formVals.m3d_g3_7 = nums[18]; formVals.m3d_g3_8 = nums[19];
+    } else if (gCode === 'max_4d' && nums.length >= 6) {
+      formVals.m4d_g1 = nums[0];
+      formVals.m4d_g2_1 = nums[1]; formVals.m4d_g2_2 = nums[2];
+      formVals.m4d_g3_1 = nums[3]; formVals.m4d_g3_2 = nums[4]; formVals.m4d_g3_3 = nums[5];
     }
 
     editForm.setFieldsValue(formVals);
@@ -266,6 +288,7 @@ export default function DrawManagement() {
       setSavingEditDraw(true);
       const gCode = editingDraw?.game?.code;
       let numbers: string[] = [];
+      let specialNumbers: string[] = [];
 
       if (gCode === 'MB' || ['loto_235', 'loto_cap', 'bao_loto_2', 'truot_loto'].includes(gCode)) {
         const mbNums = [
@@ -312,6 +335,83 @@ export default function DrawManagement() {
         } else if (values.winningNumbers) {
           numbers = values.winningNumbers.split(',').map((s: string) => s.trim()).filter(Boolean);
         }
+      } else if (['lotto_535', 'lotto_570'].includes(gCode)) {
+        let mains = (values.lottoMainNumbers || '')
+          .split(/[\s,]+/)
+          .map((s: string) => s.trim())
+          .filter(Boolean);
+        let special = (values.lottoSpecialNumber || '').trim();
+
+        // Fallback nếu nhập vào ô winningNumbers chung
+        if (mains.length === 0 && values.winningNumbers) {
+          if (values.winningNumbers.includes('|')) {
+            const parts = values.winningNumbers.split('|');
+            mains = parts[0].split(/[\s,]+/).map((s: string) => s.trim()).filter(Boolean);
+            if (!special && parts[1]) special = parts[1].trim();
+          } else {
+            const all = values.winningNumbers.split(/[\s,]+/).map((s: string) => s.trim()).filter(Boolean);
+            if (all.length >= 6) {
+              mains = all.slice(0, 5);
+              if (!special) special = all[5];
+            } else {
+              mains = all;
+            }
+          }
+        }
+
+        if (mains.length > 0 || special) {
+          const maxNum = gCode === 'lotto_570' ? 70 : 35;
+          const maxSpec = gCode === 'lotto_570' ? 25 : 12;
+          if (mains.length < 5) {
+            message.error(`Vui lòng điền đủ 5 số thường (01-${maxNum}) (hiện có ${mains.length}/5 số)`);
+            setSavingEditDraw(false);
+            return;
+          }
+          if (!special) {
+            message.error(`Vui lòng điền 1 số đặc biệt (01-${maxSpec})`);
+            setSavingEditDraw(false);
+            return;
+          }
+          const paddedMains = mains.slice(0, 5).map((n: string) => n.padStart(2, '0'));
+          const paddedSpecial = special.padStart(2, '0');
+          numbers = [...paddedMains, paddedSpecial];
+          specialNumbers = [paddedSpecial];
+        }
+      } else if (['max_3d', 'max_3d_pro', 'max_3d_plus'].includes(gCode)) {
+        const m3dNums = [
+          values.m3d_db_1, values.m3d_db_2,
+          values.m3d_g1_1, values.m3d_g1_2, values.m3d_g1_3, values.m3d_g1_4,
+          values.m3d_g2_1, values.m3d_g2_2, values.m3d_g2_3, values.m3d_g2_4, values.m3d_g2_5, values.m3d_g2_6,
+          values.m3d_g3_1, values.m3d_g3_2, values.m3d_g3_3, values.m3d_g3_4, values.m3d_g3_5, values.m3d_g3_6, values.m3d_g3_7, values.m3d_g3_8,
+        ].map(n => (n || '').trim()).filter(Boolean);
+
+        if (m3dNums.length > 0) {
+          if (m3dNums.length < 20) {
+            message.error(`Vui lòng điền đủ 20 số theo từng giải Max 3D (hiện có ${m3dNums.length}/20 số), hoặc bấm Điền ngẫu nhiên`);
+            setSavingEditDraw(false);
+            return;
+          }
+          numbers = m3dNums.map(n => n.padStart(3, '0'));
+        } else if (values.winningNumbers) {
+          numbers = values.winningNumbers.split(/[\s,]+/).map((s: string) => s.trim().padStart(3, '0')).filter(Boolean);
+        }
+      } else if (gCode === 'max_4d') {
+        const m4dNums = [
+          values.m4d_g1,
+          values.m4d_g2_1, values.m4d_g2_2,
+          values.m4d_g3_1, values.m4d_g3_2, values.m4d_g3_3,
+        ].map(n => (n || '').trim()).filter(Boolean);
+
+        if (m4dNums.length > 0) {
+          if (m4dNums.length < 6) {
+            message.error(`Vui lòng điền đủ 6 số theo từng giải Max 4D (hiện có ${m4dNums.length}/6 số), hoặc bấm Điền ngẫu nhiên`);
+            setSavingEditDraw(false);
+            return;
+          }
+          numbers = m4dNums.map(n => n.padStart(4, '0'));
+        } else if (values.winningNumbers) {
+          numbers = values.winningNumbers.split(/[\s,]+/).map((s: string) => s.trim().padStart(4, '0')).filter(Boolean);
+        }
       } else {
         if (values.winningNumbers !== undefined) {
           numbers = values.winningNumbers.split(/[\s,]+/).map((s: string) => s.trim()).filter(Boolean);
@@ -328,6 +428,7 @@ export default function DrawManagement() {
         closeTime: values.closeTime?.toISOString(),
         drawTime: values.drawTime ? values.drawTime.toISOString() : undefined,
         winningNumbers: numbers,
+        specialNumbers: specialNumbers.length > 0 ? specialNumbers : undefined,
         jackpotAmount: values.jackpotAmount,
         provinceId: values.provinceId
       };
@@ -417,9 +518,11 @@ export default function DrawManagement() {
       const sortedNums = Array.from(nums).sort((a, b) => parseInt(a) - parseInt(b));
       const specialNum = (Math.floor(Math.random() * 12) + 1).toString().padStart(2, '0');
       editForm.setFieldsValue({
+        lottoMainNumbers: sortedNums.join(', '),
+        lottoSpecialNumber: specialNum,
         winningNumbers: [...sortedNums, specialNum].join(', ')
       });
-      message.success('Đã tự động sinh ngẫu nhiên 5 số chính (01-35) + 1 số đặc biệt (01-12)!');
+      message.success('Đã tự động sinh 5 số thường (01-35) + 1 số đặc biệt (01-12)!');
       return;
     } else if (gCode === 'lotto_570') {
       while (nums.size < 5) {
@@ -429,9 +532,11 @@ export default function DrawManagement() {
       const sortedNums = Array.from(nums).sort((a, b) => parseInt(a) - parseInt(b));
       const specialNum = (Math.floor(Math.random() * 25) + 1).toString().padStart(2, '0');
       editForm.setFieldsValue({
+        lottoMainNumbers: sortedNums.join(', '),
+        lottoSpecialNumber: specialNum,
         winningNumbers: [...sortedNums, specialNum].join(', ')
       });
-      message.success('Đã tự động sinh ngẫu nhiên 5 số chính (01-70) + 1 số Mega Ball (01-25)!');
+      message.success('Đã tự động sinh 5 số thường (01-70) + 1 số Mega Ball (01-25)!');
       return;
     } else if (gCode === 'bingo18') {
       const dice = [
@@ -464,6 +569,27 @@ export default function DrawManagement() {
         winningNumbers: `${b1}, ${b2}, ${b3}`
       });
       message.success('Đã tự động sinh ngẫu nhiên 3 bộ số Điện toán 1*2*3 (Bộ 1, Bộ 2, Bộ 3)!');
+      return;
+    } else if (['max_3d', 'max_3d_pro', 'max_3d_plus'].includes(gCode)) {
+      const rand3d = Array.from({ length: 20 }, () => Math.floor(Math.random() * 1000).toString().padStart(3, '0'));
+      editForm.setFieldsValue({
+        m3d_db_1: rand3d[0], m3d_db_2: rand3d[1],
+        m3d_g1_1: rand3d[2], m3d_g1_2: rand3d[3], m3d_g1_3: rand3d[4], m3d_g1_4: rand3d[5],
+        m3d_g2_1: rand3d[6], m3d_g2_2: rand3d[7], m3d_g2_3: rand3d[8], m3d_g2_4: rand3d[9], m3d_g2_5: rand3d[10], m3d_g2_6: rand3d[11],
+        m3d_g3_1: rand3d[12], m3d_g3_2: rand3d[13], m3d_g3_3: rand3d[14], m3d_g3_4: rand3d[15], m3d_g3_5: rand3d[16], m3d_g3_6: rand3d[17], m3d_g3_7: rand3d[18], m3d_g3_8: rand3d[19],
+        winningNumbers: rand3d.join(', ')
+      });
+      message.success('Đã tự động sinh 20 số đơn 3 chữ số theo từng giải cho Max 3D!');
+      return;
+    } else if (gCode === 'max_4d') {
+      const rand4d = Array.from({ length: 6 }, () => Math.floor(Math.random() * 10000).toString().padStart(4, '0'));
+      editForm.setFieldsValue({
+        m4d_g1: rand4d[0],
+        m4d_g2_1: rand4d[1], m4d_g2_2: rand4d[2],
+        m4d_g3_1: rand4d[3], m4d_g3_2: rand4d[4], m4d_g3_3: rand4d[5],
+        winningNumbers: rand4d.join(', ')
+      });
+      message.success('Đã tự động sinh 6 số đơn 4 chữ số theo từng giải cho Max 4D (Nhất: 1, Nhì: 2, Ba: 3)!');
       return;
     }
 
@@ -507,6 +633,16 @@ export default function DrawManagement() {
       setWinningNumbersInput(`${b1}, ${b2}, ${b3}`);
       message.success('Đã tự động sinh ngẫu nhiên 3 bộ số Điện toán 1*2*3 (Bộ 1, Bộ 2, Bộ 3)!');
       return;
+    } else if (gCode === 'max_3d' || gCode === 'max_3d_pro') {
+      const rand3d = Array.from({ length: 20 }, () => Math.floor(Math.random() * 1000).toString().padStart(3, '0'));
+      setWinningNumbersInput(rand3d.join(', '));
+      message.success('Đã tự động sinh 20 số đơn 3 chữ số cho Max 3D (ĐB: 2, G1: 4, G2: 6, G3: 8)!');
+      return;
+    } else if (gCode === 'max_4d') {
+      const rand4d = Array.from({ length: 6 }, () => Math.floor(Math.random() * 10000).toString().padStart(4, '0'));
+      setWinningNumbersInput(rand4d.join(', '));
+      message.success('Đã tự động sinh 6 số đơn 4 chữ số cho Max 4D (Nhất: 1, Nhì: 2, Ba: 3)!');
+      return;
     }
 
     const nums = new Set<string>();
@@ -534,8 +670,9 @@ export default function DrawManagement() {
       }
       const sortedNums = Array.from(nums).sort((a, b) => parseInt(a) - parseInt(b));
       const specialNum = (Math.floor(Math.random() * 12) + 1).toString().padStart(2, '0');
-      setWinningNumbersInput([...sortedNums, specialNum].join(', '));
-      message.success('Đã tự động sinh ngẫu nhiên 5 số chính (01-35) + 1 số đặc biệt (01-12)!');
+      setWinningNumbersInput(sortedNums.join(', '));
+      setLottoSpecialInput(specialNum);
+      message.success('Đã tự động sinh 5 số thường (01-35) + 1 số đặc biệt (01-12)!');
       return;
     } else if (gCode === 'lotto_570') {
       while (nums.size < 5) {
@@ -544,8 +681,9 @@ export default function DrawManagement() {
       }
       const sortedNums = Array.from(nums).sort((a, b) => parseInt(a) - parseInt(b));
       const specialNum = (Math.floor(Math.random() * 25) + 1).toString().padStart(2, '0');
-      setWinningNumbersInput([...sortedNums, specialNum].join(', '));
-      message.success('Đã tự động sinh ngẫu nhiên 5 số chính (01-70) + 1 số Mega Ball (01-25)!');
+      setWinningNumbersInput(sortedNums.join(', '));
+      setLottoSpecialInput(specialNum);
+      message.success('Đã tự động sinh 5 số thường (01-70) + 1 số Mega Ball (01-25)!');
       return;
     } else if (gCode === 'bingo18') {
       maxNum = 6;
@@ -566,13 +704,69 @@ export default function DrawManagement() {
       setSavingResultId(id);
       const targetDraw = draws.find(d => d._id === id);
       const gCode = targetDraw?.game?.code;
+
+      if (['lotto_535', 'lotto_570'].includes(gCode || '')) {
+        let mains = winningNumbersInput.split(/[\s,]+/).map(n => n.trim()).filter(Boolean);
+        let special = lottoSpecialInput.trim();
+
+        if (winningNumbersInput.includes('|')) {
+          const parts = winningNumbersInput.split('|');
+          mains = parts[0].split(/[\s,]+/).map(n => n.trim()).filter(Boolean);
+          if (!special && parts[1]) special = parts[1].trim();
+        } else if (mains.length >= 6 && !special) {
+          special = mains[5];
+          mains = mains.slice(0, 5);
+        }
+
+        const maxNum = gCode === 'lotto_570' ? 70 : 35;
+        const maxSpec = gCode === 'lotto_570' ? 25 : 12;
+
+        if (mains.length < 5) {
+          message.error(`Vui lòng nhập đủ 5 số thường (01-${maxNum}) (hiện có ${mains.length}/5 số)`);
+          return;
+        }
+        if (!special) {
+          message.error(`Vui lòng nhập 1 số đặc biệt (01-${maxSpec})`);
+          return;
+        }
+
+        const paddedMains = mains.slice(0, 5).map(n => n.padStart(2, '0'));
+        const paddedSpecial = special.padStart(2, '0');
+        const finalNumbers = [...paddedMains, paddedSpecial];
+
+        await api.put(`/draws/admin/${id}/results`, { 
+          winningNumbers: finalNumbers,
+          specialNumbers: [paddedSpecial]
+        });
+        message.success('Lưu kết quả thành công');
+        setEditingDrawId(null);
+        setWinningNumbersInput('');
+        setLottoSpecialInput('');
+        fetchData();
+        return;
+      }
+
       let numbers = winningNumbersInput.split(/[\s,]+/).map(n => n.trim()).filter(Boolean);
       if (gCode === 'than_tai_4' && numbers.length === 1 && numbers[0].length === 4) {
         numbers = numbers[0].split('');
+      } else if (['max_3d', 'max_3d_pro'].includes(gCode || '')) {
+        if (numbers.length < 20) {
+          message.error(`Max 3D yêu cầu đủ 20 số đơn 3 chữ số (hiện có ${numbers.length}/20 số). Bấm Random để tự động điền.`);
+          return;
+        }
+        numbers = numbers.slice(0, 20).map(n => n.padStart(3, '0'));
+      } else if (gCode === 'max_4d') {
+        if (numbers.length < 6) {
+          message.error(`Max 4D yêu cầu đủ 6 số đơn 4 chữ số (hiện có ${numbers.length}/6 số). Bấm Random để tự động điền.`);
+          return;
+        }
+        numbers = numbers.slice(0, 6).map(n => n.padStart(4, '0'));
       }
       await api.put(`/draws/admin/${id}/results`, { winningNumbers: numbers });
       message.success('Lưu kết quả thành công');
       setEditingDrawId(null);
+      setWinningNumbersInput('');
+      setLottoSpecialInput('');
       fetchData();
     } catch (error) {
       message.error('Lỗi lưu kết quả');
@@ -705,6 +899,101 @@ export default function DrawManagement() {
     message.success('Đã tự động điền ngẫu nhiên kết quả các giải!');
   };
 
+  const handleOpenMaxModal = (record: any) => {
+    setCurrentMaxDraw(record);
+    maxForm.resetFields();
+    const gCode = record.game?.code;
+    const nums: string[] = record.winningNumbers || [];
+    const formVals: any = {};
+
+    if (['max_3d', 'max_3d_pro', 'max_3d_plus'].includes(gCode) && nums.length >= 20) {
+      formVals.m3d_db_1 = nums[0]; formVals.m3d_db_2 = nums[1];
+      formVals.m3d_g1_1 = nums[2]; formVals.m3d_g1_2 = nums[3]; formVals.m3d_g1_3 = nums[4]; formVals.m3d_g1_4 = nums[5];
+      formVals.m3d_g2_1 = nums[6]; formVals.m3d_g2_2 = nums[7]; formVals.m3d_g2_3 = nums[8];
+      formVals.m3d_g2_4 = nums[9]; formVals.m3d_g2_5 = nums[10]; formVals.m3d_g2_6 = nums[11];
+      formVals.m3d_g3_1 = nums[12]; formVals.m3d_g3_2 = nums[13]; formVals.m3d_g3_3 = nums[14]; formVals.m3d_g3_4 = nums[15];
+      formVals.m3d_g3_5 = nums[16]; formVals.m3d_g3_6 = nums[17]; formVals.m3d_g3_7 = nums[18]; formVals.m3d_g3_8 = nums[19];
+    } else if (gCode === 'max_4d' && nums.length >= 6) {
+      formVals.m4d_g1 = nums[0];
+      formVals.m4d_g2_1 = nums[1]; formVals.m4d_g2_2 = nums[2];
+      formVals.m4d_g3_1 = nums[3]; formVals.m4d_g3_2 = nums[4]; formVals.m4d_g3_3 = nums[5];
+    }
+
+    maxForm.setFieldsValue(formVals);
+    setIsMaxModalOpen(true);
+  };
+
+  const handleRandomizeMaxModal = () => {
+    const gCode = currentMaxDraw?.game?.code;
+    if (['max_3d', 'max_3d_pro', 'max_3d_plus'].includes(gCode)) {
+      const rand3d = Array.from({ length: 20 }, () => Math.floor(Math.random() * 1000).toString().padStart(3, '0'));
+      maxForm.setFieldsValue({
+        m3d_db_1: rand3d[0], m3d_db_2: rand3d[1],
+        m3d_g1_1: rand3d[2], m3d_g1_2: rand3d[3], m3d_g1_3: rand3d[4], m3d_g1_4: rand3d[5],
+        m3d_g2_1: rand3d[6], m3d_g2_2: rand3d[7], m3d_g2_3: rand3d[8], m3d_g2_4: rand3d[9], m3d_g2_5: rand3d[10], m3d_g2_6: rand3d[11],
+        m3d_g3_1: rand3d[12], m3d_g3_2: rand3d[13], m3d_g3_3: rand3d[14], m3d_g3_4: rand3d[15], m3d_g3_5: rand3d[16], m3d_g3_6: rand3d[17], m3d_g3_7: rand3d[18], m3d_g3_8: rand3d[19],
+      });
+      message.success('Đã tự động sinh 20 số đơn 3 chữ số theo từng giải cho Max 3D!');
+    } else if (gCode === 'max_4d') {
+      const rand4d = Array.from({ length: 6 }, () => Math.floor(Math.random() * 10000).toString().padStart(4, '0'));
+      maxForm.setFieldsValue({
+        m4d_g1: rand4d[0],
+        m4d_g2_1: rand4d[1], m4d_g2_2: rand4d[2],
+        m4d_g3_1: rand4d[3], m4d_g3_2: rand4d[4], m4d_g3_3: rand4d[5],
+      });
+      message.success('Đã tự động sinh 6 số đơn 4 chữ số theo từng giải cho Max 4D!');
+    }
+  };
+
+  const handleSaveMaxResult = async (values: any) => {
+    try {
+      setSavingMaxResult(true);
+      const gCode = currentMaxDraw?.game?.code;
+      let numbers: string[] = [];
+
+      if (['max_3d', 'max_3d_pro', 'max_3d_plus'].includes(gCode)) {
+        numbers = [
+          values.m3d_db_1, values.m3d_db_2,
+          values.m3d_g1_1, values.m3d_g1_2, values.m3d_g1_3, values.m3d_g1_4,
+          values.m3d_g2_1, values.m3d_g2_2, values.m3d_g2_3, values.m3d_g2_4, values.m3d_g2_5, values.m3d_g2_6,
+          values.m3d_g3_1, values.m3d_g3_2, values.m3d_g3_3, values.m3d_g3_4, values.m3d_g3_5, values.m3d_g3_6, values.m3d_g3_7, values.m3d_g3_8,
+        ].map(n => (n || '').trim()).filter(Boolean);
+
+        if (numbers.length < 20) {
+          message.error(`Vui lòng điền đủ 20 số (mỗi số 3 chữ số) theo các giải Max 3D (hiện có ${numbers.length}/20 số), hoặc bấm Điền ngẫu nhiên`);
+          setSavingMaxResult(false);
+          return;
+        }
+        numbers = numbers.map(n => n.padStart(3, '0'));
+      } else if (gCode === 'max_4d') {
+        numbers = [
+          values.m4d_g1,
+          values.m4d_g2_1, values.m4d_g2_2,
+          values.m4d_g3_1, values.m4d_g3_2, values.m4d_g3_3,
+        ].map(n => (n || '').trim()).filter(Boolean);
+
+        if (numbers.length < 6) {
+          message.error(`Vui lòng điền đủ 6 số (mỗi số 4 chữ số) theo các giải Max 4D (hiện có ${numbers.length}/6 số), hoặc bấm Điền ngẫu nhiên`);
+          setSavingMaxResult(false);
+          return;
+        }
+        numbers = numbers.map(n => n.padStart(4, '0'));
+      }
+
+      await api.put(`/draws/admin/${currentMaxDraw._id}/results`, {
+        winningNumbers: numbers
+      });
+      message.success('Lưu kết quả thành công');
+      setIsMaxModalOpen(false);
+      maxForm.resetFields();
+      fetchData();
+    } catch (error) {
+      message.error('Lỗi lưu kết quả');
+    } finally {
+      setSavingMaxResult(false);
+    }
+  };
+
   const columns: any = [
     {
       title: 'Ngày quay',
@@ -740,6 +1029,15 @@ export default function DrawManagement() {
         }
         if (record.game.code === 'dientoan_123') {
           return <Tag color="magenta" style={{ fontWeight: 600, fontSize: 13, padding: '2px 8px', borderRadius: 4 }}>ĐT 1*2*3</Tag>;
+        }
+        if (record.game.code === 'max_3d') {
+          return <Tag color="magenta" style={{ fontWeight: 600, fontSize: 13, padding: '2px 8px', borderRadius: 4 }}>MAX 3D</Tag>;
+        }
+        if (record.game.code === 'max_3d_pro') {
+          return <Tag color="purple" style={{ fontWeight: 600, fontSize: 13, padding: '2px 8px', borderRadius: 4 }}>MAX 3D PRO</Tag>;
+        }
+        if (record.game.code === 'max_4d') {
+          return <Tag color="geekblue" style={{ fontWeight: 600, fontSize: 13, padding: '2px 8px', borderRadius: 4 }}>MAX 4D</Tag>;
         }
         return (
           <span style={{ fontWeight: 600, color: '#0f172a' }}>{record.game?.name || '-'}</span>
@@ -835,6 +1133,125 @@ export default function DrawManagement() {
               </Space>
             );
           }
+          if (record.game?.code === 'lotto_535' || record.game?.code === 'lotto_570') {
+            const w = record.winningNumbers || [];
+            const mainNums = w.slice(0, 5);
+            const specialNum = (record.specialNumbers && record.specialNumbers[0]) || (w.length > 5 ? w[5] : null);
+            const is570 = record.game?.code === 'lotto_570';
+            const ballBg = is570 ? '#6a1b9a' : '#8e24aa';
+            const specLabel = is570 ? 'Mega Ball' : 'ĐB';
+
+            return (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 5, flexWrap: 'wrap' }}>
+                <Space size={3}>
+                  {mainNums.map((n: string, i: number) => (
+                    <span
+                      key={i}
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        width: 26,
+                        height: 26,
+                        borderRadius: '50%',
+                        backgroundColor: ballBg,
+                        color: '#fff',
+                        fontWeight: 700,
+                        fontSize: 12,
+                        boxShadow: '0 1px 2px rgba(0,0,0,0.15)'
+                      }}
+                    >
+                      {n}
+                    </span>
+                  ))}
+                </Space>
+                <span style={{ fontWeight: 800, color: '#94a3b8', fontSize: 14 }}>|</span>
+                {specialNum ? (
+                  <Tag
+                    color="gold"
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      height: 26,
+                      borderRadius: 13,
+                      padding: '0 8px',
+                      backgroundColor: '#ff9800',
+                      borderColor: '#f57c00',
+                      color: '#fff',
+                      fontWeight: 800,
+                      fontSize: 12,
+                      boxShadow: '0 1px 3px rgba(255, 152, 0, 0.4)'
+                    }}
+                  >
+                    ★ {specLabel}: {specialNum}
+                  </Tag>
+                ) : (
+                  <Tag color="default">Chưa có số ĐB</Tag>
+                )}
+              </div>
+            );
+          }
+          if (['max_3d', 'max_3d_pro', 'max_3d_plus'].includes(record.game?.code)) {
+            const w = record.winningNumbers || [];
+            const dacBiet = w.slice(0, 2);
+            const nhat = w.slice(2, 6);
+            const nhi = w.slice(6, 12);
+            const ba = w.slice(12, 20);
+            return (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 3, maxWidth: 320 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexWrap: 'wrap' }}>
+                  <Tag color="red" style={{ fontWeight: 700, margin: 0, fontSize: 11 }}>ĐB: {dacBiet.join(' - ') || '-'}</Tag>
+                  <Tag color="orange" style={{ fontWeight: 600, margin: 0, fontSize: 11 }}>G1: {nhat.join(' - ') || '-'}</Tag>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexWrap: 'wrap' }}>
+                  <Tag color="blue" style={{ fontSize: 11, margin: 0 }}>G2: {nhi.join(' - ') || '-'}</Tag>
+                  <Tag color="purple" style={{ fontSize: 11, margin: 0 }}>G3: {ba.join(' - ') || '-'}</Tag>
+                </div>
+                {canEditDraw && (
+                  <Button
+                    type="link"
+                    size="small"
+                    style={{ padding: 0, height: 'auto', alignSelf: 'flex-start', fontSize: 11, marginTop: 2 }}
+                    onClick={() => handleOpenMaxModal(record)}
+                  >
+                    ✏ Sửa kết quả từng giải
+                  </Button>
+                )}
+              </div>
+            );
+          }
+          if (record.game?.code === 'max_4d') {
+            const w = record.winningNumbers || [];
+            const nhat = w[0];
+            const nhi = w.slice(1, 3);
+            const ba = w.slice(3, 6);
+            return (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 3, maxWidth: 320 }}>
+                <Space size={4} wrap>
+                  <Tag color="red" style={{ fontWeight: 700, fontSize: 12, padding: '1px 6px' }}>
+                    Nhất: {nhat ?? '-'}
+                  </Tag>
+                  <Tag color="orange" style={{ fontWeight: 600, fontSize: 11 }}>
+                    Nhì: {nhi.join(' - ') || '-'}
+                  </Tag>
+                  <Tag color="blue" style={{ fontSize: 11 }}>
+                    Ba: {ba.join(' - ') || '-'}
+                  </Tag>
+                </Space>
+                {canEditDraw && (
+                  <Button
+                    type="link"
+                    size="small"
+                    style={{ padding: 0, height: 'auto', alignSelf: 'flex-start', fontSize: 11, marginTop: 2 }}
+                    onClick={() => handleOpenMaxModal(record)}
+                  >
+                    ✏ Sửa kết quả từng giải
+                  </Button>
+                )}
+              </div>
+            );
+          }
           return (
             <div style={{ fontWeight: 'bold', color: '#dc2626', letterSpacing: 1, fontSize: 15 }}>
               {record.winningNumbers?.join(' ')}
@@ -853,10 +1270,57 @@ export default function DrawManagement() {
         }
 
         if (editingDrawId === record._id) {
+          const isLotto = ['lotto_535', 'lotto_570'].includes(record.game?.code);
+          if (isLotto) {
+            const is570 = record.game?.code === 'lotto_570';
+            const maxMain = is570 ? 70 : 35;
+            const maxSpec = is570 ? 25 : 12;
+            const specName = is570 ? 'Mega Ball' : 'Đặc Biệt';
+
+            return (
+              <Space direction="vertical" style={{ width: '100%' }} size={6}>
+                <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontSize: 11, fontWeight: 600, color: '#475569', marginBottom: 2 }}>
+                      5 Số thường (01-{maxMain}):
+                    </div>
+                    <Input
+                      size="small"
+                      placeholder="VD: 05, 12, 19, 27, 34"
+                      value={winningNumbersInput}
+                      onChange={(e) => setWinningNumbersInput(e.target.value)}
+                    />
+                  </div>
+                  <div style={{ width: 110 }}>
+                    <div style={{ fontSize: 11, fontWeight: 700, color: '#e65100', marginBottom: 2 }}>
+                      ★ {specName} (01-{maxSpec}):
+                    </div>
+                    <Input
+                      size="small"
+                      style={{ borderColor: '#ff9800', fontWeight: 'bold', color: '#e65100' }}
+                      placeholder="VD: 08"
+                      value={lottoSpecialInput}
+                      onChange={(e) => setLottoSpecialInput(e.target.value)}
+                    />
+                  </div>
+                </div>
+                <Space size="small">
+                  <Button size="small" icon={<SyncOutlined />} onClick={() => handleRandomize(record.game)} disabled={savingResultId === record._id}>Random</Button>
+                  <Button size="small" type="primary" icon={<SaveOutlined />} onClick={() => handleSaveResult(record._id)} loading={savingResultId === record._id} disabled={savingResultId === record._id}>Lưu</Button>
+                  <Button size="small" type="text" onClick={() => { setEditingDrawId(null); setWinningNumbersInput(''); setLottoSpecialInput(''); }} disabled={savingResultId === record._id}>Hủy</Button>
+                </Space>
+              </Space>
+            );
+          }
+
           const placeholder = record.game?.code === 'than_tai_4'
             ? 'VD: 4, 8, 2, 1 (4 số)'
             : record.game?.code === 'dientoan_123'
             ? 'VD: 3, 45, 812 (Bộ 1, 2, 3)'
+            : (record.game?.code === 'max_3d' || record.game?.code === 'max_3d_pro')
+            ? 'VD: 123, 456, 789... (20 số đơn 3 chữ số: ĐB:2, G1:4, G2:6, G3:8)'
+            : record.game?.code === 'max_4d'
+            ? 'VD: 1234, 5678, 9012, 3456, 7890, 1122 (6 số đơn 4 chữ số: G1:1, G2:2, G3:3)'
             : 'VD: 02, 15, 30...';
 
           return (
@@ -869,7 +1333,7 @@ export default function DrawManagement() {
               <Space>
                 <Button size="small" icon={<SyncOutlined />} onClick={() => handleRandomize(record.game)} disabled={savingResultId === record._id}>Random</Button>
                 <Button size="small" type="primary" icon={<SaveOutlined />} onClick={() => handleSaveResult(record._id)} loading={savingResultId === record._id} disabled={savingResultId === record._id}>Lưu</Button>
-                <Button size="small" type="text" onClick={() => setEditingDrawId(null)} disabled={savingResultId === record._id}>Hủy</Button>
+                <Button size="small" type="text" onClick={() => { setEditingDrawId(null); setWinningNumbersInput(''); setLottoSpecialInput(''); }} disabled={savingResultId === record._id}>Hủy</Button>
               </Space>
             </Space>
           );
@@ -884,9 +1348,12 @@ export default function DrawManagement() {
                 setCurrentKienThietDraw(record);
                 ktForm.resetFields();
                 setIsKienThietModalOpen(true);
+              } else if (['max_3d', 'max_3d_pro', 'max_3d_plus', 'max_4d'].includes(record.game?.code)) {
+                handleOpenMaxModal(record);
               } else {
                 setEditingDrawId(record._id);
                 setWinningNumbersInput('');
+                setLottoSpecialInput('');
               }
             }}
           >
@@ -1419,12 +1886,141 @@ return (
         </Form.Item>
       </Form>
     </Modal>
+
+    <Modal
+      title={`Nhập kết quả ${currentMaxDraw?.game?.name || ''} - Kỳ ${currentMaxDraw?.drawCode || ''}`}
+      open={isMaxModalOpen}
+      onCancel={() => setIsMaxModalOpen(false)}
+      footer={null}
+      width={740}
+      centered
+      styles={{ body: { overflowY: 'auto', maxHeight: 'calc(100vh - 180px)' } }}
+    >
+      <Form
+        form={maxForm}
+        layout="vertical"
+        onFinish={handleSaveMaxResult}
+      >
+        {['max_3d', 'max_3d_pro', 'max_3d_plus'].includes(currentMaxDraw?.game?.code) ? (
+          <div style={{ padding: '4px 0' }}>
+            <Alert
+              type="info"
+              showIcon
+              message={`Cơ cấu kết quả ${currentMaxDraw?.game?.name || 'MAX 3D'} (20 số, mỗi số 3 chữ số 000-999)`}
+              description="Vui lòng nhập riêng biệt theo từng giải: 2 số Đặc biệt, 4 số Giải Nhất, 6 số Giải Nhì và 8 số Giải Ba."
+              style={{ marginBottom: 16 }}
+            />
+
+            <div style={{ marginBottom: 16, padding: 12, background: '#fff1f2', borderRadius: 8, border: '1px solid #fecdd3' }}>
+              <Title level={5} style={{ color: '#e11d48', marginTop: 0, marginBottom: 8 }}>
+                Giải Đặc biệt (2 số):
+              </Title>
+              <Space wrap size="middle">
+                <Form.Item name="m3d_db_1" noStyle><Input placeholder="Số 1" maxLength={3} style={{ width: 100, fontWeight: 'bold', color: '#e11d48', textAlign: 'center' }} /></Form.Item>
+                <Form.Item name="m3d_db_2" noStyle><Input placeholder="Số 2" maxLength={3} style={{ width: 100, fontWeight: 'bold', color: '#e11d48', textAlign: 'center' }} /></Form.Item>
+              </Space>
+            </div>
+
+            <div style={{ marginBottom: 16, padding: 12, background: '#faf5ff', borderRadius: 8, border: '1px solid #f3e8ff' }}>
+              <Title level={5} style={{ color: '#7e22ce', marginTop: 0, marginBottom: 8 }}>
+                Giải Nhất (4 số):
+              </Title>
+              <Space wrap size="middle">
+                <Form.Item name="m3d_g1_1" noStyle><Input placeholder="Số 1" maxLength={3} style={{ width: 90, textAlign: 'center' }} /></Form.Item>
+                <Form.Item name="m3d_g1_2" noStyle><Input placeholder="Số 2" maxLength={3} style={{ width: 90, textAlign: 'center' }} /></Form.Item>
+                <Form.Item name="m3d_g1_3" noStyle><Input placeholder="Số 3" maxLength={3} style={{ width: 90, textAlign: 'center' }} /></Form.Item>
+                <Form.Item name="m3d_g1_4" noStyle><Input placeholder="Số 4" maxLength={3} style={{ width: 90, textAlign: 'center' }} /></Form.Item>
+              </Space>
+            </div>
+
+            <div style={{ marginBottom: 16, padding: 12, background: '#f0fdf4', borderRadius: 8, border: '1px solid #dcfce7' }}>
+              <Title level={5} style={{ color: '#15803d', marginTop: 0, marginBottom: 8 }}>
+                Giải Nhì (6 số):
+              </Title>
+              <Space wrap size="middle">
+                <Form.Item name="m3d_g2_1" noStyle><Input placeholder="Số 1" maxLength={3} style={{ width: 90, textAlign: 'center' }} /></Form.Item>
+                <Form.Item name="m3d_g2_2" noStyle><Input placeholder="Số 2" maxLength={3} style={{ width: 90, textAlign: 'center' }} /></Form.Item>
+                <Form.Item name="m3d_g2_3" noStyle><Input placeholder="Số 3" maxLength={3} style={{ width: 90, textAlign: 'center' }} /></Form.Item>
+                <Form.Item name="m3d_g2_4" noStyle><Input placeholder="Số 4" maxLength={3} style={{ width: 90, textAlign: 'center' }} /></Form.Item>
+                <Form.Item name="m3d_g2_5" noStyle><Input placeholder="Số 5" maxLength={3} style={{ width: 90, textAlign: 'center' }} /></Form.Item>
+                <Form.Item name="m3d_g2_6" noStyle><Input placeholder="Số 6" maxLength={3} style={{ width: 90, textAlign: 'center' }} /></Form.Item>
+              </Space>
+            </div>
+
+            <div style={{ marginBottom: 16, padding: 12, background: '#f8fafc', borderRadius: 8, border: '1px solid #e2e8f0' }}>
+              <Title level={5} style={{ color: '#334155', marginTop: 0, marginBottom: 8 }}>
+                Giải Ba (8 số):
+              </Title>
+              <Space wrap size="middle">
+                <Form.Item name="m3d_g3_1" noStyle><Input placeholder="Số 1" maxLength={3} style={{ width: 90, textAlign: 'center' }} /></Form.Item>
+                <Form.Item name="m3d_g3_2" noStyle><Input placeholder="Số 2" maxLength={3} style={{ width: 90, textAlign: 'center' }} /></Form.Item>
+                <Form.Item name="m3d_g3_3" noStyle><Input placeholder="Số 3" maxLength={3} style={{ width: 90, textAlign: 'center' }} /></Form.Item>
+                <Form.Item name="m3d_g3_4" noStyle><Input placeholder="Số 4" maxLength={3} style={{ width: 90, textAlign: 'center' }} /></Form.Item>
+                <Form.Item name="m3d_g3_5" noStyle><Input placeholder="Số 5" maxLength={3} style={{ width: 90, textAlign: 'center' }} /></Form.Item>
+                <Form.Item name="m3d_g3_6" noStyle><Input placeholder="Số 6" maxLength={3} style={{ width: 90, textAlign: 'center' }} /></Form.Item>
+                <Form.Item name="m3d_g3_7" noStyle><Input placeholder="Số 7" maxLength={3} style={{ width: 90, textAlign: 'center' }} /></Form.Item>
+                <Form.Item name="m3d_g3_8" noStyle><Input placeholder="Số 8" maxLength={3} style={{ width: 90, textAlign: 'center' }} /></Form.Item>
+              </Space>
+            </div>
+          </div>
+        ) : (
+          <div style={{ padding: '4px 0' }}>
+            <Alert
+              type="info"
+              showIcon
+              message={`Cơ cấu kết quả ${currentMaxDraw?.game?.name || 'MAX 4D'} (6 số, mỗi số 4 chữ số 0000-9999)`}
+              description="Vui lòng nhập riêng biệt theo từng giải: 1 số Giải Nhất, 2 số Giải Nhì và 3 số Giải Ba."
+              style={{ marginBottom: 16 }}
+            />
+
+            <div style={{ marginBottom: 16, padding: 12, background: '#eff6ff', borderRadius: 8, border: '1px solid #bfdbfe' }}>
+              <Title level={5} style={{ color: '#1d4ed8', marginTop: 0, marginBottom: 8 }}>
+                Giải Nhất (1 số 4 chữ số):
+              </Title>
+              <Form.Item name="m4d_g1" noStyle><Input placeholder="Giải Nhất (4 số)" maxLength={4} style={{ width: 130, fontWeight: 'bold', color: '#1d4ed8', textAlign: 'center' }} /></Form.Item>
+            </div>
+
+            <div style={{ marginBottom: 16, padding: 12, background: '#faf5ff', borderRadius: 8, border: '1px solid #f3e8ff' }}>
+              <Title level={5} style={{ color: '#7e22ce', marginTop: 0, marginBottom: 8 }}>
+                Giải Nhì (2 số 4 chữ số):
+              </Title>
+              <Space wrap size="middle">
+                <Form.Item name="m4d_g2_1" noStyle><Input placeholder="Số 1 (4 số)" maxLength={4} style={{ width: 110, textAlign: 'center' }} /></Form.Item>
+                <Form.Item name="m4d_g2_2" noStyle><Input placeholder="Số 2 (4 số)" maxLength={4} style={{ width: 110, textAlign: 'center' }} /></Form.Item>
+              </Space>
+            </div>
+
+            <div style={{ marginBottom: 16, padding: 12, background: '#f8fafc', borderRadius: 8, border: '1px solid #e2e8f0' }}>
+              <Title level={5} style={{ color: '#334155', marginTop: 0, marginBottom: 8 }}>
+                Giải Ba (3 số 4 chữ số):
+              </Title>
+              <Space wrap size="middle">
+                <Form.Item name="m4d_g3_1" noStyle><Input placeholder="Số 1 (4 số)" maxLength={4} style={{ width: 110, textAlign: 'center' }} /></Form.Item>
+                <Form.Item name="m4d_g3_2" noStyle><Input placeholder="Số 2 (4 số)" maxLength={4} style={{ width: 110, textAlign: 'center' }} /></Form.Item>
+                <Form.Item name="m4d_g3_3" noStyle><Input placeholder="Số 3 (4 số)" maxLength={4} style={{ width: 110, textAlign: 'center' }} /></Form.Item>
+              </Space>
+            </div>
+          </div>
+        )}
+
+        <Form.Item style={{ marginTop: 24, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <Button icon={<SyncOutlined />} onClick={handleRandomizeMaxModal} style={{ marginRight: 'auto' }} disabled={savingMaxResult}>
+            Điền ngẫu nhiên (Random)
+          </Button>
+          <Space>
+            <Button onClick={() => setIsMaxModalOpen(false)} disabled={savingMaxResult}>Hủy</Button>
+            <Button type="primary" htmlType="submit" loading={savingMaxResult} disabled={savingMaxResult}>Lưu Kết Quả</Button>
+          </Space>
+        </Form.Item>
+      </Form>
+    </Modal>
+
     <Modal
       title={`Chỉnh sửa kỳ quay ${editingDraw?.drawCode || ''} ${editingDraw?.game?.name ? `(${editingDraw.game.name})` : ''}`}
       open={isEditModalOpen}
       onCancel={() => setIsEditModalOpen(false)}
       footer={null}
-      width={['MB', 'MT', 'MN', 'loto_235', 'loto_cap', 'bao_loto_2', 'truot_loto'].includes(editingDraw?.game?.code) ? 750 : 550}
+      width={['MB', 'MT', 'MN', 'loto_235', 'loto_cap', 'bao_loto_2', 'truot_loto', 'max_3d', 'max_3d_pro', 'max_3d_plus', 'max_4d'].includes(editingDraw?.game?.code) ? 750 : 550}
       centered
       styles={{ body: { overflowY: 'auto', maxHeight: 'calc(100vh - 160px)' } }}
     >
@@ -1635,13 +2231,167 @@ return (
               </>
             )}
           </div>
+        ) : ['lotto_535', 'lotto_570'].includes(editingDraw?.game?.code) ? (
+          <div style={{ marginTop: 12, marginBottom: 16, padding: 14, background: '#faf5ff', borderRadius: 8, border: '1px solid #e9d5ff' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+              <div>
+                <strong style={{ fontSize: 14, color: '#6b21a8' }}>
+                  Kết quả {editingDraw?.game?.name || 'LOTTO'} (Phân tách số thường & số đặc biệt):
+                </strong>
+                <div style={{ fontSize: 12, color: '#7e22ce', marginTop: 2 }}>
+                  Gồm đúng 5 số thường ({editingDraw?.game?.code === 'lotto_570' ? '01 - 70' : '01 - 35'}) và 1 {editingDraw?.game?.code === 'lotto_570' ? 'Mega Ball (01 - 25)' : 'số đặc biệt (01 - 12)'}
+                </div>
+              </div>
+              <Button 
+                icon={<SyncOutlined />} 
+                size="small"
+                type="primary"
+                ghost
+                onClick={() => handleRandomizeEdit(editingDraw?.game)}
+              >
+                Random KQ
+              </Button>
+            </div>
+
+            <Form.Item
+              name="lottoMainNumbers"
+              label={<strong>5 Số thường (cách nhau dấu phẩy hoặc khoảng trắng)</strong>}
+              rules={[{ required: true, message: 'Vui lòng nhập 5 số thường' }]}
+              style={{ marginBottom: 12 }}
+            >
+              <Input placeholder={editingDraw?.game?.code === 'lotto_570' ? 'VD: 05, 12, 19, 45, 68' : 'VD: 05, 12, 19, 27, 34'} />
+            </Form.Item>
+
+            <Form.Item
+              name="lottoSpecialNumber"
+              label={<strong style={{ color: '#c2410c' }}>★ 1 Số đặc biệt / {editingDraw?.game?.code === 'lotto_570' ? 'Mega Ball' : 'Đặc Biệt'}</strong>}
+              rules={[{ required: true, message: 'Vui lòng nhập số đặc biệt' }]}
+              style={{ marginBottom: 0 }}
+            >
+              <Input 
+                style={{ width: 140, borderColor: '#ea580c', fontWeight: 'bold', color: '#c2410c' }} 
+                placeholder={editingDraw?.game?.code === 'lotto_570' ? 'VD: 15' : 'VD: 08'}
+                maxLength={2} 
+              />
+            </Form.Item>
+          </div>
+        ) : ['max_3d', 'max_3d_pro', 'max_3d_plus'].includes(editingDraw?.game?.code) ? (
+          <div style={{ marginTop: 12, marginBottom: 16, padding: 14, background: '#fdf2f8', borderRadius: 8, border: '1px solid #fbcfe8' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+              <div>
+                <strong style={{ fontSize: 14, color: '#9d174d' }}>
+                  Kết quả từng giải {editingDraw?.game?.name || 'MAX 3D'} (20 số, mỗi số 3 chữ số 000-999):
+                </strong>
+                <div style={{ fontSize: 12, color: '#be185d', marginTop: 2 }}>
+                  Cơ cấu: 2 số Đặc biệt, 4 số Giải Nhất, 6 số Giải Nhì và 8 số Giải Ba.
+                </div>
+              </div>
+              <Button 
+                icon={<SyncOutlined />} 
+                size="small" 
+                type="primary" 
+                ghost
+                onClick={() => handleRandomizeEdit(editingDraw?.game)}
+              >
+                Random KQ
+              </Button>
+            </div>
+
+            <div style={{ marginBottom: 12, padding: 10, background: '#fff', borderRadius: 6, border: '1px solid #fecdd3' }}>
+              <div style={{ fontWeight: 600, color: '#e11d48', marginBottom: 6 }}>Giải Đặc biệt (2 số):</div>
+              <Space wrap size="middle">
+                <Form.Item name="m3d_db_1" noStyle><Input placeholder="Số 1" maxLength={3} style={{ width: 95, fontWeight: 'bold', color: '#e11d48', textAlign: 'center' }} /></Form.Item>
+                <Form.Item name="m3d_db_2" noStyle><Input placeholder="Số 2" maxLength={3} style={{ width: 95, fontWeight: 'bold', color: '#e11d48', textAlign: 'center' }} /></Form.Item>
+              </Space>
+            </div>
+
+            <div style={{ marginBottom: 12, padding: 10, background: '#fff', borderRadius: 6, border: '1px solid #f3e8ff' }}>
+              <div style={{ fontWeight: 600, color: '#7e22ce', marginBottom: 6 }}>Giải Nhất (4 số):</div>
+              <Space wrap size="middle">
+                <Form.Item name="m3d_g1_1" noStyle><Input placeholder="Số 1" maxLength={3} style={{ width: 85, textAlign: 'center' }} /></Form.Item>
+                <Form.Item name="m3d_g1_2" noStyle><Input placeholder="Số 2" maxLength={3} style={{ width: 85, textAlign: 'center' }} /></Form.Item>
+                <Form.Item name="m3d_g1_3" noStyle><Input placeholder="Số 3" maxLength={3} style={{ width: 85, textAlign: 'center' }} /></Form.Item>
+                <Form.Item name="m3d_g1_4" noStyle><Input placeholder="Số 4" maxLength={3} style={{ width: 85, textAlign: 'center' }} /></Form.Item>
+              </Space>
+            </div>
+
+            <div style={{ marginBottom: 12, padding: 10, background: '#fff', borderRadius: 6, border: '1px solid #dcfce7' }}>
+              <div style={{ fontWeight: 600, color: '#15803d', marginBottom: 6 }}>Giải Nhì (6 số):</div>
+              <Space wrap size="middle">
+                <Form.Item name="m3d_g2_1" noStyle><Input placeholder="Số 1" maxLength={3} style={{ width: 85, textAlign: 'center' }} /></Form.Item>
+                <Form.Item name="m3d_g2_2" noStyle><Input placeholder="Số 2" maxLength={3} style={{ width: 85, textAlign: 'center' }} /></Form.Item>
+                <Form.Item name="m3d_g2_3" noStyle><Input placeholder="Số 3" maxLength={3} style={{ width: 85, textAlign: 'center' }} /></Form.Item>
+                <Form.Item name="m3d_g2_4" noStyle><Input placeholder="Số 4" maxLength={3} style={{ width: 85, textAlign: 'center' }} /></Form.Item>
+                <Form.Item name="m3d_g2_5" noStyle><Input placeholder="Số 5" maxLength={3} style={{ width: 85, textAlign: 'center' }} /></Form.Item>
+                <Form.Item name="m3d_g2_6" noStyle><Input placeholder="Số 6" maxLength={3} style={{ width: 85, textAlign: 'center' }} /></Form.Item>
+              </Space>
+            </div>
+
+            <div style={{ padding: 10, background: '#fff', borderRadius: 6, border: '1px solid #e2e8f0' }}>
+              <div style={{ fontWeight: 600, color: '#334155', marginBottom: 6 }}>Giải Ba (8 số):</div>
+              <Space wrap size="middle">
+                <Form.Item name="m3d_g3_1" noStyle><Input placeholder="Số 1" maxLength={3} style={{ width: 85, textAlign: 'center' }} /></Form.Item>
+                <Form.Item name="m3d_g3_2" noStyle><Input placeholder="Số 2" maxLength={3} style={{ width: 85, textAlign: 'center' }} /></Form.Item>
+                <Form.Item name="m3d_g3_3" noStyle><Input placeholder="Số 3" maxLength={3} style={{ width: 85, textAlign: 'center' }} /></Form.Item>
+                <Form.Item name="m3d_g3_4" noStyle><Input placeholder="Số 4" maxLength={3} style={{ width: 85, textAlign: 'center' }} /></Form.Item>
+                <Form.Item name="m3d_g3_5" noStyle><Input placeholder="Số 5" maxLength={3} style={{ width: 85, textAlign: 'center' }} /></Form.Item>
+                <Form.Item name="m3d_g3_6" noStyle><Input placeholder="Số 6" maxLength={3} style={{ width: 85, textAlign: 'center' }} /></Form.Item>
+                <Form.Item name="m3d_g3_7" noStyle><Input placeholder="Số 7" maxLength={3} style={{ width: 85, textAlign: 'center' }} /></Form.Item>
+                <Form.Item name="m3d_g3_8" noStyle><Input placeholder="Số 8" maxLength={3} style={{ width: 85, textAlign: 'center' }} /></Form.Item>
+              </Space>
+            </div>
+          </div>
+        ) : editingDraw?.game?.code === 'max_4d' ? (
+          <div style={{ marginTop: 12, marginBottom: 16, padding: 14, background: '#f0f9ff', borderRadius: 8, border: '1px solid #bae6fd' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+              <div>
+                <strong style={{ fontSize: 14, color: '#0369a1' }}>
+                  Kết quả từng giải {editingDraw?.game?.name || 'MAX 4D'} (6 số, mỗi số 4 chữ số 0000-9999):
+                </strong>
+                <div style={{ fontSize: 12, color: '#0284c7', marginTop: 2 }}>
+                  Cơ cấu: 1 số Giải Nhất, 2 số Giải Nhì và 3 số Giải Ba.
+                </div>
+              </div>
+              <Button 
+                icon={<SyncOutlined />} 
+                size="small" 
+                type="primary" 
+                ghost
+                onClick={() => handleRandomizeEdit(editingDraw?.game)}
+              >
+                Random KQ
+              </Button>
+            </div>
+
+            <div style={{ marginBottom: 12, padding: 10, background: '#fff', borderRadius: 6, border: '1px solid #bfdbfe' }}>
+              <div style={{ fontWeight: 600, color: '#1d4ed8', marginBottom: 6 }}>Giải Nhất (1 số 4 chữ số):</div>
+              <Form.Item name="m4d_g1" noStyle><Input placeholder="Giải Nhất (4 số)" maxLength={4} style={{ width: 130, fontWeight: 'bold', color: '#1d4ed8', textAlign: 'center' }} /></Form.Item>
+            </div>
+
+            <div style={{ marginBottom: 12, padding: 10, background: '#fff', borderRadius: 6, border: '1px solid #f3e8ff' }}>
+              <div style={{ fontWeight: 600, color: '#7e22ce', marginBottom: 6 }}>Giải Nhì (2 số 4 chữ số):</div>
+              <Space wrap size="middle">
+                <Form.Item name="m4d_g2_1" noStyle><Input placeholder="Số 1 (4 số)" maxLength={4} style={{ width: 110, textAlign: 'center' }} /></Form.Item>
+                <Form.Item name="m4d_g2_2" noStyle><Input placeholder="Số 2 (4 số)" maxLength={4} style={{ width: 110, textAlign: 'center' }} /></Form.Item>
+              </Space>
+            </div>
+
+            <div style={{ padding: 10, background: '#fff', borderRadius: 6, border: '1px solid #e2e8f0' }}>
+              <div style={{ fontWeight: 600, color: '#334155', marginBottom: 6 }}>Giải Ba (3 số 4 chữ số):</div>
+              <Space wrap size="middle">
+                <Form.Item name="m4d_g3_1" noStyle><Input placeholder="Số 1 (4 số)" maxLength={4} style={{ width: 110, textAlign: 'center' }} /></Form.Item>
+                <Form.Item name="m4d_g3_2" noStyle><Input placeholder="Số 2 (4 số)" maxLength={4} style={{ width: 110, textAlign: 'center' }} /></Form.Item>
+                <Form.Item name="m4d_g3_3" noStyle><Input placeholder="Số 3 (4 số)" maxLength={4} style={{ width: 110, textAlign: 'center' }} /></Form.Item>
+              </Space>
+            </div>
+          </div>
         ) : (
           <div style={{ marginBottom: 16 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
               <span style={{ fontWeight: 500, fontSize: 14 }}>Kết quả xổ số (Các số cách nhau bằng dấu phẩy):</span>
               <Button 
                 icon={<SyncOutlined />} 
-                size="small"
+                size="small" 
                 type="dashed"
                 onClick={() => handleRandomizeEdit(editingDraw?.game)}
               >

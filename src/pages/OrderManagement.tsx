@@ -2054,6 +2054,28 @@ export default function OrderManagement() {
                             </Tag>
                           );
                         })}
+                        {item.specialNumbers && item.specialNumbers.length > 0 && (
+                          <>
+                            <span style={{ fontWeight: 800, color: '#94a3b8', margin: '0 4px', display: 'inline-flex', alignItems: 'center' }}>|</span>
+                            {item.specialNumbers.map((sn: string, si: number) => (
+                              <Tag
+                                key={`spec-${si}`}
+                                color="gold"
+                                style={{
+                                  fontWeight: 800,
+                                  fontSize: 13,
+                                  padding: '3px 10px',
+                                  borderRadius: 4,
+                                  backgroundColor: '#ff9800',
+                                  color: '#ffffff',
+                                  borderColor: '#f57c00',
+                                }}
+                              >
+                                ★ ĐB: {sn}
+                              </Tag>
+                            ))}
+                          </>
+                        )}
                       </div>
                       <div style={{ fontSize: '13px', color: '#666', marginTop: 6, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                         <span>
