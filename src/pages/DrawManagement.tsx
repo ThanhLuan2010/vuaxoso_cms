@@ -1,5 +1,5 @@
 import { PlusOutlined, SaveOutlined, SyncOutlined, EditOutlined, DeleteOutlined, ReloadOutlined, CopyOutlined } from '@ant-design/icons';
-import { Alert, Button, DatePicker, Form, Input, Modal, Popconfirm, Select, Space, Table, Tag, Typography, message } from 'antd';
+import { Alert, Button, DatePicker, Form, Input, Modal, Popconfirm, Select, Space, Table, Tag, Tooltip, Typography, message } from 'antd';
 import useAuthStore from '../store/useAuthStore';
 import { useEffect, useState, useMemo } from 'react';
 import api from '../services/api';
@@ -53,13 +53,13 @@ export default function DrawManagement() {
   };
 
   const playableGames = useMemo(() => {
-    const list = games.filter(g => !isDerived3MienGame(g));
+    const list = games.filter(g => !isDerived3MienGame(g) && g.code !== 'clln_keno' && g.code !== 'bao_keno');
     const priorityCodes: Record<string, number> = {
       'MB': 1, 'MT': 2, 'MN': 3,
-      'keno': 4, 'bao_keno': 5, 'clln_keno': 6,
-      'bingo18': 7,
-      'than_tai_4': 8, 'dientoan_123': 9, 'dientoan_636': 10,
-      'power_655': 11, 'mega_645': 12, 'max_3d': 13, 'max_3d_pro': 14, 'max_4d': 15
+      'keno': 4,
+      'bingo18': 5,
+      'than_tai_4': 6, 'dientoan_123': 7, 'dientoan_636': 8,
+      'power_655': 9, 'mega_645': 10, 'max_3d': 11, 'max_3d_pro': 12, 'max_4d': 13
     };
     return [...list].sort((a, b) => {
       const pA = priorityCodes[a.code] || 99;
@@ -842,6 +842,16 @@ export default function DrawManagement() {
           );
         }
 
+        if (['loto_235', 'loto_cap', 'bao_loto_2', 'truot_loto'].includes(record.game?.code)) {
+          return (
+            <Tooltip title="Kỳ quay này tự động cập nhật kết quả và trả thưởng khi có kết quả Xổ số Miền Bắc (MB)">
+              <Tag color="cyan" style={{ fontSize: 12, padding: '3px 8px', borderRadius: 4, fontWeight: 500, cursor: 'default' }}>
+                ⚡ Tự động theo KQ Miền Bắc
+              </Tag>
+            </Tooltip>
+          );
+        }
+
         if (editingDrawId === record._id) {
           const placeholder = record.game?.code === 'than_tai_4'
             ? 'VD: 4, 8, 2, 1 (4 số)'
@@ -870,7 +880,7 @@ export default function DrawManagement() {
             type="link"
             style={{ fontWeight: 500 }}
             onClick={() => {
-              if (['MB', 'MT', 'MN', 'loto_235', 'loto_cap', 'bao_loto_2', 'truot_loto'].includes(record.game?.code)) {
+              if (['MB', 'MT', 'MN'].includes(record.game?.code)) {
                 setCurrentKienThietDraw(record);
                 ktForm.resetFields();
                 setIsKienThietModalOpen(true);
@@ -1303,7 +1313,7 @@ return (
     </Modal>
 
     <Modal
-      title={`Nhập kết quả ${currentKienThietDraw?.game?.name || ''} ${currentKienThietDraw?.provinceId ? `- Đài ${provinces.find(p => p.provinceId === currentKienThietDraw.provinceId)?.name}` : ''} ${['loto_235', 'loto_cap', 'bao_loto_2', 'truot_loto'].includes(currentKienThietDraw?.game?.code) ? '(Theo KQXS Miền Bắc)' : ''}`}
+      title={`Nhập kết quả ${currentKienThietDraw?.game?.name || ''} ${currentKienThietDraw?.provinceId ? `- Đài ${provinces.find(p => p.provinceId === currentKienThietDraw.provinceId)?.name}` : ''}`}
       open={isKienThietModalOpen}
       onCancel={() => setIsKienThietModalOpen(false)}
       footer={null}
@@ -1330,7 +1340,7 @@ return (
           </Form.Item>
         )}
 
-        {(currentKienThietDraw?.game?.code === 'MB' || ['loto_235', 'loto_cap', 'bao_loto_2', 'truot_loto'].includes(currentKienThietDraw?.game?.code)) ? (
+        {currentKienThietDraw?.game?.code === 'MB' ? (
           <>
             <Title level={5}>Đặc biệt</Title>
             <Form.Item name="gdb"><Input placeholder="5 chữ số" maxLength={5} style={{ width: 150 }} /></Form.Item>
@@ -1476,6 +1486,16 @@ return (
         >
           <DatePicker showTime style={{ width: '100%' }} format="YYYY-MM-DD HH:mm:ss" placeholder="Chọn thời gian mở thưởng (nếu có)" />
         </Form.Item>
+
+        {['loto_235', 'loto_cap', 'bao_loto_2', 'truot_loto'].includes(editingDraw?.game?.code) && (
+          <Alert
+            type="info"
+            showIcon
+            message="Kỳ quay tự động theo kết quả XSMB"
+            description="Game này tự động cập nhật kết quả và tính thưởng ngay khi nhập kết quả cho đài Xổ số Miền Bắc (MB). Chỉ chỉnh sửa tại đây nếu bạn cần can thiệp riêng biệt."
+            style={{ marginBottom: 14 }}
+          />
+        )}
 
         {['MB', 'MT', 'MN', 'loto_235', 'loto_cap', 'bao_loto_2', 'truot_loto'].includes(editingDraw?.game?.code) ? (
           <div style={{ marginTop: 12, marginBottom: 16, padding: 12, background: '#fafafa', borderRadius: 8, border: '1px solid #f0f0f0' }}>

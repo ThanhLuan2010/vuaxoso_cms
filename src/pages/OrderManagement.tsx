@@ -129,6 +129,58 @@ interface ItemWinDetails {
   matchedNumbers: string[];
 }
 
+// Helper tạo các tổ hợp (combinations)
+const extractCombos = (rawNumbers: string[], requiredSize: number): string[][] => {
+  if (!rawNumbers || rawNumbers.length === 0) return [];
+
+  const hasJoinedString = rawNumbers.some(s => typeof s === 'string' && /[&,;\s-]/.test(s));
+  if (hasJoinedString) {
+    const list: string[][] = [];
+    rawNumbers.forEach((entry) => {
+      const parts = String(entry)
+        .split(/[&,;\s-]+/)
+        .map(s => s.trim().padStart(2, '0'))
+        .filter(s => /^\d{2}$/.test(s));
+      if (parts.length >= requiredSize) {
+        list.push(parts.slice(0, requiredSize));
+      }
+    });
+    if (list.length > 0) return list;
+  }
+
+  const flatList: string[] = [];
+  rawNumbers.forEach((entry) => {
+    const parts = String(entry)
+      .split(/[&,;\s-]+/)
+      .map(s => s.trim().padStart(2, '0'))
+      .filter(s => /^\d{2}$/.test(s));
+    flatList.push(...parts);
+  });
+  const uniqueNums = Array.from(new Set(flatList));
+
+  if (uniqueNums.length < requiredSize) {
+    return uniqueNums.length > 0 ? [uniqueNums] : [];
+  }
+  if (uniqueNums.length === requiredSize) {
+    return [uniqueNums];
+  }
+
+  const combos: string[][] = [];
+  const generate = (start: number, current: string[]) => {
+    if (current.length === requiredSize) {
+      combos.push([...current]);
+      return;
+    }
+    for (let i = start; i < uniqueNums.length; i++) {
+      current.push(uniqueNums[i]);
+      generate(i + 1, current);
+      current.pop();
+    }
+  };
+  generate(0, []);
+  return combos;
+};
+
 const getItemWinDetails = (
   item: any,
   order: any,
@@ -175,63 +227,110 @@ const getItemWinDetails = (
 
   // A. LÔ TÔ CẶP (loto_cap) - 2 cặp, 3 cặp, 4 cặp
   if (gType === 'loto_cap' || pType.includes('cặp') || pType.includes('cap')) {
-    const w2 = w.map((n: string) => String(n).slice(-2));
-    const matched = itemNumbers.filter((n: string) => w2.includes(n));
-    // Vé xiên / cặp chỉ trúng khi TẤT CẢ các con số trong cặp đều về
-    const isWin = itemNumbers.length >= 2 && itemNumbers.every((n: string) => w2.includes(n));
-    return { isWin, matchedNumbers: isWin ? itemNumbers : matched };
+    const w2 = w.map((n: string) => String(n).trim().padStart(2, '0').slice(-2));
+    const flatNums = itemNumbers
+      .flatMap((s: string) => String(s).split(/[&,;\s-]+/))
+      .map((s: string) => s.trim().padStart(2, '0'))
+      .filter((s: string) => /^\d{2}$/.test(s));
+
+    let reqCount = 2;
+    if (pType.includes('4') || (!pType.includes('2') && !pType.includes('3') && flatNums.length >= 4)) reqCount = 4;
+    else if (pType.includes('3') || (!pType.includes('2') && flatNums.length === 3)) reqCount = 3;
+    else reqCount = 2;
+
+    const combos = extractCombos(itemNumbers, reqCount);
+    const winningCombos = combos.filter(c => c.length >= reqCount && c.every((n: string) => w2.includes(n)));
+    const isWin = winningCombos.length > 0;
+    const hitNums = flatNums.filter((n: string) => w2.includes(n));
+    const matchedNumbers = isWin ? (winningCombos.length > 0 ? Array.from(new Set(winningCombos.flat())) : flatNums) : hitNums;
+    return { isWin, matchedNumbers };
   }
 
   // B. TRƯỢT LÔ TÔ (truot_loto)
   if (gType === 'truot_loto' || (pType.includes('trượt') && !gType.includes('mb') && !gType.includes('mn') && !gType.includes('mt'))) {
-    const w2 = w.map((n: string) => String(n).slice(-2));
-    const isWin = itemNumbers.length > 0 && itemNumbers.every((n: string) => !w2.includes(n));
-    return { isWin, matchedNumbers: isWin ? itemNumbers : [] };
+    const w2 = w.map((n: string) => String(n).trim().padStart(2, '0').slice(-2));
+    const flatNums = itemNumbers
+      .flatMap((s: string) => String(s).split(/[&,;\s-]+/))
+      .map((s: string) => s.trim().padStart(2, '0'))
+      .filter((s: string) => /^\d{2}$/.test(s));
+
+    let reqCount = 4;
+    if (pType.includes('10')) reqCount = 10;
+    else if (pType.includes('8')) reqCount = 8;
+    else reqCount = 4;
+
+    const combos = extractCombos(itemNumbers, reqCount);
+    const winningCombos = combos.filter(c => c.length >= reqCount && c.every((n: string) => !w2.includes(n)));
+    const isWin = winningCombos.length > 0;
+    return { isWin, matchedNumbers: isWin ? (winningCombos.length > 0 ? Array.from(new Set(winningCombos.flat())) : flatNums) : [] };
   }
 
   // C. LÔ ĐỀ 3 MIỀN (MB, MT, MN)
   if (['mb', 'mt', 'mn', 'xoso_3mien'].includes(gType) || pType.includes('xiên') || pType.includes('xien') || pType.includes('lô') || pType.includes('đề')) {
-    const w2 = w.map((n: string) => String(n).slice(-2));
+    const w2 = w.map((n: string) => String(n).trim().padStart(2, '0').slice(-2));
 
     // C.1. Xiên ĐB (2 số cuối GĐB)
     if (pType.includes('xiên đb') || pType.includes('xien db')) {
       const gdb2 = (w[0] || '').slice(-2);
-      const isWin = itemNumbers.length > 0 && itemNumbers.every((n: string) => n === gdb2);
-      return { isWin, matchedNumbers: isWin ? [gdb2] : [] };
+      const isWin = itemNumbers.length > 0 && itemNumbers.every((n: string) => gdb2.includes(n));
+      const matched = itemNumbers.filter((n: string) => gdb2.includes(n));
+      return { isWin, matchedNumbers: matched };
     }
 
     // C.2. Xiên giải 1 (2 số cuối G1)
     if (pType.includes('xiên giải 1') || pType.includes('xien giai 1')) {
       const g1_2 = (w[1] || '').slice(-2);
-      const isWin = itemNumbers.length > 0 && itemNumbers.every((n: string) => n === g1_2);
-      return { isWin, matchedNumbers: isWin ? [g1_2] : [] };
+      const isWin = itemNumbers.length > 0 && itemNumbers.every((n: string) => g1_2.includes(n));
+      const matched = itemNumbers.filter((n: string) => g1_2.includes(n));
+      return { isWin, matchedNumbers: matched };
     }
 
     // C.3. Xiên 3 càng / 4 càng
     if (pType.includes('xiên 3 càng') || pType.includes('xien 3 cang')) {
       const gdb3 = (w[0] || '').slice(-3);
-      const isWin = itemNumbers.length > 0 && itemNumbers.every((n: string) => n === gdb3);
-      return { isWin, matchedNumbers: isWin ? [gdb3] : [] };
+      const isWin = itemNumbers.length > 0 && itemNumbers.every((n: string) => gdb3.includes(n));
+      const matched = itemNumbers.filter((n: string) => gdb3.includes(n));
+      return { isWin, matchedNumbers: matched };
     }
     if (pType.includes('xiên 4 càng') || pType.includes('xien 4 cang')) {
       const gdb4 = (w[0] || '').slice(-4);
-      const isWin = itemNumbers.length > 0 && itemNumbers.every((n: string) => n === gdb4);
-      return { isWin, matchedNumbers: isWin ? [gdb4] : [] };
+      const isWin = itemNumbers.length > 0 && itemNumbers.every((n: string) => gdb4.includes(n));
+      const matched = itemNumbers.filter((n: string) => gdb4.includes(n));
+      return { isWin, matchedNumbers: matched };
     }
 
     // C.4. Lô Xiên (Xiên 2, Xiên 3, Xiên 4, Xiên quay)
     if (pType.includes('xiên') || pType.includes('xien')) {
-      const numList = itemNumbers.flatMap((n: string) => n.includes('&') ? n.split('&') : [n]).map((s: string) => s.trim()).filter(Boolean);
-      const matched = numList.filter((n: string) => w2.includes(n));
-      const isWin = numList.length >= 2 && numList.every((n: string) => w2.includes(n));
-      return { isWin, matchedNumbers: isWin ? numList : matched };
+      let reqCount = 2;
+      if (pType.includes('4')) reqCount = 4;
+      else if (pType.includes('3')) reqCount = 3;
+
+      const combos = extractCombos(itemNumbers, reqCount);
+      const winningCombos = combos.filter(c => c.length >= reqCount && c.every((n: string) => w2.includes(n)));
+      const flatNums = itemNumbers
+        .flatMap((s: string) => String(s).split(/[&,;\s-]+/))
+        .map((s: string) => s.trim().padStart(2, '0'))
+        .filter((s: string) => /^\d{2}$/.test(s));
+      const hitNums = flatNums.filter((n: string) => w2.includes(n));
+      const isWin = winningCombos.length > 0;
+      return { isWin, matchedNumbers: isWin ? (winningCombos.length > 0 ? Array.from(new Set(winningCombos.flat())) : flatNums) : hitNums };
     }
 
     // C.5. Trượt xiên (Trượt 4, 6, 8, 10)
     if (pType.includes('trượt') || pType.includes('truot')) {
-      const numList = itemNumbers.flatMap((n: string) => n.includes('&') ? n.split('&') : [n]).map((s: string) => s.trim()).filter(Boolean);
-      const isWin = numList.length >= 4 && numList.every((n: string) => !w2.includes(n));
-      return { isWin, matchedNumbers: isWin ? numList : [] };
+      let reqCount = 4;
+      if (pType.includes('10')) reqCount = 10;
+      else if (pType.includes('8')) reqCount = 8;
+      else if (pType.includes('6')) reqCount = 6;
+
+      const combos = extractCombos(itemNumbers, reqCount);
+      const winningCombos = combos.filter(c => c.length >= reqCount && c.every((n: string) => !w2.includes(n)));
+      const flatNums = itemNumbers
+        .flatMap((s: string) => String(s).split(/[&,;\s-]+/))
+        .map((s: string) => s.trim().padStart(2, '0'))
+        .filter((s: string) => /^\d{2}$/.test(s));
+      const isWin = winningCombos.length > 0;
+      return { isWin, matchedNumbers: isWin ? (winningCombos.length > 0 ? Array.from(new Set(winningCombos.flat())) : flatNums) : [] };
     }
 
     // C.6. Đề đặc biệt (2 số cuối GĐB)
@@ -268,17 +367,17 @@ const getItemWinDetails = (
       return { isWin: matched.length > 0, matchedNumbers: matched };
     }
     if (pType.includes('2 số')) {
-      const targets = [(w[0]||'').slice(-2), (w[1]||'').slice(-2), (w[0]||'').slice(0, 2), (w[1]||'').slice(0, 2)];
+      const targets = [(w[0] || '').slice(-2), (w[1] || '').slice(-2), (w[0] || '').slice(0, 2), (w[1] || '').slice(0, 2)];
       const matched = itemNumbers.filter((n: string) => targets.includes(n));
       return { isWin: matched.length > 0, matchedNumbers: matched };
     }
     if (pType.includes('3 số')) {
-      const targets = [(w[0]||'').slice(-3), (w[1]||'').slice(-3), (w[0]||'').slice(0, 3), (w[1]||'').slice(0, 3)];
+      const targets = [(w[0] || '').slice(-3), (w[1] || '').slice(-3), (w[0] || '').slice(0, 3), (w[1] || '').slice(0, 3)];
       const matched = itemNumbers.filter((n: string) => targets.includes(n));
       return { isWin: matched.length > 0, matchedNumbers: matched };
     }
     if (pType.includes('4 số')) {
-      const targets = [(w[0]||'').slice(-4), (w[1]||'').slice(-4), (w[0]||'').slice(0, 4), (w[1]||'').slice(0, 4)];
+      const targets = [(w[0] || '').slice(-4), (w[1] || '').slice(-4), (w[0] || '').slice(0, 4), (w[1] || '').slice(0, 4)];
       const matched = itemNumbers.filter((n: string) => targets.includes(n));
       return { isWin: matched.length > 0, matchedNumbers: matched };
     }
@@ -435,7 +534,7 @@ export default function OrderManagement() {
       if (Array.isArray(res.data)) {
         setProvincesList(res.data.map((p: any) => p.name).filter(Boolean));
       }
-    }).catch(() => {});
+    }).catch(() => { });
   }, []);
 
   const [dateRange, setDateRange] = useState<[dayjs.Dayjs, dayjs.Dayjs] | null>(null);
@@ -478,9 +577,9 @@ export default function OrderManagement() {
   };
 
   const fetchUserSummary = async (
-    searchVal: string, 
-    range = dateRange, 
-    resFilter = resultFilter, 
+    searchVal: string,
+    range = dateRange,
+    resFilter = resultFilter,
     provFilter = provinceFilter,
     betMin = minBet,
     winMin = minWin
@@ -741,16 +840,16 @@ export default function OrderManagement() {
       const province = order.provinceName || order.gameType;
       const { displayCode, displayDate } = getOrderDrawInfo(order, drawMap);
       const draw = displayCode || displayDate || order.drawDate || order.drawId || 'unknown-draw';
-      
+
       const processItems = (playType: string, nums: string[]) => {
         if (!nums || nums.length === 0) return;
         const numLen = nums[0].length;
-        
+
         const key = `${province}|${draw}|${playType}|len${numLen}`;
         if (!groups[key]) {
           groups[key] = { numbers: new Set(), orders: [] };
         }
-        
+
         nums.forEach(n => groups[key].numbers.add(n));
         groups[key].orders.push(order);
       };
@@ -774,8 +873,8 @@ export default function OrderManagement() {
       const province = parts[0];
       const draw = parts[1];
       const playType = parts[2];
-      
-      const hasArbitrageUser = arbitrageUsername 
+
+      const hasArbitrageUser = arbitrageUsername
         ? g.orders.some(o => (o.user?.name || o.user?.phone || o.user?.username || '').toLowerCase().includes(arbitrageUsername.toLowerCase()))
         : false;
 
@@ -784,7 +883,7 @@ export default function OrderManagement() {
       // (When no username searched, we just fallback to groups with > 1 user, wait, we don't know maxCount easily for Chẵn Lẻ,
       // so if no username is provided, we just show groups that have > 1 unique users.)
       const uniqueUsers = new Set(g.orders.map(o => o.user?._id)).size;
-      
+
       if (hasArbitrageUser || (!arbitrageUsername && uniqueUsers > 1)) {
         // filter orders if a username is searched, wait, no, show ALL orders in that group to see the opposing bets!
         results.push({
@@ -813,14 +912,14 @@ export default function OrderManagement() {
         startDate: dateRange[0].format('YYYY-MM-DD'),
         endDate: dateRange[1].format('YYYY-MM-DD'),
       };
-      const res = await api.get('/orders/admin', { params }); 
+      const res = await api.get('/orders/admin', { params });
       const startDate = dateRange[0].startOf('day');
       const endDate = dateRange[1].endOf('day');
-      
+
       const allOrders = (res.data || []).filter((o: Order) => {
         const orderDate = dayjs(o.createdAt);
         return (orderDate.isSame(startDate) || orderDate.isAfter(startDate)) &&
-               (orderDate.isSame(endDate) || orderDate.isBefore(endDate));
+          (orderDate.isSame(endDate) || orderDate.isBefore(endDate));
       });
 
       if (allOrders.length === 0) {
@@ -839,7 +938,7 @@ export default function OrderManagement() {
         let rawCost = 0;
         let c = 0;
         let providedBaseCost: number | undefined;
-        
+
         if (o.items && o.items.length > 0) {
           rawCost = o.items[0].cost;
           providedBaseCost = o.items[0].baseCost;
@@ -875,7 +974,7 @@ export default function OrderManagement() {
           'Tiền Thắng': o.prizeAmount || 0,
           'Trạng Thái': o.status === 'pending' ? 'Chờ KQ' : o.isWinner === true ? 'Thắng' : o.isWinner === false ? 'Thua' : o.status === 'cancelled' ? 'Đã huỷ' : 'Đã in',
         };
-        
+
         const { displayCode, displayDate } = getOrderDrawInfo(o, drawMap);
         const drawText = [displayCode, displayDate].filter(Boolean).join(' - ') || '-';
         exportRow['Kỳ Quay'] = drawText;
@@ -1001,14 +1100,14 @@ export default function OrderManagement() {
       key: 'user',
       render: (_: any, record: Order) => (
         <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-          <div 
-            style={{ 
-              cursor: record.user?.phone ? 'pointer' : 'default', 
-              padding: '4px 8px', 
-              borderRadius: '4px', 
+          <div
+            style={{
+              cursor: record.user?.phone ? 'pointer' : 'default',
+              padding: '4px 8px',
+              borderRadius: '4px',
               backgroundColor: '#f0f5ff',
               display: 'inline-block'
-            }} 
+            }}
             onClick={() => {
               if (record.user?.phone) {
                 localStorage.setItem('userSearchPhone', record.user.phone);
@@ -1065,9 +1164,9 @@ export default function OrderManagement() {
               </div>
             )}
             {displayDate && (
-              <div 
-                style={{ 
-                  fontSize: 12, 
+              <div
+                style={{
+                  fontSize: 12,
                   color: displayCode ? '#64748b' : '#0f172a',
                   fontWeight: displayCode ? 400 : 600,
                   marginTop: displayCode ? 2 : 0,
@@ -1140,12 +1239,12 @@ export default function OrderManagement() {
                   TRÚNG
                 </Tag>
               )}
-              <Popover 
+              <Popover
                 content={
                   <div style={{ maxWidth: 300, display: 'flex', flexWrap: 'wrap', gap: 4 }}>
                     {nums.map((n, i) => renderTag(n, i))}
                   </div>
-                } 
+                }
                 title="Tất cả số đã chọn"
               >
                 <Tag color="cyan" style={{ cursor: 'pointer', marginInlineEnd: 2 }}>+ {hiddenCount} số nữa...</Tag>
@@ -1176,11 +1275,11 @@ export default function OrderManagement() {
                 {renderNumbers(primary.item.numbers, primary.details.isWin, primary.details.matchedNumbers)}
               </div>
               {hiddenCount > 0 && (
-                <Tag 
+                <Tag
                   color={winningItems.length > 0 ? "error" : "orange"}
-                  style={{ 
-                    cursor: 'pointer', 
-                    margin: 0, 
+                  style={{
+                    cursor: 'pointer',
+                    margin: 0,
                     fontWeight: winningItems.length > 0 ? 600 : 400,
                     borderColor: winningItems.length > 0 ? '#ff7875' : undefined,
                     color: winningItems.length > 0 ? '#cf1322' : undefined,
@@ -1312,20 +1411,20 @@ export default function OrderManagement() {
           trigger="click"
           content={
             <Space direction="vertical" size="small">
-              
-                    <Button
-                      type="default"
-                      icon={<EyeOutlined />}
-                      onClick={() => {
-                        setSelectedTicketOrder(record);
-                        setTicketModalVisible(true);
-                      }}
-                      block
-                    >
-                      Chi tiết vé
-                    </Button>
 
-{(!record.ticketImageUrl && record.status !== 'cancelled') && (
+              <Button
+                type="default"
+                icon={<EyeOutlined />}
+                onClick={() => {
+                  setSelectedTicketOrder(record);
+                  setTicketModalVisible(true);
+                }}
+                block
+              >
+                Chi tiết vé
+              </Button>
+
+              {(!record.ticketImageUrl && record.status !== 'cancelled') && (
                 <Button
                   type="primary"
                   icon={<CameraOutlined />}
@@ -1412,329 +1511,329 @@ export default function OrderManagement() {
 
       <div className="cms-scroll-body" style={{ flex: 1, minHeight: 0, overflowY: 'auto', overflowX: 'hidden', paddingRight: 4 }}>
         <div style={{ flex: 'none' }}>
-        <Row gutter={16} style={{ marginBottom: 16 }}>
-          <Col span={6}>
-            <Card bordered={false}>
-              <Statistic
-                title="Số vé bán ra"
-                value={summaryData.totalTickets}
-                valueStyle={{ color: '#1890ff' }}
-              />
-            </Card>
-          </Col>
-          <Col span={6}>
-            <Card bordered={false}>
-              <Statistic
-                title="Tổng tiền bán ra"
-                value={summaryData.totalSales}
-                suffix="đ"
-                valueStyle={{ color: '#3f8600' }}
-              />
-            </Card>
-          </Col>
-          <Col span={6}>
-            <Card bordered={false}>
-              <Statistic
-                title="Tổng tiền khách thắng"
-                value={summaryData.totalPrize}
-                suffix="đ"
-                valueStyle={{ color: '#cf1322' }}
-              />
-            </Card>
-          </Col>
-          <Col span={6}>
-            <Card bordered={false}>
-              <Statistic
-                title="Tổng tiền khách thua"
-                value={summaryData.totalLoss}
-                suffix="đ"
-                valueStyle={{ color: '#d48806' }}
-              />
-            </Card>
-          </Col>
-        </Row>
-      </div>
-
-      <div className="cms-filter-bar" style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 12, background: '#fff', padding: 12, borderRadius: 8, boxShadow: '0 1px 2px rgba(0,0,0,0.03)' }}>
-        {/* Hàng 1: Tìm kiếm & Lọc Kết quả & Tỉnh/Đài */}
-        <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 12 }}>
-          <Input.Search 
-            placeholder="Tìm tên, SĐT, Mã vé, Mã kỳ..." 
-            style={{ width: 230 }} 
-            value={searchText} 
-            onChange={e => setSearchText(e.target.value)} 
-            onSearch={handleSearch}
-            enterButton
-            allowClear
-          />
-          
-          <Space size="small">
-            <span style={{ fontSize: 13, color: '#555' }}>Cược tối thiểu:</span>
-            <Input 
-              placeholder="Số tiền..." 
-              style={{ width: 105 }} 
-              value={minBet} 
-              onChange={e => setMinBet(e.target.value)} 
-              onPressEnter={handleMinFilterApply}
-              onBlur={handleMinFilterApply}
-              allowClear
-            />
-          </Space>
-
-          <Space size="small">
-            <span style={{ fontSize: 13, color: '#555' }}>Thắng tối thiểu:</span>
-            <Input 
-              placeholder="Số tiền..." 
-              style={{ width: 105 }} 
-              value={minWin} 
-              onChange={e => setMinWin(e.target.value)} 
-              onPressEnter={handleMinFilterApply}
-              onBlur={handleMinFilterApply}
-              allowClear
-            />
-          </Space>
-
-          <Space size="small">
-            <span style={{ fontWeight: 600, fontSize: 13, color: '#1f1f1f' }}>Lọc kết quả:</span>
-            <Radio.Group 
-              value={resultFilter} 
-              onChange={e => handleResultFilterChange(e.target.value)}
-              buttonStyle="solid"
-              size="middle"
-            >
-              <Radio.Button value="all">
-                Tất cả
-              </Radio.Button>
-              <Radio.Button 
-                value="win" 
-                style={resultFilter === 'win' ? { backgroundColor: '#52c41a', borderColor: '#52c41a', color: '#fff' } : { color: '#52c41a', fontWeight: 600 }}
-              >
-                🏆 Thắng
-              </Radio.Button>
-              <Radio.Button 
-                value="lose" 
-                style={resultFilter === 'lose' ? { backgroundColor: '#ff4d4f', borderColor: '#ff4d4f', color: '#fff' } : { color: '#ff4d4f', fontWeight: 600 }}
-              >
-                ❌ Thua
-              </Radio.Button>
-              <Radio.Button 
-                value="pending" 
-                style={resultFilter === 'pending' ? { backgroundColor: '#fa8c16', borderColor: '#fa8c16', color: '#fff' } : { color: '#fa8c16', fontWeight: 600 }}
-              >
-                ⏳ Chưa có KQ
-              </Radio.Button>
-              <Radio.Button 
-                value="cancelled" 
-                style={resultFilter === 'cancelled' ? { backgroundColor: '#8c8c8c', borderColor: '#8c8c8c', color: '#fff' } : { color: '#8c8c8c' }}
-              >
-                🚫 Đã huỷ
-              </Radio.Button>
-            </Radio.Group>
-          </Space>
-
-          <Space size="small">
-            <span style={{ fontWeight: 600, fontSize: 13, color: '#1f1f1f' }}>Tỉnh/Đài:</span>
-            <Select
-              showSearch
-              allowClear
-              placeholder="Chọn Tỉnh/Đài..."
-              style={{ minWidth: 170 }}
-              value={provinceFilter === 'all' ? undefined : provinceFilter}
-              onChange={handleProvinceFilterChange}
-              options={[
-                { label: 'Tất cả Tỉnh/Đài', value: 'all' },
-                ...provinceOptions
-              ]}
-              filterOption={(input, option) =>
-                (option?.label ?? '').toLowerCase().includes(input.toLowerCase())
-              }
-            />
-          </Space>
-
-          {(resultFilter !== 'all' || provinceFilter !== 'all' || minBet || minWin || searchText || dateRange) && (
-            <Button
-              icon={<ReloadOutlined />}
-              onClick={handleResetFilters}
-              style={{ color: '#ff4d4f', borderColor: '#ff4d4f' }}
-            >
-              Xoá bộ lọc
-            </Button>
-          )}
+          <Row gutter={16} style={{ marginBottom: 16 }}>
+            <Col span={6}>
+              <Card bordered={false}>
+                <Statistic
+                  title="Số vé bán ra"
+                  value={summaryData.totalTickets}
+                  valueStyle={{ color: '#1890ff' }}
+                />
+              </Card>
+            </Col>
+            <Col span={6}>
+              <Card bordered={false}>
+                <Statistic
+                  title="Tổng tiền bán ra"
+                  value={summaryData.totalSales}
+                  suffix="đ"
+                  valueStyle={{ color: '#3f8600' }}
+                />
+              </Card>
+            </Col>
+            <Col span={6}>
+              <Card bordered={false}>
+                <Statistic
+                  title="Tổng tiền khách thắng"
+                  value={summaryData.totalPrize}
+                  suffix="đ"
+                  valueStyle={{ color: '#cf1322' }}
+                />
+              </Card>
+            </Col>
+            <Col span={6}>
+              <Card bordered={false}>
+                <Statistic
+                  title="Tổng tiền khách thua"
+                  value={summaryData.totalLoss}
+                  suffix="đ"
+                  valueStyle={{ color: '#d48806' }}
+                />
+              </Card>
+            </Col>
+          </Row>
         </div>
 
-        {/* Hàng 2: Thời gian & Tiện ích xuất dữ liệu, Check đối nghịch */}
-        <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 12 }}>
-          <Space size="small">
-            <span style={{ fontSize: 13, color: '#555' }}>Ngày đặt:</span>
-            <DatePicker.RangePicker
-              style={{ width: 260 }}
-              value={dateRange}
-              onChange={(dates) => {
-                setDateRange(dates as any);
-                setCurrentPage(1);
-                fetchOrders(1, pageSize, searchText, dates as any, resultFilter, provinceFilter, minBet, minWin);
-                fetchSummary(dates as any);
-              }}
-              format="DD/MM/YYYY"
-              placeholder={['Từ ngày', 'Đến ngày']}
-              allowClear
-              presets={[
-                { label: 'Hôm nay', value: [dayjs().startOf('day'), dayjs().endOf('day')] },
-                { label: 'Hôm qua', value: [dayjs().subtract(1, 'day').startOf('day'), dayjs().subtract(1, 'day').endOf('day')] },
-                { label: '7 ngày qua', value: [dayjs().subtract(7, 'day').startOf('day'), dayjs().endOf('day')] },
-                { label: '30 ngày qua', value: [dayjs().subtract(30, 'day').startOf('day'), dayjs().endOf('day')] },
-                { label: 'Tháng này', value: [dayjs().startOf('month'), dayjs().endOf('month')] },
-              ]}
-            />
-          </Space>
-
-          <Button 
-            type="primary" 
-            icon={<DownloadOutlined />} 
-            style={{ backgroundColor: '#52c41a' }}
-            onClick={handleExportExcel}
-            loading={loading}
-          >
-            Xuất dữ liệu
-          </Button>
-
-          <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8 }}>
-            <Input 
-              placeholder="Nhập tên KH để check đối nghịch..." 
-              value={arbitrageUsername} 
-              onChange={e => setArbitrageUsername(e.target.value)} 
-              style={{ width: 230 }} 
+        <div className="cms-filter-bar" style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 12, background: '#fff', padding: 12, borderRadius: 8, boxShadow: '0 1px 2px rgba(0,0,0,0.03)' }}>
+          {/* Hàng 1: Tìm kiếm & Lọc Kết quả & Tỉnh/Đài */}
+          <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 12 }}>
+            <Input.Search
+              placeholder="Tìm tên, SĐT, Mã vé, Mã kỳ..."
+              style={{ width: 230 }}
+              value={searchText}
+              onChange={e => setSearchText(e.target.value)}
+              onSearch={handleSearch}
+              enterButton
               allowClear
             />
-            <Button 
-              type="primary" 
-              danger
-              icon={<WarningOutlined />} 
-              onClick={handleCheckArbitrage}
-            >
-              Check đối nghịch
-            </Button>
+
+            <Space size="small">
+              <span style={{ fontSize: 13, color: '#555' }}>Cược tối thiểu:</span>
+              <Input
+                placeholder="Số tiền..."
+                style={{ width: 105 }}
+                value={minBet}
+                onChange={e => setMinBet(e.target.value)}
+                onPressEnter={handleMinFilterApply}
+                onBlur={handleMinFilterApply}
+                allowClear
+              />
+            </Space>
+
+            <Space size="small">
+              <span style={{ fontSize: 13, color: '#555' }}>Thắng tối thiểu:</span>
+              <Input
+                placeholder="Số tiền..."
+                style={{ width: 105 }}
+                value={minWin}
+                onChange={e => setMinWin(e.target.value)}
+                onPressEnter={handleMinFilterApply}
+                onBlur={handleMinFilterApply}
+                allowClear
+              />
+            </Space>
+
+            <Space size="small">
+              <span style={{ fontWeight: 600, fontSize: 13, color: '#1f1f1f' }}>Lọc kết quả:</span>
+              <Radio.Group
+                value={resultFilter}
+                onChange={e => handleResultFilterChange(e.target.value)}
+                buttonStyle="solid"
+                size="middle"
+              >
+                <Radio.Button value="all">
+                  Tất cả
+                </Radio.Button>
+                <Radio.Button
+                  value="win"
+                  style={resultFilter === 'win' ? { backgroundColor: '#52c41a', borderColor: '#52c41a', color: '#fff' } : { color: '#52c41a', fontWeight: 600 }}
+                >
+                  🏆 Thắng
+                </Radio.Button>
+                <Radio.Button
+                  value="lose"
+                  style={resultFilter === 'lose' ? { backgroundColor: '#ff4d4f', borderColor: '#ff4d4f', color: '#fff' } : { color: '#ff4d4f', fontWeight: 600 }}
+                >
+                  ❌ Thua
+                </Radio.Button>
+                <Radio.Button
+                  value="pending"
+                  style={resultFilter === 'pending' ? { backgroundColor: '#fa8c16', borderColor: '#fa8c16', color: '#fff' } : { color: '#fa8c16', fontWeight: 600 }}
+                >
+                  ⏳ Chưa có KQ
+                </Radio.Button>
+                <Radio.Button
+                  value="cancelled"
+                  style={resultFilter === 'cancelled' ? { backgroundColor: '#8c8c8c', borderColor: '#8c8c8c', color: '#fff' } : { color: '#8c8c8c' }}
+                >
+                  🚫 Đã huỷ
+                </Radio.Button>
+              </Radio.Group>
+            </Space>
+
+            <Space size="small">
+              <span style={{ fontWeight: 600, fontSize: 13, color: '#1f1f1f' }}>Tỉnh/Đài:</span>
+              <Select
+                showSearch
+                allowClear
+                placeholder="Chọn Tỉnh/Đài..."
+                style={{ minWidth: 170 }}
+                value={provinceFilter === 'all' ? undefined : provinceFilter}
+                onChange={handleProvinceFilterChange}
+                options={[
+                  { label: 'Tất cả Tỉnh/Đài', value: 'all' },
+                  ...provinceOptions
+                ]}
+                filterOption={(input, option) =>
+                  (option?.label ?? '').toLowerCase().includes(input.toLowerCase())
+                }
+              />
+            </Space>
+
+            {(resultFilter !== 'all' || provinceFilter !== 'all' || minBet || minWin || searchText || dateRange) && (
+              <Button
+                icon={<ReloadOutlined />}
+                onClick={handleResetFilters}
+                style={{ color: '#ff4d4f', borderColor: '#ff4d4f' }}
+              >
+                Xoá bộ lọc
+              </Button>
+            )}
           </div>
-        </div>
-      </div>
 
-      {searchedKeyword && (
-        <div style={{ marginBottom: 16 }}>
-          <Card 
-            bordered={false}
-            style={{ 
-              borderRadius: 8, 
-              background: '#f8fafc',
-              border: '1px solid #91caff',
-              boxShadow: '0 2px 8px rgba(24, 144, 255, 0.08)'
-            }}
-            bodyStyle={{ padding: '14px 18px' }}
-          >
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                <span style={{ fontSize: 14, fontWeight: 700, color: '#0958d9' }}>
-                  👤 Thống kê cược của khách:
-                </span>
-                <Tag color="blue" style={{ fontSize: 14, fontWeight: 700, padding: '2px 10px', borderRadius: 4 }}>
-                  {searchedKeyword}
-                </Tag>
-                {userSummaryData && (
-                  <span style={{ fontSize: 13, color: '#64748b' }}>
-                    (Thắng: <strong style={{ color: '#52c41a' }}>{userSummaryData.winCount}</strong> | Thua: <strong style={{ color: '#ff4d4f' }}>{userSummaryData.loseCount}</strong> | Chờ KQ: <strong style={{ color: '#fa8c16' }}>{userSummaryData.pendingCount}</strong>)
-                  </span>
-                )}
-              </div>
-              <Button 
-                type="link" 
-                size="small" 
-                danger 
-                onClick={() => {
-                  setSearchText('');
-                  setSearchedKeyword('');
-                  setUserSummaryData(null);
+          {/* Hàng 2: Thời gian & Tiện ích xuất dữ liệu, Check đối nghịch */}
+          <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 12 }}>
+            <Space size="small">
+              <span style={{ fontSize: 13, color: '#555' }}>Ngày đặt:</span>
+              <DatePicker.RangePicker
+                style={{ width: 260 }}
+                value={dateRange}
+                onChange={(dates) => {
+                  setDateRange(dates as any);
                   setCurrentPage(1);
-                  fetchOrders(1, pageSize, '', dateRange, resultFilter, provinceFilter, minBet, minWin);
+                  fetchOrders(1, pageSize, searchText, dates as any, resultFilter, provinceFilter, minBet, minWin);
+                  fetchSummary(dates as any);
                 }}
+                format="DD/MM/YYYY"
+                placeholder={['Từ ngày', 'Đến ngày']}
+                allowClear
+                presets={[
+                  { label: 'Hôm nay', value: [dayjs().startOf('day'), dayjs().endOf('day')] },
+                  { label: 'Hôm qua', value: [dayjs().subtract(1, 'day').startOf('day'), dayjs().subtract(1, 'day').endOf('day')] },
+                  { label: '7 ngày qua', value: [dayjs().subtract(7, 'day').startOf('day'), dayjs().endOf('day')] },
+                  { label: '30 ngày qua', value: [dayjs().subtract(30, 'day').startOf('day'), dayjs().endOf('day')] },
+                  { label: 'Tháng này', value: [dayjs().startOf('month'), dayjs().endOf('month')] },
+                ]}
+              />
+            </Space>
+
+            <Button
+              type="primary"
+              icon={<DownloadOutlined />}
+              style={{ backgroundColor: '#52c41a' }}
+              onClick={handleExportExcel}
+              loading={loading}
+            >
+              Xuất dữ liệu
+            </Button>
+
+            <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8 }}>
+              <Input
+                placeholder="Nhập tên KH để check đối nghịch..."
+                value={arbitrageUsername}
+                onChange={e => setArbitrageUsername(e.target.value)}
+                style={{ width: 230 }}
+                allowClear
+              />
+              <Button
+                type="primary"
+                danger
+                icon={<WarningOutlined />}
+                onClick={handleCheckArbitrage}
               >
-                Xóa tìm kiếm (Xem tất cả)
+                Check đối nghịch
               </Button>
             </div>
-
-            <Row gutter={16}>
-              <Col span={6}>
-                <Card bordered={false} style={{ background: '#fff', borderRadius: 6, boxShadow: '0 1px 2px rgba(0,0,0,0.04)' }}>
-                  <Statistic
-                    title={<span style={{ fontWeight: 600, color: '#475569' }}>Số vé bán ra</span>}
-                    value={userSummaryData ? userSummaryData.totalTickets : (loadingUserSummary ? '...' : 0)}
-                    valueStyle={{ color: '#1890ff', fontWeight: 700 }}
-                  />
-                </Card>
-              </Col>
-              <Col span={6}>
-                <Card bordered={false} style={{ background: '#fff', borderRadius: 6, boxShadow: '0 1px 2px rgba(0,0,0,0.04)' }}>
-                  <Statistic
-                    title={<span style={{ fontWeight: 600, color: '#475569' }}>Tổng tiền bán ra</span>}
-                    value={userSummaryData ? userSummaryData.totalSales : 0}
-                    suffix="đ"
-                    valueStyle={{ color: '#3f8600', fontWeight: 700 }}
-                  />
-                </Card>
-              </Col>
-              <Col span={6}>
-                <Card bordered={false} style={{ background: '#fff', borderRadius: 6, boxShadow: '0 1px 2px rgba(0,0,0,0.04)' }}>
-                  <Statistic
-                    title={<span style={{ fontWeight: 600, color: '#475569' }}>Tổng tiền khách thắng</span>}
-                    value={userSummaryData ? userSummaryData.totalPrize : 0}
-                    suffix="đ"
-                    valueStyle={{ color: '#cf1322', fontWeight: 700 }}
-                  />
-                </Card>
-              </Col>
-              <Col span={6}>
-                <Card bordered={false} style={{ background: '#fff', borderRadius: 6, boxShadow: '0 1px 2px rgba(0,0,0,0.04)' }}>
-                  <Statistic
-                    title={<span style={{ fontWeight: 600, color: '#475569' }}>Tổng tiền khách thua</span>}
-                    value={userSummaryData ? userSummaryData.totalLoss : 0}
-                    suffix="đ"
-                    valueStyle={{ 
-                      color: (userSummaryData?.totalLoss ?? 0) >= 0 ? '#d48806' : '#cf1322', 
-                      fontWeight: 700 
-                    }}
-                  />
-                </Card>
-              </Col>
-            </Row>
-          </Card>
+          </div>
         </div>
-      )}
 
-      <Table 
-        scroll={{ x: 'max-content' }}
-        columns={columns}
-        dataSource={isServerPaginated ? orders : filteredOrders.slice((currentPage - 1) * pageSize, currentPage * pageSize)}
-        rowKey="_id"
-        loading={loading}
-        pagination={{
-          current: currentPage,
-          pageSize: pageSize,
-          total: isServerPaginated ? totalOrders : filteredOrders.length,
-          showSizeChanger: true,
-          pageSizeOptions: ['10', '20', '50', '100'],
-          onChange: (page, size) => {
-            setCurrentPage(page);
-            setPageSize(size);
-            if (isServerPaginated) {
-              fetchOrders(page, size, searchText, dateRange, resultFilter, provinceFilter, minBet, minWin);
-            }
-          },
-          showTotal: (totalCount, range) => (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, fontWeight: 500 }}>
-              <span>Tổng số vé: <strong style={{ color: '#1677ff', fontSize: 14 }}>{totalCount}</strong></span>
-              <span style={{ color: '#888' }}>(Hiển thị {range[0]}-{range[1]})</span>
-            </div>
-          ),
-        }}
-      />
+        {searchedKeyword && (
+          <div style={{ marginBottom: 16 }}>
+            <Card
+              bordered={false}
+              style={{
+                borderRadius: 8,
+                background: '#f8fafc',
+                border: '1px solid #91caff',
+                boxShadow: '0 2px 8px rgba(24, 144, 255, 0.08)'
+              }}
+              bodyStyle={{ padding: '14px 18px' }}
+            >
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                  <span style={{ fontSize: 14, fontWeight: 700, color: '#0958d9' }}>
+                    👤 Thống kê cược của khách:
+                  </span>
+                  <Tag color="blue" style={{ fontSize: 14, fontWeight: 700, padding: '2px 10px', borderRadius: 4 }}>
+                    {searchedKeyword}
+                  </Tag>
+                  {userSummaryData && (
+                    <span style={{ fontSize: 13, color: '#64748b' }}>
+                      (Thắng: <strong style={{ color: '#52c41a' }}>{userSummaryData.winCount}</strong> | Thua: <strong style={{ color: '#ff4d4f' }}>{userSummaryData.loseCount}</strong> | Chờ KQ: <strong style={{ color: '#fa8c16' }}>{userSummaryData.pendingCount}</strong>)
+                    </span>
+                  )}
+                </div>
+                <Button
+                  type="link"
+                  size="small"
+                  danger
+                  onClick={() => {
+                    setSearchText('');
+                    setSearchedKeyword('');
+                    setUserSummaryData(null);
+                    setCurrentPage(1);
+                    fetchOrders(1, pageSize, '', dateRange, resultFilter, provinceFilter, minBet, minWin);
+                  }}
+                >
+                  Xóa tìm kiếm (Xem tất cả)
+                </Button>
+              </div>
+
+              <Row gutter={16}>
+                <Col span={6}>
+                  <Card bordered={false} style={{ background: '#fff', borderRadius: 6, boxShadow: '0 1px 2px rgba(0,0,0,0.04)' }}>
+                    <Statistic
+                      title={<span style={{ fontWeight: 600, color: '#475569' }}>Số vé bán ra</span>}
+                      value={userSummaryData ? userSummaryData.totalTickets : (loadingUserSummary ? '...' : 0)}
+                      valueStyle={{ color: '#1890ff', fontWeight: 700 }}
+                    />
+                  </Card>
+                </Col>
+                <Col span={6}>
+                  <Card bordered={false} style={{ background: '#fff', borderRadius: 6, boxShadow: '0 1px 2px rgba(0,0,0,0.04)' }}>
+                    <Statistic
+                      title={<span style={{ fontWeight: 600, color: '#475569' }}>Tổng tiền bán ra</span>}
+                      value={userSummaryData ? userSummaryData.totalSales : 0}
+                      suffix="đ"
+                      valueStyle={{ color: '#3f8600', fontWeight: 700 }}
+                    />
+                  </Card>
+                </Col>
+                <Col span={6}>
+                  <Card bordered={false} style={{ background: '#fff', borderRadius: 6, boxShadow: '0 1px 2px rgba(0,0,0,0.04)' }}>
+                    <Statistic
+                      title={<span style={{ fontWeight: 600, color: '#475569' }}>Tổng tiền khách thắng</span>}
+                      value={userSummaryData ? userSummaryData.totalPrize : 0}
+                      suffix="đ"
+                      valueStyle={{ color: '#cf1322', fontWeight: 700 }}
+                    />
+                  </Card>
+                </Col>
+                <Col span={6}>
+                  <Card bordered={false} style={{ background: '#fff', borderRadius: 6, boxShadow: '0 1px 2px rgba(0,0,0,0.04)' }}>
+                    <Statistic
+                      title={<span style={{ fontWeight: 600, color: '#475569' }}>Tổng tiền khách thua</span>}
+                      value={userSummaryData ? userSummaryData.totalLoss : 0}
+                      suffix="đ"
+                      valueStyle={{
+                        color: (userSummaryData?.totalLoss ?? 0) >= 0 ? '#d48806' : '#cf1322',
+                        fontWeight: 700
+                      }}
+                    />
+                  </Card>
+                </Col>
+              </Row>
+            </Card>
+          </div>
+        )}
+
+        <Table
+          scroll={{ x: 'max-content' }}
+          columns={columns}
+          dataSource={isServerPaginated ? orders : filteredOrders.slice((currentPage - 1) * pageSize, currentPage * pageSize)}
+          rowKey="_id"
+          loading={loading}
+          pagination={{
+            current: currentPage,
+            pageSize: pageSize,
+            total: isServerPaginated ? totalOrders : filteredOrders.length,
+            showSizeChanger: true,
+            pageSizeOptions: ['10', '20', '50', '100'],
+            onChange: (page, size) => {
+              setCurrentPage(page);
+              setPageSize(size);
+              if (isServerPaginated) {
+                fetchOrders(page, size, searchText, dateRange, resultFilter, provinceFilter, minBet, minWin);
+              }
+            },
+            showTotal: (totalCount, range) => (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, fontWeight: 500 }}>
+                <span>Tổng số vé: <strong style={{ color: '#1677ff', fontSize: 14 }}>{totalCount}</strong></span>
+                <span style={{ color: '#888' }}>(Hiển thị {range[0]}-{range[1]})</span>
+              </div>
+            ),
+          }}
+        />
       </div>
 
       <Modal
@@ -1836,8 +1935,8 @@ export default function OrderManagement() {
                         <div>
                           <strong>Dãy số:</strong>{' '}
                           <span style={{ color: 'blue', wordBreak: 'break-all' }}>
-                            {o.items && o.items.length > 0 
-                              ? o.items.map((it: any) => it.numbers.join(', ')).join(' | ') 
+                            {o.items && o.items.length > 0
+                              ? o.items.map((it: any) => it.numbers.join(', ')).join(' | ')
                               : o.numbers ? o.numbers.join(', ') : 'N/A'}
                           </span>
                         </div>
@@ -1879,7 +1978,7 @@ export default function OrderManagement() {
               return null;
             })()}
             <p><strong>Loại cược:</strong> <Tag color="geekblue">{selectedTicketOrder.playType || 'Vé cơ bản'}</Tag></p>
-            <p><strong>Số tiền cược:</strong> <strong style={{color: 'red'}}>{selectedTicketOrder.totalCost?.toLocaleString('vi-VN')} đ</strong></p>
+            <p><strong>Số tiền cược:</strong> <strong style={{ color: 'red' }}>{selectedTicketOrder.totalCost?.toLocaleString('vi-VN')} đ</strong></p>
             {selectedTicketOrder.isWinner && (selectedTicketOrder.prizeAmount > 0) && (
               <p>
                 <strong>Tiền trúng thưởng:</strong>{' '}
@@ -1900,13 +1999,13 @@ export default function OrderManagement() {
                 selectedTicketOrder.items.map((item: any, idx: number) => {
                   const { isWin, matchedNumbers } = getItemWinDetails(item, selectedTicketOrder, drawMap);
                   return (
-                    <div 
-                      key={idx} 
-                      style={{ 
-                        marginBottom: 12, 
-                        padding: '10px 14px', 
-                        backgroundColor: isWin ? '#fff1f0' : '#ffffff', 
-                        border: isWin ? '1.5px solid #ff4d4f' : '1px solid #e2e8f0', 
+                    <div
+                      key={idx}
+                      style={{
+                        marginBottom: 12,
+                        padding: '10px 14px',
+                        backgroundColor: isWin ? '#fff1f0' : '#ffffff',
+                        border: isWin ? '1.5px solid #ff4d4f' : '1px solid #e2e8f0',
                         borderRadius: 8,
                         boxShadow: isWin ? '0 2px 8px rgba(255, 77, 79, 0.2)' : 'none'
                       }}
@@ -1916,13 +2015,13 @@ export default function OrderManagement() {
                           Dãy {item.id || String.fromCharCode(65 + idx)}:
                         </span>
                         {isWin && (
-                          <Tag 
-                            color="error" 
-                            style={{ 
-                              fontWeight: 800, 
-                              fontSize: 12, 
-                              padding: '2px 10px', 
-                              borderRadius: 4, 
+                          <Tag
+                            color="error"
+                            style={{
+                              fontWeight: 800,
+                              fontSize: 12,
+                              padding: '2px 10px',
+                              borderRadius: 4,
                               textTransform: 'uppercase',
                               backgroundColor: '#ff4d4f',
                               color: '#fff',
@@ -1938,8 +2037,8 @@ export default function OrderManagement() {
                         {item.numbers.map((n: string, i: number) => {
                           const isMatched = isWin || matchedNumbers.includes(n);
                           return (
-                            <Tag 
-                              key={i} 
+                            <Tag
+                              key={i}
                               color={isMatched ? "error" : "blue"}
                               style={{
                                 fontWeight: isMatched ? 800 : 500,
@@ -1981,8 +2080,8 @@ export default function OrderManagement() {
                   {selectedTicketOrder.numbers?.map((n: string, i: number) => {
                     const isMatched = selectedTicketOrder.isWinner;
                     return (
-                      <Tag 
-                        key={i} 
+                      <Tag
+                        key={i}
                         color={isMatched ? "error" : "blue"}
                         style={{
                           fontWeight: isMatched ? 800 : 500,

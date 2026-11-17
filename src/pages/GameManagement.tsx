@@ -235,6 +235,7 @@ export default function GameManagement() {
 
   const filteredGames = useMemo(() => {
     return games.filter(g => {
+      if (g.code === 'clln_keno' || g.code === 'bao_keno') return false;
       if (typeFilter !== 'all' && g.type !== typeFilter) return false;
       if (statusFilter !== 'all') {
         if (statusFilter === 'active' && !g.isActive) return false;

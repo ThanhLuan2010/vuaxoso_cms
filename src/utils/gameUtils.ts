@@ -18,6 +18,10 @@ export const isDerived3MienGame = (gameOrId: any, gamesList?: any[]): boolean =>
     type === "lode" ||
     code === "xoso_3mien" ||
     code === "lode" ||
-    name.includes("lô đề 3 miền")
+    name.includes("lô đề 3 miền") ||
+    code === "loto_235" ||
+    code === "loto_cap" ||
+    code === "truot_loto" ||
+    code === "bao_loto_2"
   );
 };
