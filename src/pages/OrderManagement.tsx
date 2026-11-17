@@ -96,7 +96,8 @@ const getOrderProvinceName = (record: Order): string => {
     loto_cap: 'LÔ TÔ CẶP',
     dientoan_636: 'ĐIỆN TOÁN 6X36',
     truot_loto: 'TRƯỢT LÔ TÔ',
-    than_tai_4: 'THẦN TÀI 4',
+    than_tai_4: 'ĐIỆN TOÁN THẦN TÀI',
+    dientoan_123: 'ĐIỆN TOÁN 1*2*3',
     power_655: 'POWER 6/55',
     mega_645: 'MEGA 6/45',
     max_3d: 'MAX 3D',
@@ -121,6 +122,177 @@ const getOrderResult = (record: Order): 'win' | 'lose' | 'pending' | 'cancelled'
     return 'win';
   }
   return 'lose';
+};
+
+interface ItemWinDetails {
+  isWin: boolean;
+  matchedNumbers: string[];
+}
+
+const getItemWinDetails = (
+  item: any,
+  order: any,
+  drawMap?: Record<string, any>
+): ItemWinDetails => {
+  if (!item || !order) return { isWin: false, matchedNumbers: [] };
+
+  // 1. Explicit item winner flag from backend
+  if (item.isWinner !== undefined) {
+    return {
+      isWin: Boolean(item.isWinner),
+      matchedNumbers: item.numbers || []
+    };
+  }
+
+  // 2. Resolve winning numbers w
+  let w: string[] = [];
+  if (Array.isArray(order.winningNumbers) && order.winningNumbers.length > 0) {
+    w = order.winningNumbers;
+  } else if (order.drawId && drawMap) {
+    const rawId = String(order.drawId).trim();
+    const cleanId = rawId.replace('#', '');
+    const foundDraw = drawMap[rawId] || drawMap[`#${cleanId}`] || drawMap[cleanId];
+    if (foundDraw?.winningNumbers && Array.isArray(foundDraw.winningNumbers)) {
+      w = foundDraw.winningNumbers;
+    }
+  } else if (order.draw?.winningNumbers && Array.isArray(order.draw.winningNumbers)) {
+    w = order.draw.winningNumbers;
+  }
+
+  const itemNumbers: string[] = Array.isArray(item.numbers) ? item.numbers : [];
+
+  // If order is completed and won, but has only 1 item/dãy
+  if (order.isWinner && (!order.items || order.items.length <= 1)) {
+    return { isWin: true, matchedNumbers: itemNumbers };
+  }
+
+  if (!w || w.length === 0) {
+    return { isWin: false, matchedNumbers: [] };
+  }
+
+  const gType = (order.gameType || '').toLowerCase();
+  const pType = (item.playType || order.playType || '').toLowerCase();
+
+  // A. LÔ TÔ CẶP (loto_cap) - 2 cặp, 3 cặp, 4 cặp
+  if (gType === 'loto_cap' || pType.includes('cặp') || pType.includes('cap')) {
+    const w2 = w.map((n: string) => String(n).slice(-2));
+    const matched = itemNumbers.filter((n: string) => w2.includes(n));
+    // Vé xiên / cặp chỉ trúng khi TẤT CẢ các con số trong cặp đều về
+    const isWin = itemNumbers.length >= 2 && itemNumbers.every((n: string) => w2.includes(n));
+    return { isWin, matchedNumbers: isWin ? itemNumbers : matched };
+  }
+
+  // B. TRƯỢT LÔ TÔ (truot_loto)
+  if (gType === 'truot_loto' || (pType.includes('trượt') && !gType.includes('mb') && !gType.includes('mn') && !gType.includes('mt'))) {
+    const w2 = w.map((n: string) => String(n).slice(-2));
+    const isWin = itemNumbers.length > 0 && itemNumbers.every((n: string) => !w2.includes(n));
+    return { isWin, matchedNumbers: isWin ? itemNumbers : [] };
+  }
+
+  // C. LÔ ĐỀ 3 MIỀN (MB, MT, MN)
+  if (['mb', 'mt', 'mn', 'xoso_3mien'].includes(gType) || pType.includes('xiên') || pType.includes('xien') || pType.includes('lô') || pType.includes('đề')) {
+    const w2 = w.map((n: string) => String(n).slice(-2));
+
+    // C.1. Xiên ĐB (2 số cuối GĐB)
+    if (pType.includes('xiên đb') || pType.includes('xien db')) {
+      const gdb2 = (w[0] || '').slice(-2);
+      const isWin = itemNumbers.length > 0 && itemNumbers.every((n: string) => n === gdb2);
+      return { isWin, matchedNumbers: isWin ? [gdb2] : [] };
+    }
+
+    // C.2. Xiên giải 1 (2 số cuối G1)
+    if (pType.includes('xiên giải 1') || pType.includes('xien giai 1')) {
+      const g1_2 = (w[1] || '').slice(-2);
+      const isWin = itemNumbers.length > 0 && itemNumbers.every((n: string) => n === g1_2);
+      return { isWin, matchedNumbers: isWin ? [g1_2] : [] };
+    }
+
+    // C.3. Xiên 3 càng / 4 càng
+    if (pType.includes('xiên 3 càng') || pType.includes('xien 3 cang')) {
+      const gdb3 = (w[0] || '').slice(-3);
+      const isWin = itemNumbers.length > 0 && itemNumbers.every((n: string) => n === gdb3);
+      return { isWin, matchedNumbers: isWin ? [gdb3] : [] };
+    }
+    if (pType.includes('xiên 4 càng') || pType.includes('xien 4 cang')) {
+      const gdb4 = (w[0] || '').slice(-4);
+      const isWin = itemNumbers.length > 0 && itemNumbers.every((n: string) => n === gdb4);
+      return { isWin, matchedNumbers: isWin ? [gdb4] : [] };
+    }
+
+    // C.4. Lô Xiên (Xiên 2, Xiên 3, Xiên 4, Xiên quay)
+    if (pType.includes('xiên') || pType.includes('xien')) {
+      const numList = itemNumbers.flatMap((n: string) => n.includes('&') ? n.split('&') : [n]).map((s: string) => s.trim()).filter(Boolean);
+      const matched = numList.filter((n: string) => w2.includes(n));
+      const isWin = numList.length >= 2 && numList.every((n: string) => w2.includes(n));
+      return { isWin, matchedNumbers: isWin ? numList : matched };
+    }
+
+    // C.5. Trượt xiên (Trượt 4, 6, 8, 10)
+    if (pType.includes('trượt') || pType.includes('truot')) {
+      const numList = itemNumbers.flatMap((n: string) => n.includes('&') ? n.split('&') : [n]).map((s: string) => s.trim()).filter(Boolean);
+      const isWin = numList.length >= 4 && numList.every((n: string) => !w2.includes(n));
+      return { isWin, matchedNumbers: isWin ? numList : [] };
+    }
+
+    // C.6. Đề đặc biệt (2 số cuối GĐB)
+    if (pType.includes('đề') || pType.includes('de') || pType.includes('đặc biệt')) {
+      const gdb2 = (w[0] || '').slice(-2);
+      const matched = itemNumbers.filter((n: string) => n === gdb2);
+      return { isWin: matched.length > 0, matchedNumbers: matched };
+    }
+
+    // C.7. 3 Càng / 4 Càng
+    if (pType.includes('3 càng') || pType.includes('3 cang')) {
+      const gdb3 = (w[0] || '').slice(-3);
+      const matched = itemNumbers.filter((n: string) => n === gdb3);
+      return { isWin: matched.length > 0, matchedNumbers: matched };
+    }
+    if (pType.includes('4 càng') || pType.includes('4 cang')) {
+      const gdb4 = (w[0] || '').slice(-4);
+      const matched = itemNumbers.filter((n: string) => n === gdb4);
+      return { isWin: matched.length > 0, matchedNumbers: matched };
+    }
+
+    // C.8. Lô 2 số
+    if (pType.includes('lô') || pType.includes('lo')) {
+      const matched = itemNumbers.filter((n: string) => w2.includes(n));
+      return { isWin: matched.length > 0, matchedNumbers: matched };
+    }
+  }
+
+  // D. LÔ TÔ 2-3-5 (loto_235)
+  if (gType === 'loto_235') {
+    const w2 = w.map((n: string) => String(n).slice(-2));
+    if (pType.includes('bao')) {
+      const matched = itemNumbers.filter((n: string) => w2.includes(n));
+      return { isWin: matched.length > 0, matchedNumbers: matched };
+    }
+    if (pType.includes('2 số')) {
+      const targets = [(w[0]||'').slice(-2), (w[1]||'').slice(-2), (w[0]||'').slice(0, 2), (w[1]||'').slice(0, 2)];
+      const matched = itemNumbers.filter((n: string) => targets.includes(n));
+      return { isWin: matched.length > 0, matchedNumbers: matched };
+    }
+    if (pType.includes('3 số')) {
+      const targets = [(w[0]||'').slice(-3), (w[1]||'').slice(-3), (w[0]||'').slice(0, 3), (w[1]||'').slice(0, 3)];
+      const matched = itemNumbers.filter((n: string) => targets.includes(n));
+      return { isWin: matched.length > 0, matchedNumbers: matched };
+    }
+    if (pType.includes('4 số')) {
+      const targets = [(w[0]||'').slice(-4), (w[1]||'').slice(-4), (w[0]||'').slice(0, 4), (w[1]||'').slice(0, 4)];
+      const matched = itemNumbers.filter((n: string) => targets.includes(n));
+      return { isWin: matched.length > 0, matchedNumbers: matched };
+    }
+    if (pType.includes('5 số')) {
+      const targets = [w[0], w[1]];
+      const matched = itemNumbers.filter((n: string) => targets.includes(n));
+      return { isWin: matched.length > 0, matchedNumbers: matched };
+    }
+  }
+
+  // E. Vietlott, Keno, Bingo18, Thần tài
+  const matched = itemNumbers.filter((n: string) => w.includes(n));
+  const isWin = Boolean(item.isWinner || (order.isWinner && matched.length > 0));
+  return { isWin, matchedNumbers: matched };
 };
 
 const getOrderDrawInfo = (record: any, drawMap?: Record<string, any>) => {
@@ -440,6 +612,11 @@ export default function OrderManagement() {
         const map: Record<string, any> = {};
         list.forEach((d: any) => {
           if (d._id) map[d._id] = d;
+          if (d.drawCode) {
+            map[d.drawCode] = d;
+            const stripped = String(d.drawCode).replace('#', '');
+            map[stripped] = d;
+          }
         });
         setDrawMap(map);
       } catch (err) {
@@ -920,22 +1097,55 @@ export default function OrderManagement() {
       title: 'Dãy số',
       key: 'numbers',
       render: (_: any, record: any) => {
-        const renderNumbers = (nums: string[]) => {
+        const renderNumbers = (nums: string[], isWin = false, matchedNums: string[] = []) => {
           if (!nums || nums.length === 0) return null;
+          const renderTag = (n: string, i: number) => {
+            const isMatched = isWin || matchedNums.includes(n);
+            return (
+              <Tag
+                key={i}
+                color={isMatched ? 'error' : 'blue'}
+                style={{
+                  marginInlineEnd: 2,
+                  fontWeight: isMatched ? 700 : 400,
+                  backgroundColor: isMatched ? '#ff4d4f' : undefined,
+                  color: isMatched ? '#fff' : undefined,
+                  borderColor: isMatched ? '#ff4d4f' : undefined,
+                }}
+              >
+                {n}
+              </Tag>
+            );
+          };
+
           if (nums.length <= 3) {
-            return nums.map((n: string, i: number) => (
-              <Tag key={i} color="blue" style={{ marginInlineEnd: 2 }}>{n}</Tag>
-            ));
+            return (
+              <>
+                {nums.map((n, i) => renderTag(n, i))}
+                {isWin && (
+                  <Tag color="error" style={{ fontWeight: 800, fontSize: 10, padding: '0 4px', marginInlineStart: 2, backgroundColor: '#ff4d4f', color: '#fff', borderColor: '#ff4d4f' }}>
+                    TRÚNG
+                  </Tag>
+                )}
+              </>
+            );
           }
           const displayNums = nums.slice(0, 3);
           const hiddenCount = nums.length - 3;
           return (
             <>
-              {displayNums.map((n: string, i: number) => (
-                <Tag key={i} color="blue" style={{ marginInlineEnd: 2 }}>{n}</Tag>
-              ))}
+              {displayNums.map((n, i) => renderTag(n, i))}
+              {isWin && (
+                <Tag color="error" style={{ fontWeight: 800, fontSize: 10, padding: '0 4px', marginInlineStart: 2, backgroundColor: '#ff4d4f', color: '#fff', borderColor: '#ff4d4f' }}>
+                  TRÚNG
+                </Tag>
+              )}
               <Popover 
-                content={<div style={{ maxWidth: 300, display: 'flex', flexWrap: 'wrap', gap: 4 }}>{nums.map((n, i) => <Tag key={i} color="blue">{n}</Tag>)}</div>} 
+                content={
+                  <div style={{ maxWidth: 300, display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+                    {nums.map((n, i) => renderTag(n, i))}
+                  </div>
+                } 
                 title="Tất cả số đã chọn"
               >
                 <Tag color="cyan" style={{ cursor: 'pointer', marginInlineEnd: 2 }}>+ {hiddenCount} số nữa...</Tag>
@@ -945,35 +1155,52 @@ export default function OrderManagement() {
         };
 
         if (record.items && record.items.length > 0) {
-          const displayItems = record.items.slice(0, 1);
-          const hiddenCount = record.items.length - displayItems.length;
+          // Check win status of all items
+          const itemsWithWin = record.items.map((it: any, idx: number) => ({
+            item: it,
+            idx,
+            details: getItemWinDetails(it, record, drawMap)
+          }));
+          const winningItems = itemsWithWin.filter((x: any) => x.details.isWin);
+
+          // Prioritize showing winning item first!
+          const primary = winningItems.length > 0 ? winningItems[0] : itemsWithWin[0];
+          const hiddenCount = record.items.length - 1;
 
           return (
             <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '4px 8px' }}>
-              {displayItems.map((item: any, idx: number) => (
-                <div key={idx} style={{ display: 'flex', alignItems: 'center' }}>
-                  <strong style={{ marginRight: 4 }}>{item.id || String.fromCharCode(65 + idx)}:</strong>
-                  {renderNumbers(item.numbers)}
-                </div>
-              ))}
+              <div style={{ display: 'flex', alignItems: 'center' }}>
+                <strong style={{ marginRight: 4, color: primary.details.isWin ? '#cf1322' : 'inherit' }}>
+                  {primary.item.id || String.fromCharCode(65 + primary.idx)}:
+                </strong>
+                {renderNumbers(primary.item.numbers, primary.details.isWin, primary.details.matchedNumbers)}
+              </div>
               {hiddenCount > 0 && (
                 <Tag 
-                  color="orange" 
-                  style={{ cursor: 'pointer', margin: 0 }}
+                  color={winningItems.length > 0 ? "error" : "orange"}
+                  style={{ 
+                    cursor: 'pointer', 
+                    margin: 0, 
+                    fontWeight: winningItems.length > 0 ? 600 : 400,
+                    borderColor: winningItems.length > 0 ? '#ff7875' : undefined,
+                    color: winningItems.length > 0 ? '#cf1322' : undefined,
+                    backgroundColor: winningItems.length > 0 ? '#fff1f0' : undefined
+                  }}
                   onClick={() => {
                     setSelectedTicketOrder(record);
                     setTicketModalVisible(true);
                   }}
                 >
-                  + {hiddenCount} dãy số khác (Xem chi tiết)
+                  + {hiddenCount} dãy số khác {winningItems.length > 1 ? `(có ${winningItems.length} dãy trúng)` : '(Xem chi tiết)'}
                 </Tag>
               )}
             </div>
           );
         }
+        const winDetails = getItemWinDetails({ numbers: record.numbers }, record, drawMap);
         return (
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
-            {renderNumbers(record.numbers)}
+            {renderNumbers(record.numbers, winDetails.isWin, winDetails.matchedNumbers)}
           </div>
         );
       },
@@ -1653,6 +1880,15 @@ export default function OrderManagement() {
             })()}
             <p><strong>Loại cược:</strong> <Tag color="geekblue">{selectedTicketOrder.playType || 'Vé cơ bản'}</Tag></p>
             <p><strong>Số tiền cược:</strong> <strong style={{color: 'red'}}>{selectedTicketOrder.totalCost?.toLocaleString('vi-VN')} đ</strong></p>
+            {selectedTicketOrder.isWinner && (selectedTicketOrder.prizeAmount > 0) && (
+              <p>
+                <strong>Tiền trúng thưởng:</strong>{' '}
+                <strong style={{ color: '#52c41a', fontSize: 16 }}>
+                  +{selectedTicketOrder.prizeAmount.toLocaleString('vi-VN')} đ
+                </strong>
+                <Tag color="error" style={{ marginLeft: 8, fontWeight: 700 }}>VÉ THẮNG</Tag>
+              </p>
+            )}
             {selectedTicketOrder.adminNote && (
               <div style={{ margin: '8px 0', padding: '8px 12px', background: '#fffbe6', border: '1px solid #ffe58f', borderRadius: 6 }}>
                 <strong>Ghi chú / Lý do điều chỉnh:</strong> <span style={{ color: '#d48806', fontWeight: 600 }}>{selectedTicketOrder.adminNote}</span>
@@ -1661,27 +1897,105 @@ export default function OrderManagement() {
             <div><strong>Chi tiết các dãy số ({selectedTicketOrder.items?.length || 1} dãy):</strong></div>
             <div style={{ padding: 12, backgroundColor: '#f9f9f9', borderRadius: 8, marginTop: 8, maxHeight: '450px', overflowY: 'auto' }}>
               {selectedTicketOrder.items && selectedTicketOrder.items.length > 0 ? (
-                selectedTicketOrder.items.map((item: any, idx: number) => (
-                  <div key={idx} style={{ marginBottom: 12, paddingBottom: 12, borderBottom: '1px solid #eee' }}>
-                    <strong>Dãy {item.id || String.fromCharCode(65 + idx)}:</strong> 
-                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginTop: 4 }}>
-                      {item.numbers.map((n: string, i: number) => <Tag key={i} color="blue">{n}</Tag>)}
+                selectedTicketOrder.items.map((item: any, idx: number) => {
+                  const { isWin, matchedNumbers } = getItemWinDetails(item, selectedTicketOrder, drawMap);
+                  return (
+                    <div 
+                      key={idx} 
+                      style={{ 
+                        marginBottom: 12, 
+                        padding: '10px 14px', 
+                        backgroundColor: isWin ? '#fff1f0' : '#ffffff', 
+                        border: isWin ? '1.5px solid #ff4d4f' : '1px solid #e2e8f0', 
+                        borderRadius: 8,
+                        boxShadow: isWin ? '0 2px 8px rgba(255, 77, 79, 0.2)' : 'none'
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+                        <span style={{ fontWeight: 700, fontSize: 14, color: isWin ? '#cf1322' : '#0f172a' }}>
+                          Dãy {item.id || String.fromCharCode(65 + idx)}:
+                        </span>
+                        {isWin && (
+                          <Tag 
+                            color="error" 
+                            style={{ 
+                              fontWeight: 800, 
+                              fontSize: 12, 
+                              padding: '2px 10px', 
+                              borderRadius: 4, 
+                              textTransform: 'uppercase',
+                              backgroundColor: '#ff4d4f',
+                              color: '#fff',
+                              borderColor: '#ff4d4f',
+                              boxShadow: '0 1px 3px rgba(255, 77, 79, 0.3)'
+                            }}
+                          >
+                            ✓ TRÚNG
+                          </Tag>
+                        )}
+                      </div>
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 4 }}>
+                        {item.numbers.map((n: string, i: number) => {
+                          const isMatched = isWin || matchedNumbers.includes(n);
+                          return (
+                            <Tag 
+                              key={i} 
+                              color={isMatched ? "error" : "blue"}
+                              style={{
+                                fontWeight: isMatched ? 800 : 500,
+                                fontSize: 13,
+                                padding: '3px 10px',
+                                borderRadius: 4,
+                                backgroundColor: isMatched ? '#ff4d4f' : undefined,
+                                color: isMatched ? '#ffffff' : undefined,
+                                borderColor: isMatched ? '#ff4d4f' : undefined,
+                              }}
+                            >
+                              {n}
+                            </Tag>
+                          );
+                        })}
+                      </div>
+                      <div style={{ fontSize: '13px', color: '#666', marginTop: 6, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <span>
+                          Cược: {(() => {
+                            const vietlottGames = ['keno', 'bao_keno', 'clln_keno', 'power', 'mega', 'max_3d', 'max_3d_pro', 'max_3d_plus', 'max_4d', 'bingo18', 'lotto', 'lotto_535', 'lotto_570'];
+                            const isVietlott = vietlottGames.some(vg => (selectedTicketOrder.gameType || '').toLowerCase().includes(vg));
+                            if (isVietlott) {
+                              return `${item.cost?.toLocaleString('vi-VN')} đ`;
+                            }
+                            return item.baseCost !== undefined ? `${item.baseCost.toLocaleString('vi-VN')} đ/con (Tổng nhánh: ${item.cost?.toLocaleString('vi-VN')} đ)` : `${item.cost?.toLocaleString('vi-VN')} đ`;
+                          })()}
+                        </span>
+                        {isWin && (
+                          <strong style={{ color: '#cf1322', fontSize: 13 }}>
+                            Dãy trúng thưởng
+                          </strong>
+                        )}
+                      </div>
                     </div>
-                    <div style={{ fontSize: '13px', color: '#666', marginTop: 4 }}>
-                      Cược: {(() => {
-                        const vietlottGames = ['keno', 'bao_keno', 'clln_keno', 'power', 'mega', 'max_3d', 'max_3d_pro', 'max_3d_plus', 'max_4d', 'bingo18', 'lotto', 'lotto_535', 'lotto_570'];
-                        const isVietlott = vietlottGames.some(vg => (selectedTicketOrder.gameType || '').toLowerCase().includes(vg));
-                        if (isVietlott) {
-                          return `${item.cost?.toLocaleString('vi-VN')} đ`;
-                        }
-                        return item.baseCost !== undefined ? `${item.baseCost.toLocaleString('vi-VN')} đ/con (Tổng nhánh: ${item.cost?.toLocaleString('vi-VN')} đ)` : `${item.cost?.toLocaleString('vi-VN')} đ`;
-                      })()}
-                    </div>
-                  </div>
-                ))
+                  );
+                })
               ) : (
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
-                  {selectedTicketOrder.numbers?.map((n: string, i: number) => <Tag key={i} color="blue">{n}</Tag>)}
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                  {selectedTicketOrder.numbers?.map((n: string, i: number) => {
+                    const isMatched = selectedTicketOrder.isWinner;
+                    return (
+                      <Tag 
+                        key={i} 
+                        color={isMatched ? "error" : "blue"}
+                        style={{
+                          fontWeight: isMatched ? 800 : 500,
+                          fontSize: 13,
+                          padding: '3px 10px',
+                          backgroundColor: isMatched ? '#ff4d4f' : undefined,
+                          color: isMatched ? '#fff' : undefined,
+                        }}
+                      >
+                        {n}
+                      </Tag>
+                    );
+                  })}
                 </div>
               )}
             </div>

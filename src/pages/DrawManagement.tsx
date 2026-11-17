@@ -44,8 +44,29 @@ export default function DrawManagement() {
   const [isKienThietModalOpen, setIsKienThietModalOpen] = useState(false);
   const [currentKienThietDraw, setCurrentKienThietDraw] = useState<any>(null);
 
+  const getGameDisplayName = (g: any) => {
+    if (!g) return '-';
+    if (g.code === 'bingo18') return 'BINGO18 (Điện toán 111-666)';
+    if (g.code === 'than_tai_4') return 'ĐIỆN TOÁN Thần Tài';
+    if (g.code === 'dientoan_123') return 'ĐIỆN TOÁN 1*2*3';
+    return g.name || '-';
+  };
+
   const playableGames = useMemo(() => {
-    return games.filter(g => !isDerived3MienGame(g));
+    const list = games.filter(g => !isDerived3MienGame(g));
+    const priorityCodes: Record<string, number> = {
+      'MB': 1, 'MT': 2, 'MN': 3,
+      'keno': 4, 'bao_keno': 5, 'clln_keno': 6,
+      'bingo18': 7,
+      'than_tai_4': 8, 'dientoan_123': 9, 'dientoan_636': 10,
+      'power_655': 11, 'mega_645': 12, 'max_3d': 13, 'max_3d_pro': 14, 'max_4d': 15
+    };
+    return [...list].sort((a, b) => {
+      const pA = priorityCodes[a.code] || 99;
+      const pB = priorityCodes[b.code] || 99;
+      if (pA !== pB) return pA - pB;
+      return getGameDisplayName(a).localeCompare(getGameDisplayName(b));
+    });
   }, [games]);
 
   const [showRedundantDraws, setShowRedundantDraws] = useState(false);
@@ -77,7 +98,14 @@ export default function DrawManagement() {
         page,
         limit: 10,
       };
-      if (filterGameId) params.gameId = filterGameId;
+      if (filterGameId) {
+        const found = games.find((g: any) => g._id === filterGameId || g.code === filterGameId);
+        if (found && found._id && found._id.length === 24) {
+          params.gameId = found._id;
+        } else {
+          params.gameId = filterGameId;
+        }
+      }
       if (filterProvinceId && filterProvinceId !== 'all') params.provinceId = filterProvinceId;
       if (filterDate) params.date = filterDate.format('YYYY-MM-DD');
       if (filterStatus && filterStatus !== 'all') params.status = filterStatus;
@@ -85,7 +113,7 @@ export default function DrawManagement() {
 
       const [drawsRes, gamesRes, provsRes] = await Promise.all([
         api.get('/draws/admin', { params }),
-        games.length > 0 ? Promise.resolve({ data: games }) : api.get('/games'),
+        games.length > 0 ? Promise.resolve({ data: games }) : api.get('/games', { params: { admin: 'true' } }),
         provinces.length > 0 ? Promise.resolve({ data: provinces }) : api.get('/provinces')
       ]);
 
@@ -96,7 +124,40 @@ export default function DrawManagement() {
         setDraws(drawsRes.data);
         setTotal(drawsRes.data.length);
       }
-      if (games.length === 0 && gamesRes.data) setGames(gamesRes.data);
+      if (games.length === 0 && gamesRes.data) {
+        let loadedGames = [...gamesRes.data];
+        const hasBingo = loadedGames.some((g: any) => g.code === 'bingo18');
+        if (!hasBingo) {
+          loadedGames.push({
+            _id: 'bingo18',
+            code: 'bingo18',
+            name: 'BINGO18 (Điện toán 111-666)',
+            type: 'dientoan',
+            isActive: true
+          });
+        }
+        const hasThanTai = loadedGames.some((g: any) => g.code === 'than_tai_4');
+        if (!hasThanTai) {
+          loadedGames.push({
+            _id: 'than_tai_4',
+            code: 'than_tai_4',
+            name: 'ĐIỆN TOÁN Thần Tài',
+            type: 'dientoan',
+            isActive: true
+          });
+        }
+        const hasDt123 = loadedGames.some((g: any) => g.code === 'dientoan_123');
+        if (!hasDt123) {
+          loadedGames.push({
+            _id: 'dientoan_123',
+            code: 'dientoan_123',
+            name: 'ĐIỆN TOÁN 1*2*3',
+            type: 'dientoan',
+            isActive: true
+          });
+        }
+        setGames(loadedGames);
+      }
       if (provinces.length === 0 && provsRes.data) setProvinces(provsRes.data);
     } catch (error) {
       message.error('Lỗi lấy dữ liệu kỳ quay');
@@ -117,6 +178,7 @@ export default function DrawManagement() {
         drawCode: values.drawCode,
         openTime: values.openTime.toISOString(),
         closeTime: values.closeTime.toISOString(),
+        drawTime: values.drawTime ? values.drawTime.toISOString() : undefined,
         provinceId: values.provinceId
       });
       message.success('Tạo kỳ quay thành công');
@@ -252,7 +314,10 @@ export default function DrawManagement() {
         }
       } else {
         if (values.winningNumbers !== undefined) {
-          numbers = values.winningNumbers.split(',').map((s: string) => s.trim()).filter(Boolean);
+          numbers = values.winningNumbers.split(/[\s,]+/).map((s: string) => s.trim()).filter(Boolean);
+          if (gCode === 'than_tai_4' && numbers.length === 1 && numbers[0].length === 4) {
+            numbers = numbers[0].split('');
+          }
         }
       }
 
@@ -345,14 +410,61 @@ export default function DrawManagement() {
       maxNum = 36;
       reqCount = 6;
     } else if (gCode === 'lotto_535') {
-      maxNum = 35;
-      reqCount = 5;
+      while (nums.size < 5) {
+        const rnd = Math.floor(Math.random() * 35) + 1;
+        nums.add(rnd.toString().padStart(2, '0'));
+      }
+      const sortedNums = Array.from(nums).sort((a, b) => parseInt(a) - parseInt(b));
+      const specialNum = (Math.floor(Math.random() * 12) + 1).toString().padStart(2, '0');
+      editForm.setFieldsValue({
+        winningNumbers: [...sortedNums, specialNum].join(', ')
+      });
+      message.success('Đã tự động sinh ngẫu nhiên 5 số chính (01-35) + 1 số đặc biệt (01-12)!');
+      return;
     } else if (gCode === 'lotto_570') {
-      maxNum = 70;
-      reqCount = 5;
+      while (nums.size < 5) {
+        const rnd = Math.floor(Math.random() * 70) + 1;
+        nums.add(rnd.toString().padStart(2, '0'));
+      }
+      const sortedNums = Array.from(nums).sort((a, b) => parseInt(a) - parseInt(b));
+      const specialNum = (Math.floor(Math.random() * 25) + 1).toString().padStart(2, '0');
+      editForm.setFieldsValue({
+        winningNumbers: [...sortedNums, specialNum].join(', ')
+      });
+      message.success('Đã tự động sinh ngẫu nhiên 5 số chính (01-70) + 1 số Mega Ball (01-25)!');
+      return;
     } else if (gCode === 'bingo18') {
-      maxNum = 6;
-      reqCount = 3;
+      const dice = [
+        Math.floor(Math.random() * 6) + 1,
+        Math.floor(Math.random() * 6) + 1,
+        Math.floor(Math.random() * 6) + 1
+      ].sort((a, b) => a - b).map(String);
+      editForm.setFieldsValue({
+        winningNumbers: dice.join(', ')
+      });
+      message.success('Đã tự động sinh ngẫu nhiên 3 xúc xắc Bingo18!');
+      return;
+    } else if (gCode === 'than_tai_4') {
+      const digits = [
+        Math.floor(Math.random() * 10),
+        Math.floor(Math.random() * 10),
+        Math.floor(Math.random() * 10),
+        Math.floor(Math.random() * 10)
+      ].map(String);
+      editForm.setFieldsValue({
+        winningNumbers: digits.join(', ')
+      });
+      message.success('Đã tự động sinh ngẫu nhiên 4 chữ số Điện toán Thần tài!');
+      return;
+    } else if (gCode === 'dientoan_123') {
+      const b1 = Math.floor(Math.random() * 10).toString();
+      const b2 = Math.floor(Math.random() * 100).toString().padStart(2, '0');
+      const b3 = Math.floor(Math.random() * 1000).toString().padStart(3, '0');
+      editForm.setFieldsValue({
+        winningNumbers: `${b1}, ${b2}, ${b3}`
+      });
+      message.success('Đã tự động sinh ngẫu nhiên 3 bộ số Điện toán 1*2*3 (Bộ 1, Bộ 2, Bộ 3)!');
+      return;
     }
 
     while (nums.size < reqCount) {
@@ -368,10 +480,38 @@ export default function DrawManagement() {
   };
 
   const handleRandomize = (game: any) => {
+    const gCode = (game?.code || '').toLowerCase();
+    if (gCode === 'bingo18') {
+      const dice = [
+        Math.floor(Math.random() * 6) + 1,
+        Math.floor(Math.random() * 6) + 1,
+        Math.floor(Math.random() * 6) + 1
+      ].sort((a, b) => a - b).map(String);
+      setWinningNumbersInput(dice.join(', '));
+      message.success('Đã tự động sinh ngẫu nhiên 3 xúc xắc Bingo18!');
+      return;
+    } else if (gCode === 'than_tai_4') {
+      const digits = [
+        Math.floor(Math.random() * 10),
+        Math.floor(Math.random() * 10),
+        Math.floor(Math.random() * 10),
+        Math.floor(Math.random() * 10)
+      ].map(String);
+      setWinningNumbersInput(digits.join(', '));
+      message.success('Đã tự động sinh ngẫu nhiên 4 chữ số Điện toán Thần tài!');
+      return;
+    } else if (gCode === 'dientoan_123') {
+      const b1 = Math.floor(Math.random() * 10).toString();
+      const b2 = Math.floor(Math.random() * 100).toString().padStart(2, '0');
+      const b3 = Math.floor(Math.random() * 1000).toString().padStart(3, '0');
+      setWinningNumbersInput(`${b1}, ${b2}, ${b3}`);
+      message.success('Đã tự động sinh ngẫu nhiên 3 bộ số Điện toán 1*2*3 (Bộ 1, Bộ 2, Bộ 3)!');
+      return;
+    }
+
     const nums = new Set<string>();
     let maxNum = 45;
     let reqCount = 6;
-    const gCode = (game?.code || '').toLowerCase();
 
     if (!game) {
       // Fallback
@@ -388,11 +528,25 @@ export default function DrawManagement() {
       maxNum = 36;
       reqCount = 6;
     } else if (gCode === 'lotto_535') {
-      maxNum = 35;
-      reqCount = 5;
+      while (nums.size < 5) {
+        const rnd = Math.floor(Math.random() * 35) + 1;
+        nums.add(rnd.toString().padStart(2, '0'));
+      }
+      const sortedNums = Array.from(nums).sort((a, b) => parseInt(a) - parseInt(b));
+      const specialNum = (Math.floor(Math.random() * 12) + 1).toString().padStart(2, '0');
+      setWinningNumbersInput([...sortedNums, specialNum].join(', '));
+      message.success('Đã tự động sinh ngẫu nhiên 5 số chính (01-35) + 1 số đặc biệt (01-12)!');
+      return;
     } else if (gCode === 'lotto_570') {
-      maxNum = 70;
-      reqCount = 5;
+      while (nums.size < 5) {
+        const rnd = Math.floor(Math.random() * 70) + 1;
+        nums.add(rnd.toString().padStart(2, '0'));
+      }
+      const sortedNums = Array.from(nums).sort((a, b) => parseInt(a) - parseInt(b));
+      const specialNum = (Math.floor(Math.random() * 25) + 1).toString().padStart(2, '0');
+      setWinningNumbersInput([...sortedNums, specialNum].join(', '));
+      message.success('Đã tự động sinh ngẫu nhiên 5 số chính (01-70) + 1 số Mega Ball (01-25)!');
+      return;
     } else if (gCode === 'bingo18') {
       maxNum = 6;
       reqCount = 3;
@@ -410,7 +564,12 @@ export default function DrawManagement() {
   const handleSaveResult = async (id: string) => {
     try {
       setSavingResultId(id);
-      const numbers = winningNumbersInput.split(',').map(n => n.trim()).filter(Boolean);
+      const targetDraw = draws.find(d => d._id === id);
+      const gCode = targetDraw?.game?.code;
+      let numbers = winningNumbersInput.split(/[\s,]+/).map(n => n.trim()).filter(Boolean);
+      if (gCode === 'than_tai_4' && numbers.length === 1 && numbers[0].length === 4) {
+        numbers = numbers[0].split('');
+      }
       await api.put(`/draws/admin/${id}/results`, { winningNumbers: numbers });
       message.success('Lưu kết quả thành công');
       setEditingDrawId(null);
@@ -571,9 +730,21 @@ export default function DrawManagement() {
       title: 'Game',
       key: 'game',
       width: 180,
-      render: (_: any, record: any) => (
-        <span style={{ fontWeight: 600, color: '#0f172a' }}>{record.game?.name || '-'}</span>
-      )
+      render: (_: any, record: any) => {
+        if (!record.game) return <span style={{ color: '#94a3b8' }}>-</span>;
+        if (record.game.code === 'bingo18') {
+          return <Tag color="blue" style={{ fontWeight: 600, fontSize: 13, padding: '2px 8px', borderRadius: 4 }}>BINGO18</Tag>;
+        }
+        if (record.game.code === 'than_tai_4') {
+          return <Tag color="orange" style={{ fontWeight: 600, fontSize: 13, padding: '2px 8px', borderRadius: 4 }}>ĐT THẦN TÀI</Tag>;
+        }
+        if (record.game.code === 'dientoan_123') {
+          return <Tag color="magenta" style={{ fontWeight: 600, fontSize: 13, padding: '2px 8px', borderRadius: 4 }}>ĐT 1*2*3</Tag>;
+        }
+        return (
+          <span style={{ fontWeight: 600, color: '#0f172a' }}>{record.game?.name || '-'}</span>
+        );
+      }
     },
     {
       title: 'Tỉnh/Đài',
@@ -597,6 +768,9 @@ export default function DrawManagement() {
         <div style={{ fontSize: '13px', color: '#666' }}>
           <div><strong>Mở:</strong> {new Date(record.openTime).toLocaleString('vi-VN')}</div>
           <div><strong>Đóng:</strong> {new Date(record.closeTime).toLocaleString('vi-VN')}</div>
+          {record.drawTime && (
+            <div><strong>Xổ:</strong> {new Date(record.drawTime).toLocaleString('vi-VN')}</div>
+          )}
         </div>
       )
     },
@@ -616,9 +790,51 @@ export default function DrawManagement() {
     {
       title: 'Kết quả (Cập nhật)',
       key: 'result',
-      width: 220,
+      width: 240,
       render: (_: any, record: any) => {
         if (record.status === 'completed') {
+          if (record.game?.code === 'than_tai_4') {
+            return (
+              <Space size={4}>
+                {(record.winningNumbers || []).map((digit: string, i: number) => (
+                  <span
+                    key={i}
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      width: 26,
+                      height: 26,
+                      borderRadius: '50%',
+                      backgroundColor: '#ff9800',
+                      color: '#fff',
+                      fontWeight: 700,
+                      fontSize: 14,
+                      boxShadow: '0 1px 3px rgba(0,0,0,0.15)'
+                    }}
+                  >
+                    {digit}
+                  </span>
+                ))}
+              </Space>
+            );
+          }
+          if (record.game?.code === 'dientoan_123') {
+            const w = record.winningNumbers || [];
+            return (
+              <Space size={6} wrap>
+                <Tag color="volcano" style={{ fontWeight: 700, fontSize: 13, padding: '2px 8px' }}>
+                  B1: {w[0] ?? '-'}
+                </Tag>
+                <Tag color="geekblue" style={{ fontWeight: 700, fontSize: 13, padding: '2px 8px' }}>
+                  B2: {w[1] ?? '-'}
+                </Tag>
+                <Tag color="green" style={{ fontWeight: 700, fontSize: 13, padding: '2px 8px' }}>
+                  B3: {w[2] ?? '-'}
+                </Tag>
+              </Space>
+            );
+          }
           return (
             <div style={{ fontWeight: 'bold', color: '#dc2626', letterSpacing: 1, fontSize: 15 }}>
               {record.winningNumbers?.join(' ')}
@@ -627,10 +843,16 @@ export default function DrawManagement() {
         }
 
         if (editingDrawId === record._id) {
+          const placeholder = record.game?.code === 'than_tai_4'
+            ? 'VD: 4, 8, 2, 1 (4 số)'
+            : record.game?.code === 'dientoan_123'
+            ? 'VD: 3, 45, 812 (Bộ 1, 2, 3)'
+            : 'VD: 02, 15, 30...';
+
           return (
             <Space direction="vertical" style={{ width: '100%' }}>
               <Input
-                placeholder="VD: 02, 15, 30..."
+                placeholder={placeholder}
                 value={winningNumbersInput}
                 onChange={(e) => setWinningNumbersInput(e.target.value)}
               />
@@ -817,21 +1039,33 @@ return (
       <Space size="small">
         <span style={{ fontWeight: 500, fontSize: 13 }}>Game:</span>
         <Select
+          showSearch
+          optionFilterProp="children"
           placeholder="Tất cả game"
-          style={{ width: 170 }}
+          style={{ minWidth: 220 }}
           allowClear
           value={filterGameId || undefined}
           onChange={(val) => {
             setFilterGameId(val || null);
             setPage(1);
           }}
+          filterOption={(input, option: any) => {
+            const label = String(option?.children || option?.label || '').toLowerCase();
+            const search = String(option?.search || '').toLowerCase();
+            const inp = input.toLowerCase();
+            return label.includes(inp) || search.includes(inp);
+          }}
         >
-            {
-              playableGames.map(g => (
-                <Select.Option key={g._id} value={g._id}>{g.name}</Select.Option>
-              ))
-            }
-          </Select>
+          {playableGames.map(g => (
+            <Select.Option 
+              key={g._id} 
+              value={g._id}
+              search={`${g.code} ${g.name} bingo bingo18`}
+            >
+              {getGameDisplayName(g)}
+            </Select.Option>
+          ))}
+        </Select>
       </Space>
 
       <Space size="small">
@@ -930,35 +1164,76 @@ return (
           extra="Chỉ tạo kỳ quay cho các đài XSKT 3 Miền hoặc Vietlott/Điện toán tự quay độc lập (Lô Đề / Trượt tự động dùng chung kết quả đài 3 Miền)."
         >
           <Select
+            showSearch
+            optionFilterProp="children"
             placeholder="Chọn game..."
+            style={{ width: '100%' }}
+            filterOption={(input, option: any) => {
+              const label = String(option?.children || option?.label || '').toLowerCase();
+              const search = String(option?.search || '').toLowerCase();
+              const inp = input.toLowerCase();
+              return label.includes(inp) || search.includes(inp);
+            }}
             onChange={(value) => {
               const game = playableGames.find(g => g._id === value);
               if (game) {
                 const now = dayjs();
                 let closeTime = null;
+                let openTime = now;
+                let drawTime = null;
+
                 if (game.code === 'MB' || ['loto_235', 'loto_cap', 'bao_loto_2', 'truot_loto'].includes(game.code)) {
                   closeTime = now.hour(18).minute(10).second(0);
+                  drawTime = now.hour(18).minute(15).second(0);
                 } else if (game.code === 'MT') {
                   closeTime = now.hour(17).minute(10).second(0);
+                  drawTime = now.hour(17).minute(15).second(0);
                 } else if (game.code === 'MN') {
                   closeTime = now.hour(16).minute(10).second(0);
+                  drawTime = now.hour(16).minute(15).second(0);
+                } else if (game.code === 'than_tai_4') {
+                  // ĐIỆN TOÁN Thần Tài: Mở: 17h20 - Đóng: 17h20 - Xổ KQ: 18h00
+                  const closeCandidate = now.hour(17).minute(20).second(0);
+                  closeTime = now.isAfter(closeCandidate) ? closeCandidate.add(1, 'day') : closeCandidate;
+                  openTime = closeTime.subtract(1, 'day');
+                  drawTime = closeTime.clone().hour(18).minute(0).second(0);
+                } else if (game.code === 'dientoan_123') {
+                  // ĐIỆN TOÁN 1*2*3: Mở: 17h20 - Đóng: 17h20 - Xổ KQ: 18h15
+                  const closeCandidate = now.hour(17).minute(20).second(0);
+                  closeTime = now.isAfter(closeCandidate) ? closeCandidate.add(1, 'day') : closeCandidate;
+                  openTime = closeTime.subtract(1, 'day');
+                  drawTime = closeTime.clone().hour(18).minute(15).second(0);
+                } else if (game.code === 'dientoan_636') {
+                  // ĐIỆN TOÁN 6X36: Đóng 17h20, Xổ 18h15
+                  const closeCandidate = now.hour(17).minute(20).second(0);
+                  closeTime = now.isAfter(closeCandidate) ? closeCandidate.add(1, 'day') : closeCandidate;
+                  openTime = closeTime.subtract(1, 'day');
+                  drawTime = closeTime.clone().hour(18).minute(15).second(0);
+                } else if (game.code === 'bingo18' || game.code.includes('keno')) {
+                  const duration = game.drawDurationMinutes || 8;
+                  closeTime = now.add(duration, 'minute');
                 }
 
                 if (closeTime) {
                   form.setFieldsValue({
-                    openTime: now,
-                    closeTime: closeTime
+                    openTime,
+                    closeTime,
+                    drawTime
                   });
                 }
               }
             }}
           >
-              {
-                playableGames.map(g => (
-                  <Select.Option key={g._id} value={g._id}>{g.name}</Select.Option>
-                ))
-              }
-            </Select>
+            {playableGames.map(g => (
+              <Select.Option 
+                key={g._id} 
+                value={g._id}
+                search={`${g.code} ${g.name} bingo bingo18`}
+              >
+                {getGameDisplayName(g)}
+              </Select.Option>
+            ))}
+          </Select>
         </Form.Item>
 
         <Form.Item
@@ -1009,6 +1284,13 @@ return (
           rules={[{ required: true, message: 'Vui lòng chọn thời gian' }]}
         >
           <DatePicker showTime style={{ width: '100%' }} />
+        </Form.Item>
+
+        <Form.Item
+          name="drawTime"
+          label="Thời gian mở thưởng xổ số (Tùy chọn)"
+        >
+          <DatePicker showTime style={{ width: '100%' }} placeholder="Chọn thời gian mở thưởng (nếu có)" />
         </Form.Item>
 
         <Form.Item style={{ marginBottom: 0, textAlign: 'right' }}>
@@ -1347,7 +1629,16 @@ return (
               </Button>
             </div>
             <Form.Item name="winningNumbers" style={{ marginBottom: 0 }}>
-              <Input.TextArea rows={3} placeholder="VD: 05, 12, 28, 45, 60..." />
+              <Input.TextArea 
+                rows={3} 
+                placeholder={
+                  editingDraw?.game?.code === 'than_tai_4'
+                    ? 'VD: 4, 8, 2, 1 (4 chữ số Thần Tài)'
+                    : editingDraw?.game?.code === 'dientoan_123'
+                    ? 'VD: 3, 45, 812 (Bộ 1: 1 số, Bộ 2: 2 số, Bộ 3: 3 số)'
+                    : 'VD: 05, 12, 28, 45, 60...'
+                } 
+              />
             </Form.Item>
           </div>
         )}
