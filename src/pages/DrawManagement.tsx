@@ -250,6 +250,14 @@ export default function DrawManagement() {
         } else if (values.winningNumbers) {
           numbers = values.winningNumbers.split(',').map((s: string) => s.trim()).filter(Boolean);
         }
+      } else if (gCode === 'bingo18' || gCode === 'bingo_18') {
+        const raw = (values.winningNumbers || '').trim();
+        const digits = raw.replace(/[^1-6]/g, '').slice(0, 3);
+        if (digits.length === 3) {
+          numbers = digits.split('');
+        } else {
+          numbers = raw.split(/[\s,]+/).map((s: string) => s.trim()).filter(Boolean);
+        }
       } else {
         if (values.winningNumbers !== undefined) {
           numbers = values.winningNumbers.split(',').map((s: string) => s.trim()).filter(Boolean);
@@ -350,9 +358,17 @@ export default function DrawManagement() {
     } else if (gCode === 'lotto_570') {
       maxNum = 70;
       reqCount = 5;
-    } else if (gCode === 'bingo18') {
-      maxNum = 6;
-      reqCount = 3;
+    } else if (gCode === 'bingo18' || gCode === 'bingo_18') {
+      const dice = [
+        Math.floor(Math.random() * 6) + 1,
+        Math.floor(Math.random() * 6) + 1,
+        Math.floor(Math.random() * 6) + 1
+      ].sort((a, b) => a - b);
+      editForm.setFieldsValue({
+        winningNumbers: dice.join(', ')
+      });
+      message.success('Đã tự động sinh ngẫu nhiên 3 số xí ngầu!');
+      return;
     }
 
     while (nums.size < reqCount) {
@@ -393,9 +409,15 @@ export default function DrawManagement() {
     } else if (gCode === 'lotto_570') {
       maxNum = 70;
       reqCount = 5;
-    } else if (gCode === 'bingo18') {
-      maxNum = 6;
-      reqCount = 3;
+    } else if (gCode === 'bingo18' || gCode === 'bingo_18') {
+      const dice = [
+        Math.floor(Math.random() * 6) + 1,
+        Math.floor(Math.random() * 6) + 1,
+        Math.floor(Math.random() * 6) + 1
+      ].sort((a, b) => a - b);
+      setWinningNumbersInput(dice.join(', '));
+      message.success('Đã tự động sinh ngẫu nhiên 3 số xí ngầu!');
+      return;
     }
 
     while (nums.size < reqCount) {
@@ -407,10 +429,22 @@ export default function DrawManagement() {
     setWinningNumbersInput(sortedNums.join(', '));
   };
 
-  const handleSaveResult = async (id: string) => {
+  const handleSaveResult = async (id: string, record?: any) => {
     try {
       setSavingResultId(id);
-      const numbers = winningNumbersInput.split(',').map(n => n.trim()).filter(Boolean);
+      const gCode = (record?.game?.code || '').toLowerCase();
+      let numbers: string[] = [];
+      if (gCode === 'bingo18' || gCode === 'bingo_18') {
+        const raw = winningNumbersInput.trim();
+        const digits = raw.replace(/[^1-6]/g, '').slice(0, 3);
+        if (digits.length === 3) {
+          numbers = digits.split('');
+        } else {
+          numbers = raw.split(/[\s,]+/).map(n => n.trim()).filter(Boolean);
+        }
+      } else {
+        numbers = winningNumbersInput.split(',').map(n => n.trim()).filter(Boolean);
+      }
       await api.put(`/draws/admin/${id}/results`, { winningNumbers: numbers });
       message.success('Lưu kết quả thành công');
       setEditingDrawId(null);
@@ -636,7 +670,7 @@ export default function DrawManagement() {
               />
               <Space>
                 <Button size="small" icon={<SyncOutlined />} onClick={() => handleRandomize(record.game)} disabled={savingResultId === record._id}>Random</Button>
-                <Button size="small" type="primary" icon={<SaveOutlined />} onClick={() => handleSaveResult(record._id)} loading={savingResultId === record._id} disabled={savingResultId === record._id}>Lưu</Button>
+                <Button size="small" type="primary" icon={<SaveOutlined />} onClick={() => handleSaveResult(record._id, record)} loading={savingResultId === record._id} disabled={savingResultId === record._id}>Lưu</Button>
                 <Button size="small" type="text" onClick={() => setEditingDrawId(null)} disabled={savingResultId === record._id}>Hủy</Button>
               </Space>
             </Space>
