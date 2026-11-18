@@ -431,9 +431,10 @@ export default function DrawManagement() {
         }
       }
 
+      const isCompleted = numbers.length > 0 && values.status !== 'cancelled';
       const payload: any = {
         drawCode: values.drawCode,
-        status: values.status,
+        status: isCompleted ? 'completed' : values.status,
         openTime: values.openTime?.toISOString(),
         closeTime: values.closeTime?.toISOString(),
         drawTime: values.drawTime ? values.drawTime.toISOString() : undefined,
