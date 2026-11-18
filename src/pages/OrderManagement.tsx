@@ -211,6 +211,176 @@ const getOrderDrawInfo = (record: any, drawMap?: Record<string, any>) => {
   return { displayCode, displayDate };
 };
 
+const getOrderWinningNumbers = (order: any, drawMap?: Record<string, any>): string[] => {
+  if (!order) return [];
+  if (Array.isArray(order.winningNumbers) && order.winningNumbers.length > 0) {
+    return order.winningNumbers.map(String);
+  }
+  if (order.draw && Array.isArray(order.draw.winningNumbers) && order.draw.winningNumbers.length > 0) {
+    return order.draw.winningNumbers.map(String);
+  }
+  if (typeof order.drawId === 'string' && drawMap && drawMap[order.drawId]?.winningNumbers) {
+    const w = drawMap[order.drawId].winningNumbers;
+    if (Array.isArray(w)) return w.map(String);
+  }
+  return [];
+};
+
+const isNumberMatchCMS = (n: string, gameType?: string, wNumbers?: string[]) => {
+  if (!wNumbers || wNumbers.length === 0) return false;
+  const cleanN = String(n || '').trim();
+  if (!cleanN) return false;
+
+  // 1. Khớp hoàn toàn
+  if (wNumbers.includes(cleanN)) return true;
+  const pad2 = cleanN.padStart(2, '0');
+  if (wNumbers.some(w => String(w).trim().padStart(2, '0') === pad2)) return true;
+
+  // 2. Game có đuôi số xổ số
+  const gType = (gameType || '').toLowerCase();
+  const isTailGame =
+    ['loto_cap', 'loto_235', 'bao_loto_2', 'truot_loto', 'xoso_3mien', 'lode', 'mb', 'mt', 'mn', 'lode_3mien'].includes(gType) ||
+    gType.startsWith('kienthiet');
+
+  if (isTailGame) {
+    if (cleanN.length <= 2) {
+      const target2 = cleanN.padStart(2, '0');
+      return wNumbers.some(w => String(w).trim().endsWith(target2));
+    }
+    return wNumbers.some(w => String(w).trim().endsWith(cleanN));
+  }
+
+  // 3. Bingo 18
+  if (gType === 'bingo18' || gType === 'bingo_18') {
+    const digits = cleanN.replace(/\D/g, '');
+    if (digits.length > 0 && wNumbers.some(w => digits.includes(String(w)))) return true;
+  }
+
+  return false;
+};
+
+const checkItemIsWinningCMS = (item: any, order: any, wNumbers: string[]): boolean => {
+  if (!order) return false;
+  if (item?.isWinner === true || (item?.prize != null && Number(item.prize) > 0)) {
+    return true;
+  }
+
+  const isOrderWon = order.isWinner === true || (order.prizeAmount != null && Number(order.prizeAmount) > 0);
+  if (!isOrderWon) {
+    return false;
+  }
+
+  if (!order.items || order.items.length <= 1) {
+    return true;
+  }
+
+  const gType = (order.gameType || '').toLowerCase();
+  const pType = (item?.playType || order.playType || '').toLowerCase();
+  const rawNums: string[] = item?.numbers || [];
+
+  const flatNums = rawNums
+    .flatMap((s: any) => String(s).split(/[&,;\s-]+/))
+    .map((s: string) => s.trim())
+    .filter(Boolean);
+
+  if (flatNums.length === 0) return false;
+  if (!wNumbers || wNumbers.length === 0) return false;
+
+  // --- LOTO CẶP ---
+  if (gType === 'loto_cap') {
+    const w2Set = new Set(wNumbers.map(n => String(n).trim().padStart(2, '0').slice(-2)));
+    const matchedCount = flatNums.filter(n => w2Set.has(n.padStart(2, '0'))).length;
+    let reqCount = 2;
+    if (pType.includes('4')) reqCount = 4;
+    else if (pType.includes('3')) reqCount = 3;
+    else reqCount = 2;
+    return matchedCount >= reqCount;
+  }
+
+  // --- TRƯỢT LÔ TÔ ---
+  if (gType === 'truot_loto') {
+    const w2Set = new Set(wNumbers.map(n => String(n).trim().padStart(2, '0').slice(-2)));
+    let reqCount = 4;
+    if (pType.includes('10')) reqCount = 10;
+    else if (pType.includes('8')) reqCount = 8;
+    else reqCount = 4;
+    return flatNums.length >= reqCount && flatNums.every(n => !w2Set.has(n.padStart(2, '0')));
+  }
+
+  // --- LOTO 235 & BAO LOTO 2 ---
+  if (gType === 'loto_235' || gType === 'bao_loto_2') {
+    const w2Set = new Set(wNumbers.map(n => String(n).trim().padStart(2, '0').slice(-2)));
+    const w3Set = new Set(wNumbers.map(n => String(n).trim().padStart(3, '0').slice(-3)));
+    const w5 = String(wNumbers[0] || '').trim();
+
+    return flatNums.some(n => {
+      if (n.length === 2) return w2Set.has(n);
+      if (n.length === 3) return w3Set.has(n);
+      if (n.length === 5) return w5 === n;
+      return w2Set.has(n.slice(-2));
+    });
+  }
+
+  // --- LÔ ĐỀ / XỔ SỐ 3 MIỀN ---
+  if (['xoso_3mien', 'lode', 'mb', 'mt', 'mn'].includes(gType) || gType.startsWith('kienthiet')) {
+    const w2Set = new Set(wNumbers.map(n => String(n).trim().padStart(2, '0').slice(-2)));
+    const w3Set = new Set(wNumbers.map(n => String(n).trim().padStart(3, '0').slice(-3)));
+    const w4Set = new Set(wNumbers.map(n => String(n).trim().padStart(4, '0').slice(-4)));
+
+    if (pType.includes('xiên') || pType.includes('xien')) {
+      let reqCount = 2;
+      if (pType.includes('3')) reqCount = 3;
+      if (pType.includes('4')) reqCount = 4;
+      return flatNums.filter(n => w2Set.has(n.padStart(2, '0'))).length >= reqCount;
+    }
+    if (pType.includes('3 càng') || pType.includes('3 cang')) {
+      return flatNums.some(n => w3Set.has(n));
+    }
+    if (pType.includes('4 càng') || pType.includes('4 cang')) {
+      return flatNums.some(n => w4Set.has(n));
+    }
+    return flatNums.some(n => w2Set.has(n.padStart(2, '0')));
+  }
+
+  // --- KENO ---
+  if (gType.includes('keno')) {
+    const wSet = new Set(wNumbers.map(n => String(n).trim().padStart(2, '0')));
+    const matchCount = flatNums.filter(n => wSet.has(n.padStart(2, '0'))).length;
+    const bac = flatNums.length;
+    if (bac === 1) return matchCount >= 1;
+    if (bac === 2) return matchCount === 2;
+    if (bac === 3) return matchCount >= 2;
+    if (bac === 4) return matchCount >= 2;
+    if (bac === 5 || bac === 6) return matchCount >= 3;
+    if (bac >= 7 && bac <= 9) return matchCount >= 4;
+    if (bac === 10) return matchCount >= 5 || matchCount === 0;
+    return matchCount >= 2;
+  }
+
+  // --- POWER / MEGA ---
+  if (gType.includes('power') || gType.includes('mega') || gType.includes('655') || gType.includes('645')) {
+    const main6 = new Set(wNumbers.slice(0, 6).map(n => String(n).trim().padStart(2, '0')));
+    const matchCount = flatNums.filter(n => main6.has(n.padStart(2, '0'))).length;
+    return matchCount >= 3;
+  }
+
+  // --- MAX 3D / 4D ---
+  if (gType.includes('max_3d') || gType.includes('max_4d')) {
+    const wSet = new Set(wNumbers.map(n => String(n).trim()));
+    return flatNums.some(n => wSet.has(n));
+  }
+
+  // --- BINGO 18 ---
+  if (gType.includes('bingo')) {
+    const digits = flatNums.join('').replace(/\D/g, '');
+    return digits.length > 0 && wNumbers.some(w => digits.includes(String(w)));
+  }
+
+  // Mặc định
+  const w2Set = new Set(wNumbers.map(n => String(n).trim().slice(-2)));
+  return flatNums.some(n => wNumbers.includes(n) || w2Set.has(n.padStart(2, '0')));
+};
+
 export default function OrderManagement() {
   const { isMasterAdmin } = useAuthStore();
   const isMaster = isMasterAdmin();
@@ -1659,32 +1829,106 @@ export default function OrderManagement() {
               </div>
             )}
             <div><strong>Chi tiết các dãy số ({selectedTicketOrder.items?.length || 1} dãy):</strong></div>
-            <div style={{ padding: 12, backgroundColor: '#f9f9f9', borderRadius: 8, marginTop: 8, maxHeight: '450px', overflowY: 'auto' }}>
-              {selectedTicketOrder.items && selectedTicketOrder.items.length > 0 ? (
-                selectedTicketOrder.items.map((item: any, idx: number) => (
-                  <div key={idx} style={{ marginBottom: 12, paddingBottom: 12, borderBottom: '1px solid #eee' }}>
-                    <strong>Dãy {item.id || String.fromCharCode(65 + idx)}:</strong> 
-                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginTop: 4 }}>
-                      {item.numbers.map((n: string, i: number) => <Tag key={i} color="blue">{n}</Tag>)}
+            {(() => {
+              const wNumbers = getOrderWinningNumbers(selectedTicketOrder, drawMap);
+              const isOrderWon = selectedTicketOrder.isWinner === true || (selectedTicketOrder.prizeAmount != null && Number(selectedTicketOrder.prizeAmount) > 0);
+
+              return (
+                <div style={{ padding: 12, backgroundColor: '#f9f9f9', borderRadius: 8, marginTop: 8, maxHeight: '450px', overflowY: 'auto' }}>
+                  {selectedTicketOrder.items && selectedTicketOrder.items.length > 0 ? (
+                    selectedTicketOrder.items.map((item: any, idx: number) => {
+                      const isWinningItem = checkItemIsWinningCMS(item, selectedTicketOrder, wNumbers);
+                      const itemNumbers = Array.isArray(item.numbers)
+                        ? item.numbers.flatMap((n: any) => String(n).trim().split(/\s+/)).filter(Boolean)
+                        : [];
+
+                      return (
+                        <div
+                          key={idx}
+                          style={{
+                            marginBottom: 12,
+                            paddingBottom: 12,
+                            borderBottom: '1px solid #eee',
+                            ...(isWinningItem ? {
+                              backgroundColor: '#fff1f0',
+                              border: '1px solid #ffccc7',
+                              borderRadius: 8,
+                              padding: 10,
+                            } : {})
+                          }}
+                        >
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                              <strong style={{ color: isWinningItem ? '#cf1322' : '#333' }}>
+                                Dãy {item.id || String.fromCharCode(65 + idx)}:
+                              </strong>
+                              {isWinningItem && (
+                                <Tag color="error" style={{ fontWeight: 'bold' }}>TRÚNG</Tag>
+                              )}
+                            </div>
+                            {isWinningItem && (
+                              <span style={{ color: '#cf1322', fontWeight: 600, fontSize: 13 }}>
+                                (Dãy trúng thưởng)
+                              </span>
+                            )}
+                          </div>
+
+                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginTop: 6 }}>
+                            {itemNumbers.map((n: string, i: number) => {
+                              const isWinNum = isWinningItem || isNumberMatchCMS(n, selectedTicketOrder.gameType, wNumbers);
+                              return (
+                                <Tag
+                                  key={i}
+                                  color={isWinNum ? 'error' : 'blue'}
+                                  style={{
+                                    fontWeight: isWinNum ? 'bold' : 'normal',
+                                    fontSize: isWinNum ? '14px' : '13px',
+                                    padding: isWinNum ? '2px 8px' : '0 7px',
+                                  }}
+                                >
+                                  {n}
+                                </Tag>
+                              );
+                            })}
+                          </div>
+
+                          <div style={{ fontSize: '13px', color: isWinningItem ? '#cf1322' : '#666', marginTop: 6, fontWeight: isWinningItem ? 600 : 'normal' }}>
+                            Cược: {(() => {
+                              const vietlottGames = ['keno', 'bao_keno', 'clln_keno', 'power', 'mega', 'max_3d', 'max_3d_pro', 'max_3d_plus', 'max_4d', 'bingo18', 'lotto', 'lotto_535', 'lotto_570'];
+                              const isVietlott = vietlottGames.some(vg => (selectedTicketOrder.gameType || '').toLowerCase().includes(vg));
+                              if (isVietlott) {
+                                return `${item.cost?.toLocaleString('vi-VN')} đ`;
+                              }
+                              return item.baseCost !== undefined ? `${item.baseCost.toLocaleString('vi-VN')} đ/con (Tổng nhánh: ${item.cost?.toLocaleString('vi-VN')} đ)` : `${item.cost?.toLocaleString('vi-VN')} đ`;
+                            })()}
+                          </div>
+                        </div>
+                      );
+                    })
+                  ) : (
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+                      {(Array.isArray(selectedTicketOrder.numbers) ? selectedTicketOrder.numbers.flatMap((n: any) => String(n).trim().split(/\s+/)).filter(Boolean) : []).map((n: string, i: number) => {
+                        const isWinNum = isOrderWon || isNumberMatchCMS(n, selectedTicketOrder.gameType, wNumbers);
+                        return (
+                          <Tag
+                            key={i}
+                            color={isWinNum ? 'error' : 'blue'}
+                            style={{
+                              fontWeight: isWinNum ? 'bold' : 'normal',
+                              fontSize: isWinNum ? '14px' : '13px',
+                              padding: isWinNum ? '2px 8px' : '0 7px',
+                            }}
+                          >
+                            {n}
+                          </Tag>
+                        );
+                      })}
+                      {isOrderWon && <Tag color="error" style={{ fontWeight: 'bold' }}>TRÚNG</Tag>}
                     </div>
-                    <div style={{ fontSize: '13px', color: '#666', marginTop: 4 }}>
-                      Cược: {(() => {
-                        const vietlottGames = ['keno', 'bao_keno', 'clln_keno', 'power', 'mega', 'max_3d', 'max_3d_pro', 'max_3d_plus', 'max_4d', 'bingo18', 'lotto', 'lotto_535', 'lotto_570'];
-                        const isVietlott = vietlottGames.some(vg => (selectedTicketOrder.gameType || '').toLowerCase().includes(vg));
-                        if (isVietlott) {
-                          return `${item.cost?.toLocaleString('vi-VN')} đ`;
-                        }
-                        return item.baseCost !== undefined ? `${item.baseCost.toLocaleString('vi-VN')} đ/con (Tổng nhánh: ${item.cost?.toLocaleString('vi-VN')} đ)` : `${item.cost?.toLocaleString('vi-VN')} đ`;
-                      })()}
-                    </div>
-                  </div>
-                ))
-              ) : (
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
-                  {selectedTicketOrder.numbers?.map((n: string, i: number) => <Tag key={i} color="blue">{n}</Tag>)}
+                  )}
                 </div>
-              )}
-            </div>
+              );
+            })()}
           </div>
         )}
       </Modal>

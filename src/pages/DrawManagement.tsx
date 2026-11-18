@@ -1,5 +1,5 @@
 import { PlusOutlined, SaveOutlined, SyncOutlined, EditOutlined, DeleteOutlined, ReloadOutlined, CopyOutlined } from '@ant-design/icons';
-import { Alert, Button, DatePicker, Form, Input, Modal, Popconfirm, Select, Space, Table, Tag, Typography, message } from 'antd';
+import { Alert, Button, DatePicker, Form, Input, Modal, Popconfirm, Select, Space, Table, Tag, Typography, message, Tabs } from 'antd';
 import useAuthStore from '../store/useAuthStore';
 import { useEffect, useState, useMemo } from 'react';
 import api from '../services/api';
@@ -193,6 +193,25 @@ export default function DrawManagement() {
       formVals.g6_1 = nums[13]; formVals.g6_2 = nums[14]; formVals.g6_3 = nums[15];
       formVals.g7 = nums[16];
       formVals.g8 = nums[17];
+    } else if (gCode === 'than_tai_4') {
+      formVals.tt_1 = nums[0] || '';
+      formVals.tt_2 = nums[1] || '';
+      formVals.tt_3 = nums[2] || '';
+      formVals.tt_4 = nums[3] || '';
+    } else if (gCode === 'dientoan_123') {
+      formVals.dt123_1 = nums[0] || '';
+      formVals.dt123_2 = nums[1] || '';
+      formVals.dt123_3 = nums[2] || '';
+      formVals.gdb = nums[0];
+      formVals.g1 = nums[1];
+      formVals.g2 = nums[2];
+      formVals.g3_1 = nums[3]; formVals.g3_2 = nums[4];
+      formVals.g4_1 = nums[5]; formVals.g4_2 = nums[6]; formVals.g4_3 = nums[7];
+      formVals.g4_4 = nums[8]; formVals.g4_5 = nums[9]; formVals.g4_6 = nums[10]; formVals.g4_7 = nums[11];
+      formVals.g5 = nums[12];
+      formVals.g6_1 = nums[13]; formVals.g6_2 = nums[14]; formVals.g6_3 = nums[15];
+      formVals.g7 = nums[16];
+      formVals.g8 = nums[17];
     }
 
     editForm.setFieldsValue(formVals);
@@ -250,7 +269,56 @@ export default function DrawManagement() {
         } else if (values.winningNumbers) {
           numbers = values.winningNumbers.split(',').map((s: string) => s.trim()).filter(Boolean);
         }
-      } else if (gCode === 'bingo18' || gCode === 'bingo_18') {
+      } else if (gCode === 'than_tai_4') {
+        const ttNums = [values.tt_1, values.tt_2, values.tt_3, values.tt_4].map(s => (s ?? '').toString().trim()).filter(Boolean);
+        if (ttNums.length === 4) {
+          numbers = ttNums;
+        } else if (values.winningNumbers) {
+          const raw = values.winningNumbers.replace(/[^0-9]/g, '');
+          if (raw.length === 4) {
+            numbers = raw.split('');
+          } else {
+            numbers = values.winningNumbers.split(/[\s,]+/).map((s: string) => s.trim()).filter(Boolean).slice(0, 4);
+          }
+        }
+      } else if (gCode === 'dientoan_123') {
+        const dtNums = [values.dt123_1, values.dt123_2, values.dt123_3].map(s => (s ?? '').toString().trim()).filter(Boolean);
+        if (dtNums.length >= 3) {
+          numbers = [
+            dtNums[0].slice(-1),
+            dtNums[1].padStart(2, '0').slice(-2),
+            dtNums[2].padStart(3, '0').slice(-3)
+          ];
+        } else if (values.winningNumbers) {
+          const parts = values.winningNumbers.split(/[\s,]+/).map((s: string) => s.trim()).filter(Boolean);
+          if (parts.length >= 3) {
+            numbers = [
+              parts[0].slice(-1),
+              parts[1].padStart(2, '0').slice(-2),
+              parts[2].padStart(3, '0').slice(-3)
+            ];
+          } else {
+            numbers = parts;
+          }
+        }
+      } else if (gCode === 'than_tai_4') {
+      const digits = [
+        Math.floor(Math.random() * 10),
+        Math.floor(Math.random() * 10),
+        Math.floor(Math.random() * 10),
+        Math.floor(Math.random() * 10)
+      ];
+      setWinningNumbersInput(digits.join(', '));
+      message.success('Đã tự động sinh ngẫu nhiên 4 chữ số Thần Tài 4!');
+      return;
+    } else if (gCode === 'dientoan_123') {
+      const b1 = Math.floor(Math.random() * 10).toString();
+      const b2 = Math.floor(Math.random() * 100).toString().padStart(2, '0');
+      const b3 = Math.floor(Math.random() * 1000).toString().padStart(3, '0');
+      setWinningNumbersInput(`${b1}, ${b2}, ${b3}`);
+      message.success('Đã tự động sinh ngẫu nhiên 3 bộ số Điện toán 1*2*3!');
+      return;
+    } else if (gCode === 'bingo18' || gCode === 'bingo_18') {
         const raw = (values.winningNumbers || '').trim();
         const digits = raw.replace(/[^1-6]/g, '').slice(0, 3);
         if (digits.length === 3) {
@@ -309,6 +377,36 @@ export default function DrawManagement() {
         g7_1: randDigits(2), g7_2: randDigits(2), g7_3: randDigits(2), g7_4: randDigits(2),
       });
       message.success('Đã tự động điền ngẫu nhiên các giải Miền Bắc!');
+      return;
+    }
+
+    if (gCode === 'than_tai_4') {
+      const d1 = Math.floor(Math.random() * 10).toString();
+      const d2 = Math.floor(Math.random() * 10).toString();
+      const d3 = Math.floor(Math.random() * 10).toString();
+      const d4 = Math.floor(Math.random() * 10).toString();
+      editForm.setFieldsValue({
+        tt_1: d1,
+        tt_2: d2,
+        tt_3: d3,
+        tt_4: d4,
+        winningNumbers: `${d1}, ${d2}, ${d3}, ${d4}`
+      });
+      message.success('Đã tự động sinh 4 chữ số Thần Tài 4!');
+      return;
+    }
+
+    if (gCode === 'dientoan_123') {
+      const b1 = Math.floor(Math.random() * 10).toString();
+      const b2 = Math.floor(Math.random() * 100).toString().padStart(2, '0');
+      const b3 = Math.floor(Math.random() * 1000).toString().padStart(3, '0');
+      editForm.setFieldsValue({
+        dt123_1: b1,
+        dt123_2: b2,
+        dt123_3: b3,
+        winningNumbers: `${b1}, ${b2}, ${b3}`
+      });
+      message.success('Đã tự động sinh 3 bộ số Điện toán 1*2*3!');
       return;
     }
 
@@ -441,6 +539,25 @@ export default function DrawManagement() {
           numbers = digits.split('');
         } else {
           numbers = raw.split(/[\s,]+/).map(n => n.trim()).filter(Boolean);
+        }
+      } else if (gCode === 'than_tai_4') {
+        const clean = winningNumbersInput.trim();
+        const digits = clean.replace(/[^0-9]/g, '');
+        if (digits.length === 4) {
+          numbers = digits.split('');
+        } else {
+          numbers = clean.split(/[\s,]+/).map(n => n.trim()).filter(Boolean).slice(0, 4);
+        }
+      } else if (gCode === 'dientoan_123') {
+        const parts = winningNumbersInput.split(/[\s,]+/).map(n => n.trim()).filter(Boolean);
+        if (parts.length >= 3) {
+          numbers = [
+            parts[0].slice(-1),
+            parts[1].padStart(2, '0').slice(-2),
+            parts[2].padStart(3, '0').slice(-3)
+          ];
+        } else {
+          numbers = parts;
         }
       } else {
         numbers = winningNumbersInput.split(',').map(n => n.trim()).filter(Boolean);
@@ -652,7 +769,28 @@ export default function DrawManagement() {
       key: 'result',
       width: 220,
       render: (_: any, record: any) => {
+        const gCode = (record.game?.code || '').toLowerCase();
         if (record.status === 'completed') {
+          if (gCode === 'than_tai_4') {
+            return (
+              <Space size={4}>
+                {record.winningNumbers?.map((n: string, idx: number) => (
+                  <Tag key={idx} color="gold" style={{ fontWeight: 'bold', fontSize: 15, padding: '2px 8px' }}>
+                    {n}
+                  </Tag>
+                ))}
+              </Space>
+            );
+          }
+          if (gCode === 'dientoan_123') {
+            return (
+              <Space size={4}>
+                <Tag color="blue" style={{ fontWeight: 600 }}>B1: <b>{record.winningNumbers?.[0] ?? '-'}</b></Tag>
+                <Tag color="cyan" style={{ fontWeight: 600 }}>B2: <b>{record.winningNumbers?.[1] ?? '-'}</b></Tag>
+                <Tag color="purple" style={{ fontWeight: 600 }}>B3: <b>{record.winningNumbers?.[2] ?? '-'}</b></Tag>
+              </Space>
+            );
+          }
           return (
             <div style={{ fontWeight: 'bold', color: '#dc2626', letterSpacing: 1, fontSize: 15 }}>
               {record.winningNumbers?.join(' ')}
@@ -664,7 +802,7 @@ export default function DrawManagement() {
           return (
             <Space direction="vertical" style={{ width: '100%' }}>
               <Input
-                placeholder="VD: 02, 15, 30..."
+                placeholder={gCode === 'than_tai_4' ? 'VD: 8, 2, 9, 4 hoặc 8294' : gCode === 'dientoan_123' ? 'VD: 5, 23, 814 (3 bộ số)' : 'VD: 02, 15, 30...'}
                 value={winningNumbersInput}
                 onChange={(e) => setWinningNumbersInput(e.target.value)}
               />
@@ -737,6 +875,15 @@ export default function DrawManagement() {
       )
     }] : [])
   ];
+
+  const thanTaiGame = useMemo(() => games.find(g => g.code === 'than_tai_4'), [games]);
+  const dienToan123Game = useMemo(() => games.find(g => g.code === 'dientoan_123'), [games]);
+
+  const activeTabKey = useMemo(() => {
+    if (thanTaiGame && filterGameId === thanTaiGame._id) return 'than_tai_4';
+    if (dienToan123Game && filterGameId === dienToan123Game._id) return 'dientoan_123';
+    return 'all';
+  }, [filterGameId, thanTaiGame, dienToan123Game]);
 
   const displayDraws = useMemo(() => {
     return draws.filter(d => {
@@ -815,6 +962,68 @@ return (
                 </Popconfirm>
               )}
             </Space>
+          </div>
+        }
+      />
+    )}
+
+    <Tabs
+      activeKey={activeTabKey}
+      onChange={(key) => {
+        setPage(1);
+        if (key === 'than_tai_4') {
+          if (thanTaiGame) setFilterGameId(thanTaiGame._id);
+        } else if (key === 'dientoan_123') {
+          if (dienToan123Game) setFilterGameId(dienToan123Game._id);
+        } else {
+          setFilterGameId(null);
+        }
+      }}
+      items={[
+        { key: 'all', label: 'Tất cả kỳ quay' },
+        { 
+          key: 'than_tai_4', 
+          label: (
+            <span>
+              ⚡ <strong>ĐIỆN TOÁN Thần Tài</strong>
+              <Tag color="gold" style={{ marginLeft: 8 }}>Mở 17h20 • Xổ 18h00</Tag>
+            </span>
+          ) 
+        },
+        { 
+          key: 'dientoan_123', 
+          label: (
+            <span>
+              🎲 <strong>ĐIỆN TOÁN 1*2*3</strong>
+              <Tag color="cyan" style={{ marginLeft: 8 }}>Mở 17h20 • Xổ 18h15</Tag>
+            </span>
+          ) 
+        },
+      ]}
+      style={{ marginBottom: 12 }}
+    />
+
+    {activeTabKey === 'than_tai_4' && (
+      <Alert
+        style={{ marginBottom: 16 }}
+        type="warning"
+        showIcon
+        message={
+          <div>
+            <strong>BẢNG KẾT QUẢ ĐIỆN TOÁN THẦN TÀI:</strong> Mở bán: <strong>17h20</strong> — Đóng cược: <strong>17h20</strong> — Xổ thưởng: <strong>18h00</strong> hàng ngày. Kết quả gồm 4 chữ số độc lập (A-B-C-D từ 0-9).
+          </div>
+        }
+      />
+    )}
+
+    {activeTabKey === 'dientoan_123' && (
+      <Alert
+        style={{ marginBottom: 16 }}
+        type="info"
+        showIcon
+        message={
+          <div>
+            <strong>BẢNG KẾT QUẢ ĐIỆN TOÁN 1*2*3:</strong> Mở bán: <strong>17h20</strong> — Đóng cược: <strong>17h20</strong> — Xổ thưởng: <strong>18h15</strong> hàng ngày. Kết quả gồm 3 bộ số: Bộ 1 (1 số 0-9), Bộ 2 (2 số 00-99), Bộ 3 (3 số 000-999).
           </div>
         }
       />
@@ -1366,6 +1575,63 @@ return (
                 </div>
               </>
             )}
+          </div>
+        ) : editingDraw?.game?.code === 'than_tai_4' ? (
+          <div style={{ marginBottom: 16, padding: 14, background: '#fffbeb', borderRadius: 8, border: '1px solid #fde68a' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+              <strong style={{ fontSize: 14, color: '#b45309' }}>
+                Kết quả 4 chữ số Thần Tài (ABCD):
+              </strong>
+              <Button 
+                icon={<SyncOutlined />} 
+                size="small"
+                type="dashed"
+                onClick={() => handleRandomizeEdit(editingDraw?.game)}
+              >
+                Random
+              </Button>
+            </div>
+            <Space size="large">
+              <Form.Item name="tt_1" label="Số 1" style={{ marginBottom: 0 }}>
+                <Input maxLength={1} style={{ width: 65, textAlign: 'center', fontWeight: 'bold', fontSize: 16 }} />
+              </Form.Item>
+              <Form.Item name="tt_2" label="Số 2" style={{ marginBottom: 0 }}>
+                <Input maxLength={1} style={{ width: 65, textAlign: 'center', fontWeight: 'bold', fontSize: 16 }} />
+              </Form.Item>
+              <Form.Item name="tt_3" label="Số 3" style={{ marginBottom: 0 }}>
+                <Input maxLength={1} style={{ width: 65, textAlign: 'center', fontWeight: 'bold', fontSize: 16 }} />
+              </Form.Item>
+              <Form.Item name="tt_4" label="Số 4" style={{ marginBottom: 0 }}>
+                <Input maxLength={1} style={{ width: 65, textAlign: 'center', fontWeight: 'bold', fontSize: 16 }} />
+              </Form.Item>
+            </Space>
+          </div>
+        ) : editingDraw?.game?.code === 'dientoan_123' ? (
+          <div style={{ marginBottom: 16, padding: 14, background: '#f0f9ff', borderRadius: 8, border: '1px solid #bae6fd' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+              <strong style={{ fontSize: 14, color: '#0369a1' }}>
+                Kết quả 3 bộ số Điện toán 1*2*3:
+              </strong>
+              <Button 
+                icon={<SyncOutlined />} 
+                size="small"
+                type="dashed"
+                onClick={() => handleRandomizeEdit(editingDraw?.game)}
+              >
+                Random
+              </Button>
+            </div>
+            <Space size="middle">
+              <Form.Item name="dt123_1" label="Bộ 1 (1 số: 0-9)" style={{ marginBottom: 0 }}>
+                <Input maxLength={1} placeholder="0-9" style={{ width: 110, textAlign: 'center', fontWeight: 'bold', fontSize: 15 }} />
+              </Form.Item>
+              <Form.Item name="dt123_2" label="Bộ 2 (2 số: 00-99)" style={{ marginBottom: 0 }}>
+                <Input maxLength={2} placeholder="00-99" style={{ width: 130, textAlign: 'center', fontWeight: 'bold', fontSize: 15 }} />
+              </Form.Item>
+              <Form.Item name="dt123_3" label="Bộ 3 (3 số: 000-999)" style={{ marginBottom: 0 }}>
+                <Input maxLength={3} placeholder="000-999" style={{ width: 140, textAlign: 'center', fontWeight: 'bold', fontSize: 15 }} />
+              </Form.Item>
+            </Space>
           </div>
         ) : (
           <div style={{ marginBottom: 16 }}>
