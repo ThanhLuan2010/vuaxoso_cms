@@ -111,17 +111,12 @@ const getOrderProvinceName = (record: Order): string => {
 
 const getOrderResult = (record: Order): 'win' | 'lose' | 'pending' | 'cancelled' => {
   if (record.status === 'cancelled') return 'cancelled';
-  if (!record.winningNumbers || record.winningNumbers.length === 0) {
-    if (record.status === 'completed') {
-      if (record.isWinner || (record.prizeAmount && record.prizeAmount > 0)) return 'win';
-      return 'lose';
-    }
-    return 'pending';
+  if (record.status === 'pending') return 'pending';
+  if (record.status === 'completed') {
+    if (record.isWinner || (record.prizeAmount && record.prizeAmount > 0)) return 'win';
+    return 'lose';
   }
-  if (record.isWinner || (record.prizeAmount && record.prizeAmount > 0)) {
-    return 'win';
-  }
-  return 'lose';
+  return 'pending';
 };
 
 interface ItemWinDetails {
@@ -622,11 +617,11 @@ export default function OrderManagement() {
           }
           uTickets++;
           uSales += o.totalCost || 0;
-          if (o.isWinner || (o.prizeAmount && o.prizeAmount > 0)) {
+          if (o.status === 'pending') {
+            uPending++;
+          } else if (o.isWinner || (o.prizeAmount && o.prizeAmount > 0)) {
             uPrize += o.prizeAmount || 0;
             uWin++;
-          } else if (!o.winningNumbers || o.winningNumbers.length === 0) {
-            uPending++;
           } else {
             uLose++;
           }

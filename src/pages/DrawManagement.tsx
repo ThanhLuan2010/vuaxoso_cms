@@ -1,10 +1,10 @@
 import { PlusOutlined, SaveOutlined, SyncOutlined, EditOutlined, DeleteOutlined, ReloadOutlined, CopyOutlined } from '@ant-design/icons';
 import { Alert, Button, DatePicker, Form, Input, Modal, Popconfirm, Select, Space, Table, Tag, Tooltip, Typography, message } from 'antd';
 import useAuthStore from '../store/useAuthStore';
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useState, useMemo, useRef } from 'react';
 import api from '../services/api';
 import dayjs from 'dayjs';
-import { isDerived3MienGame } from '../utils/gameUtils';
+import { isDerived3MienGame, getPeriodicWeeklyDrawTimes } from '../utils/gameUtils';
 
 const { Title } = Typography;
 
@@ -21,6 +21,7 @@ export default function DrawManagement() {
   const [filterDate, setFilterDate] = useState<dayjs.Dayjs | null>(null);
   const [filterStatus, setFilterStatus] = useState<string>('all');
   const [searchCode, setSearchCode] = useState<string>('');
+  const fetchCounterRef = useRef(0);
 
   const [form] = Form.useForm();
   const [ktForm] = Form.useForm();
@@ -98,6 +99,7 @@ export default function DrawManagement() {
   };
 
   const fetchData = async () => {
+    const fetchId = ++fetchCounterRef.current;
     try {
       setLoading(true);
       const params: any = {
@@ -122,6 +124,8 @@ export default function DrawManagement() {
         games.length > 0 ? Promise.resolve({ data: games }) : api.get('/games', { params: { admin: 'true' } }),
         provinces.length > 0 ? Promise.resolve({ data: provinces }) : api.get('/provinces')
       ]);
+
+      if (fetchId !== fetchCounterRef.current) return;
 
       if (drawsRes.data.data) {
         setDraws(drawsRes.data.data);
@@ -191,8 +195,8 @@ export default function DrawManagement() {
       setIsModalOpen(false);
       form.resetFields();
       fetchData();
-    } catch (error) {
-      message.error('Lỗi tạo kỳ quay');
+    } catch (error: any) {
+      message.error(error.response?.data?.message || 'Lỗi tạo kỳ quay');
     } finally {
       setCreatingDraw(false);
     }
@@ -415,7 +419,13 @@ export default function DrawManagement() {
       } else {
         if (values.winningNumbers !== undefined) {
           numbers = values.winningNumbers.split(/[\s,]+/).map((s: string) => s.trim()).filter(Boolean);
-          if (gCode === 'than_tai_4' && numbers.length === 1 && numbers[0].length === 4) {
+          if (gCode === 'bingo18') {
+            if (numbers.length === 1 && numbers[0].length === 3 && /^[1-6]{3}$/.test(numbers[0])) {
+              numbers = numbers[0].split('');
+            } else if (numbers.length > 3) {
+              numbers = numbers.slice(0, 3);
+            }
+          } else if (gCode === 'than_tai_4' && numbers.length === 1 && numbers[0].length === 4) {
             numbers = numbers[0].split('');
           }
         }
@@ -747,7 +757,13 @@ export default function DrawManagement() {
       }
 
       let numbers = winningNumbersInput.split(/[\s,]+/).map(n => n.trim()).filter(Boolean);
-      if (gCode === 'than_tai_4' && numbers.length === 1 && numbers[0].length === 4) {
+      if (gCode === 'bingo18') {
+        if (numbers.length === 1 && numbers[0].length === 3 && /^[1-6]{3}$/.test(numbers[0])) {
+          numbers = numbers[0].split('');
+        } else if (numbers.length > 3) {
+          numbers = numbers.slice(0, 3);
+        }
+      } else if (gCode === 'than_tai_4' && numbers.length === 1 && numbers[0].length === 4) {
         numbers = numbers[0].split('');
       } else if (['max_3d', 'max_3d_pro'].includes(gCode || '')) {
         if (numbers.length < 20) {
@@ -1404,6 +1420,7 @@ export default function DrawManagement() {
   ];
 
   const displayDraws = useMemo(() => {
+    const seen = new Set<string>();
     return draws.filter(d => {
       const isRedundant = isDerived3MienGame(d.game, games);
       if (!showRedundantDraws && isRedundant) return false;
@@ -1418,9 +1435,18 @@ export default function DrawManagement() {
         const q = searchCode.toLowerCase().trim();
         if (!(d.drawCode || '').toLowerCase().includes(q)) return false;
       }
+
+      // Khử trùng lặp hiển thị triệt để: Đảm bảo mỗi (gameId + drawCode + provinceId) chỉ xuất hiện 1 lần duy nhất
+      const gId = typeof d.game === 'object' && d.game ? (d.game._id || d.game.code) : (d.game || '');
+      const uniqueKey = `${d._id || ''}_${gId}_${d.drawCode || ''}_${d.provinceId || ''}`;
+      const businessKey = `${gId}_${d.drawCode || ''}_${d.provinceId || ''}`;
+      if (seen.has(uniqueKey) || seen.has(businessKey)) return false;
+      seen.add(uniqueKey);
+      seen.add(businessKey);
+
       return true;
     });
-}, [draws, games, showRedundantDraws, filterStatus, filterProvinceId, filterDate, searchCode]);
+  }, [draws, games, showRedundantDraws, filterStatus, filterProvinceId, filterDate, searchCode]);
 
 return (
   <div className="cms-page-container">
@@ -1608,7 +1634,7 @@ return (
       scroll={{ y: '100%', x: 1350 }}
       columns={columns}
       dataSource={displayDraws}
-      rowKey="_id"
+      rowKey={(record) => record._id || `${record.game?._id || record.game}_${record.drawCode}_${record.closeTime}`}
       loading={loading}
       rowSelection={canDeleteDraw ? {
         selectedRowKeys,
@@ -1680,12 +1706,36 @@ return (
                   closeTime = now.isAfter(closeCandidate) ? closeCandidate.add(1, 'day') : closeCandidate;
                   openTime = closeTime.subtract(1, 'day');
                   drawTime = closeTime.clone().hour(18).minute(15).second(0);
+                } else if (game.code === 'power_655') {
+                  // Power 6/55: Thứ 3,5,7 - 17h20 chốt, 18h xổ
+                  const times = getPeriodicWeeklyDrawTimes(now, [2, 4, 6]);
+                  openTime = times.openTime;
+                  closeTime = times.closeTime;
+                  drawTime = times.drawTime;
+                } else if (game.code === 'mega_645') {
+                  // Mega 6/45: Thứ 4,6,chủ nhật - 17h20 chốt, 18h xổ
+                  const times = getPeriodicWeeklyDrawTimes(now, [3, 5, 0]);
+                  openTime = times.openTime;
+                  closeTime = times.closeTime;
+                  drawTime = times.drawTime;
+                } else if (game.code === 'max_3d' || game.code === 'max_3d_plus') {
+                  // Max3D/3D+: Thứ 2,4,6 - 17h20 chốt, 18h xổ
+                  const times = getPeriodicWeeklyDrawTimes(now, [1, 3, 5]);
+                  openTime = times.openTime;
+                  closeTime = times.closeTime;
+                  drawTime = times.drawTime;
+                } else if (game.code === 'max_3d_pro') {
+                  // Max3D Pro: Thứ 3,5,7 - 17h20 chốt, 18h xổ
+                  const times = getPeriodicWeeklyDrawTimes(now, [2, 4, 6]);
+                  openTime = times.openTime;
+                  closeTime = times.closeTime;
+                  drawTime = times.drawTime;
                 } else if (game.code === 'dientoan_636') {
-                  // ĐIỆN TOÁN 6X36: Đóng 17h20, Xổ 18h15
-                  const closeCandidate = now.hour(17).minute(20).second(0);
-                  closeTime = now.isAfter(closeCandidate) ? closeCandidate.add(1, 'day') : closeCandidate;
-                  openTime = closeTime.subtract(1, 'day');
-                  drawTime = closeTime.clone().hour(18).minute(15).second(0);
+                  // ĐIỆN TOÁN 6X36: Thứ 4,7 - 17h20 chốt, 18h xổ
+                  const times = getPeriodicWeeklyDrawTimes(now, [3, 6]);
+                  openTime = times.openTime;
+                  closeTime = times.closeTime;
+                  drawTime = times.drawTime;
                 } else if (game.code === 'bingo18' || game.code.includes('keno')) {
                   const duration = game.drawDurationMinutes || 8;
                   closeTime = now.add(duration, 'minute');

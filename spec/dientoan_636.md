@@ -2,7 +2,7 @@
 
 ## 1. TỔNG QUAN
 - **Mã game**: `dientoan_636`, `bao_636`.
-- **Lịch quay**: Thứ Tư và Thứ Bảy hàng tuần lúc 18:15.
+- **Lịch quay**: Thứ Tư và Thứ Bảy hàng tuần - 17h20 chốt, 18h00 xổ (giờ mở bán kỳ tiếp theo bằng giờ đóng kỳ hiện tại).
 - **Quy luật quay thưởng**: Mỗi kỳ quay chọn **6 quả bóng** ngẫu nhiên từ tập hợp **01 đến 36** (không trùng lặp).
 
 ---
