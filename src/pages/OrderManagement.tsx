@@ -219,17 +219,34 @@ const getOrderWinningNumbers = (order: any, drawMap?: Record<string, any>): stri
   if (order.draw && Array.isArray(order.draw.winningNumbers) && order.draw.winningNumbers.length > 0) {
     return order.draw.winningNumbers.map(String);
   }
-  if (typeof order.drawId === 'string' && drawMap && drawMap[order.drawId]?.winningNumbers) {
-    const w = drawMap[order.drawId].winningNumbers;
-    if (Array.isArray(w)) return w.map(String);
+  if (drawMap) {
+    const keysToCheck = [
+      order.drawId,
+      order.drawCode,
+      typeof order.drawId === 'string' ? order.drawId.replace(/^#/, '') : null,
+      typeof order.drawCode === 'string' ? order.drawCode.replace(/^#/, '') : null,
+    ].filter(Boolean);
+    for (const k of keysToCheck) {
+      if (drawMap[k]?.winningNumbers && Array.isArray(drawMap[k].winningNumbers)) {
+        return drawMap[k].winningNumbers.map(String);
+      }
+    }
   }
   return [];
 };
 
-const isNumberMatchCMS = (n: string, gameType?: string, wNumbers?: string[]) => {
+const isNumberMatchCMS = (n: string, gameType?: string, wNumbers?: string[]): boolean => {
   if (!wNumbers || wNumbers.length === 0) return false;
   const cleanN = String(n || '').trim();
   if (!cleanN) return false;
+
+  // Nếu là bộ số xiên kết hợp bằng '&'
+  if (cleanN.includes('&')) {
+    const parts = cleanN.split('&').map(s => s.trim()).filter(Boolean);
+    if (parts.length > 0) {
+      return parts.every(p => isNumberMatchCMS(p, gameType, wNumbers));
+    }
+  }
 
   // 1. Khớp hoàn toàn
   if (wNumbers.includes(cleanN)) return true;
@@ -610,6 +627,12 @@ export default function OrderManagement() {
         const map: Record<string, any> = {};
         list.forEach((d: any) => {
           if (d._id) map[d._id] = d;
+          if (d.drawCode) {
+            map[d.drawCode] = d;
+            const raw = String(d.drawCode).replace(/^#/, '');
+            map[raw] = d;
+            map[`#${raw}`] = d;
+          }
         });
         setDrawMap(map);
       } catch (err) {
@@ -1090,25 +1113,99 @@ export default function OrderManagement() {
       title: 'Dãy số',
       key: 'numbers',
       render: (_: any, record: any) => {
-        const renderNumbers = (nums: string[]) => {
+        const wNumbers = getOrderWinningNumbers(record, drawMap);
+        const hasWinningNumbers = wNumbers && wNumbers.length > 0;
+
+        const renderTag = (n: string, i: number) => {
+          const isWinNum = hasWinningNumbers && isNumberMatchCMS(n, record.gameType, wNumbers);
+          return (
+            <Tag
+              key={i}
+              color={isWinNum ? 'error' : 'blue'}
+              style={{
+                marginInlineEnd: 2,
+                fontWeight: isWinNum ? 700 : 400,
+                backgroundColor: isWinNum ? '#ff4d4f' : undefined,
+                color: isWinNum ? '#ffffff' : undefined,
+                borderColor: isWinNum ? '#ff4d4f' : undefined,
+              }}
+            >
+              {n}
+            </Tag>
+          );
+        };
+
+        const renderNumbers = (nums: string[], item?: any) => {
           if (!nums || nums.length === 0) return null;
+          const isItemWon = item ? checkItemIsWinningCMS(item, record, wNumbers) : (record.isWinner === true);
+
           if (nums.length <= 3) {
-            return nums.map((n: string, i: number) => (
-              <Tag key={i} color="blue" style={{ marginInlineEnd: 2 }}>{n}</Tag>
-            ));
+            return (
+              <>
+                {nums.map((n, i) => renderTag(n, i))}
+                {isItemWon && (
+                  <Tag
+                    color="error"
+                    style={{
+                      fontWeight: 800,
+                      fontSize: 10,
+                      padding: '0 4px',
+                      marginInlineStart: 2,
+                      backgroundColor: '#ff4d4f',
+                      color: '#fff',
+                      borderColor: '#ff4d4f'
+                    }}
+                  >
+                    TRÚNG
+                  </Tag>
+                )}
+              </>
+            );
           }
+
           const displayNums = nums.slice(0, 3);
           const hiddenCount = nums.length - 3;
+          const hitCount = hasWinningNumbers ? nums.filter(n => isNumberMatchCMS(n, record.gameType, wNumbers)).length : 0;
+
           return (
             <>
-              {displayNums.map((n: string, i: number) => (
-                <Tag key={i} color="blue" style={{ marginInlineEnd: 2 }}>{n}</Tag>
-              ))}
-              <Popover 
-                content={<div style={{ maxWidth: 300, display: 'flex', flexWrap: 'wrap', gap: 4 }}>{nums.map((n, i) => <Tag key={i} color="blue">{n}</Tag>)}</div>} 
-                title="Tất cả số đã chọn"
+              {displayNums.map((n: string, i: number) => renderTag(n, i))}
+              {isItemWon && (
+                <Tag
+                  color="error"
+                  style={{
+                    fontWeight: 800,
+                    fontSize: 10,
+                    padding: '0 4px',
+                    marginInlineStart: 2,
+                    backgroundColor: '#ff4d4f',
+                    color: '#fff',
+                    borderColor: '#ff4d4f'
+                  }}
+                >
+                  TRÚNG
+                </Tag>
+              )}
+              <Popover
+                content={
+                  <div style={{ maxWidth: 330, maxHeight: 360, overflowY: 'auto', display: 'flex', flexWrap: 'wrap', gap: 4, padding: '4px 0' }}>
+                    {nums.map((n: string, i: number) => renderTag(n, i))}
+                  </div>
+                }
+                title={
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
+                    <span>Tất cả số đã chọn ({nums.length} số)</span>
+                    {hitCount > 0 && (
+                      <Tag color="error" style={{ margin: 0, fontWeight: 700, backgroundColor: '#ff4d4f', color: '#fff', borderColor: '#ff4d4f' }}>
+                        Trúng {hitCount} số
+                      </Tag>
+                    )}
+                  </div>
+                }
               >
-                <Tag color="cyan" style={{ cursor: 'pointer', marginInlineEnd: 2 }}>+ {hiddenCount} số nữa...</Tag>
+                <Tag color="cyan" style={{ cursor: 'pointer', marginInlineEnd: 2 }}>
+                  + {hiddenCount} số nữa...
+                </Tag>
               </Popover>
             </>
           );
@@ -1121,9 +1218,9 @@ export default function OrderManagement() {
           return (
             <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '4px 8px' }}>
               {displayItems.map((item: any, idx: number) => (
-                <div key={idx} style={{ display: 'flex', alignItems: 'center' }}>
+                <div key={idx} style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap' }}>
                   <strong style={{ marginRight: 4 }}>{item.id || String.fromCharCode(65 + idx)}:</strong>
-                  {renderNumbers(item.numbers)}
+                  {renderNumbers(item.numbers, item)}
                 </div>
               ))}
               {hiddenCount > 0 && (
@@ -1368,7 +1465,7 @@ export default function OrderManagement() {
           <Col span={6}>
             <Card bordered={false}>
               <Statistic
-                title="Tổng tiền bán ra"
+                title="Tổng cược"
                 value={summaryData.totalSales}
                 suffix="đ"
                 valueStyle={{ color: '#3f8600' }}
@@ -1378,7 +1475,7 @@ export default function OrderManagement() {
           <Col span={6}>
             <Card bordered={false}>
               <Statistic
-                title="Tổng tiền khách thắng"
+                title="Tổng thắng"
                 value={summaryData.totalPrize}
                 suffix="đ"
                 valueStyle={{ color: '#cf1322' }}
@@ -1388,7 +1485,7 @@ export default function OrderManagement() {
           <Col span={6}>
             <Card bordered={false}>
               <Statistic
-                title="Tổng tiền khách thua"
+                title="Lợi nhuận"
                 value={summaryData.totalLoss}
                 suffix="đ"
                 valueStyle={{ color: '#d48806' }}
@@ -1616,7 +1713,7 @@ export default function OrderManagement() {
               <Col span={6}>
                 <Card bordered={false} style={{ background: '#fff', borderRadius: 6, boxShadow: '0 1px 2px rgba(0,0,0,0.04)' }}>
                   <Statistic
-                    title={<span style={{ fontWeight: 600, color: '#475569' }}>Tổng tiền bán ra</span>}
+                    title={<span style={{ fontWeight: 600, color: '#475569' }}>Tổng cược</span>}
                     value={userSummaryData ? userSummaryData.totalSales : 0}
                     suffix="đ"
                     valueStyle={{ color: '#3f8600', fontWeight: 700 }}
@@ -1626,7 +1723,7 @@ export default function OrderManagement() {
               <Col span={6}>
                 <Card bordered={false} style={{ background: '#fff', borderRadius: 6, boxShadow: '0 1px 2px rgba(0,0,0,0.04)' }}>
                   <Statistic
-                    title={<span style={{ fontWeight: 600, color: '#475569' }}>Tổng tiền khách thắng</span>}
+                    title={<span style={{ fontWeight: 600, color: '#475569' }}>Tổng thắng</span>}
                     value={userSummaryData ? userSummaryData.totalPrize : 0}
                     suffix="đ"
                     valueStyle={{ color: '#cf1322', fontWeight: 700 }}
@@ -1636,7 +1733,7 @@ export default function OrderManagement() {
               <Col span={6}>
                 <Card bordered={false} style={{ background: '#fff', borderRadius: 6, boxShadow: '0 1px 2px rgba(0,0,0,0.04)' }}>
                   <Statistic
-                    title={<span style={{ fontWeight: 600, color: '#475569' }}>Tổng tiền khách thua</span>}
+                    title={<span style={{ fontWeight: 600, color: '#475569' }}>Lợi nhuận</span>}
                     value={userSummaryData ? userSummaryData.totalLoss : 0}
                     suffix="đ"
                     valueStyle={{ 
@@ -1875,7 +1972,7 @@ export default function OrderManagement() {
 
                           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginTop: 6 }}>
                             {itemNumbers.map((n: string, i: number) => {
-                              const isWinNum = isWinningItem || isNumberMatchCMS(n, selectedTicketOrder.gameType, wNumbers);
+                              const isWinNum = isNumberMatchCMS(n, selectedTicketOrder.gameType, wNumbers);
                               return (
                                 <Tag
                                   key={i}
@@ -1884,6 +1981,9 @@ export default function OrderManagement() {
                                     fontWeight: isWinNum ? 'bold' : 'normal',
                                     fontSize: isWinNum ? '14px' : '13px',
                                     padding: isWinNum ? '2px 8px' : '0 7px',
+                                    backgroundColor: isWinNum ? '#ff4d4f' : undefined,
+                                    color: isWinNum ? '#fff' : undefined,
+                                    borderColor: isWinNum ? '#ff4d4f' : undefined,
                                   }}
                                 >
                                   {n}
@@ -1908,7 +2008,7 @@ export default function OrderManagement() {
                   ) : (
                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
                       {(Array.isArray(selectedTicketOrder.numbers) ? selectedTicketOrder.numbers.flatMap((n: any) => String(n).trim().split(/\s+/)).filter(Boolean) : []).map((n: string, i: number) => {
-                        const isWinNum = isOrderWon || isNumberMatchCMS(n, selectedTicketOrder.gameType, wNumbers);
+                        const isWinNum = isNumberMatchCMS(n, selectedTicketOrder.gameType, wNumbers);
                         return (
                           <Tag
                             key={i}
@@ -1917,6 +2017,9 @@ export default function OrderManagement() {
                               fontWeight: isWinNum ? 'bold' : 'normal',
                               fontSize: isWinNum ? '14px' : '13px',
                               padding: isWinNum ? '2px 8px' : '0 7px',
+                              backgroundColor: isWinNum ? '#ff4d4f' : undefined,
+                              color: isWinNum ? '#fff' : undefined,
+                              borderColor: isWinNum ? '#ff4d4f' : undefined,
                             }}
                           >
                             {n}
